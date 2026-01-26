@@ -1,16 +1,35 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Storage;
 
+/*
+|--------------------------------------------------------------------------
+| Web Routes
+|--------------------------------------------------------------------------
+| SOLO vistas y SPA
+| NUNCA lógica de autenticación
+*/
 
-
-// Página principal
-Route::get('/', function () {
-    return view('app');
+// ==========================
+// DIAGNÓSTICO (opcional)
+// ==========================
+Route::get('/test-disco', function () {
+    Storage::disk('public')->put('prueba.txt', 'OK');
+    return 'OK';
 });
 
-// Fallback SPA (excluye /api)
+// ==========================
+// LOGIN VISUAL (SPA)
+// ==========================
+Route::get('/login', function () {
+    return view('app'); // React maneja el login
+})->name('login');
+
+// ==========================
+// SPA (React)
+// ==========================
+// SIEMPRE AL FINAL
 Route::get('/{any}', function () {
     return view('app');
-})->where('any', '^(?!api).*$');
-
+})->where('any', '^(?!api).*');

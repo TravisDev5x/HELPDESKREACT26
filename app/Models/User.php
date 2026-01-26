@@ -5,30 +5,43 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use App\Models\Role;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Spatie\Permission\Traits\HasRoles;
 
-class User extends Authenticatable
+class User extends Authenticatable implements MustVerifyEmail
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable, SoftDeletes;
+    use HasFactory, Notifiable, SoftDeletes, HasRoles;
 
     /**
      * The attributes that are mass assignable.
      *
-     * @var list<string>
+     * IMPORTANT: Use *_id because these are foreign keys.
      */
     protected $fillable = [
         'name',
         'email',
         'password',
+        'employee_number',
+        'phone',
+        'campaign_id',
+        'area_id',
+        'position_id',
+        'sede_id',
+        'ubicacion_id',
+        'avatar_path',
+        'status',
+        'theme',
+        'ui_density',
+        'sidebar_state',
+        'sidebar_hover_preview',
+        'locale',
     ];
 
     /**
      * The attributes that should be hidden for serialization.
-     *
-     * @var list<string>
      */
     protected $hidden = [
         'password',
@@ -36,9 +49,7 @@ class User extends Authenticatable
     ];
 
     /**
-     * The attributes that should be cast.
-     *
-     * @return array<string, string>
+     * Get the attributes that should be cast.
      */
     protected function casts(): array
     {
@@ -48,11 +59,28 @@ class User extends Authenticatable
         ];
     }
 
-    /**
-     * Roles asignados al usuario
-     */
-    public function roles(): BelongsToMany
+    public function campaign(): BelongsTo
     {
-        return $this->belongsToMany(Role::class);
+        return $this->belongsTo(Campaign::class);
+    }
+
+    public function area(): BelongsTo
+    {
+        return $this->belongsTo(Area::class);
+    }
+
+    public function position(): BelongsTo
+    {
+        return $this->belongsTo(Position::class);
+    }
+
+    public function sede(): BelongsTo
+    {
+        return $this->belongsTo(Sede::class);
+    }
+
+    public function ubicacion(): BelongsTo
+    {
+        return $this->belongsTo(Ubicacion::class);
     }
 }

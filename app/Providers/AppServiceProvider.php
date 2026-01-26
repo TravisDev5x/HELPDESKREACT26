@@ -3,6 +3,10 @@
 namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Support\Facades\Gate;
+use App\Models\Ticket;
+use App\Policies\TicketPolicy;
+use Illuminate\Support\Facades\Event;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -19,6 +23,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        Gate::policy(Ticket::class, TicketPolicy::class);
+
+        Event::listen(\App\Events\TicketCreated::class, \App\Listeners\SendTicketNotification::class);
+        Event::listen(\App\Events\TicketUpdated::class, \App\Listeners\SendTicketNotification::class);
     }
 }

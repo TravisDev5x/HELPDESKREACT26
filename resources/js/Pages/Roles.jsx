@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import axios from "@/lib/axios";
 import { Button } from "@/components/ui/button";
 import {
     Dialog,
@@ -17,8 +18,23 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
+import { toast } from "@/hooks/use-toast";
+import { useAuth } from "@/context/AuthContext";
+
+// Helper de errores de auth
+const handleAuthError = (error) => {
+    const status = error?.response?.status;
+    if (status === 401 || status === 419) {
+        window.location.href = "/login";
+        return true;
+    }
+    return false;
+};
 
 export default function Roles() {
+    const { can } = useAuth();
+    const canManageRoles = can("roles.manage");
+
     // -----------------------------
     // State
     // -----------------------------
@@ -38,15 +54,14 @@ export default function Roles() {
     // Fetch roles (GET)
     // -----------------------------
     useEffect(() => {
-        fetch("/api/roles")
-            .then((r) => {
-                if (!r.ok) throw new Error("Error al cargar roles");
-                return r.json();
-            })
-            .then(setRoles)
+        axios
+            .get("/api/roles")
+            .then((res) => setRoles(res.data))
             .catch((err) => {
                 console.error(err);
-                alert("No se pudieron cargar los roles");
+                if (!handleAuthError(err)) {
+                    toast({ description: "No se pudieron cargar los roles", variant: "destructive" });
+                }
             })
             .finally(() => setLoading(false));
     }, []);
@@ -56,30 +71,23 @@ export default function Roles() {
     // -----------------------------
     async function onCreateRole(e) {
         e.preventDefault();
-        if (!canSave) return;
+        if (!canManageRoles || !canSave) return;
 
         setSaving(true);
 
         try {
-            const response = await fetch("/api/roles", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ name }),
-            });
-
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.message || "Error al crear rol");
-            }
-
-            const role = await response.json();
-            setRoles((prev) => [role, ...prev]);
+            // axios ya maneja CSRF (XSRF-TOKEN) al estar logueado
+            const { data } = await axios.post("/api/roles", { name });
+            setRoles((prev) => [data, ...prev]);
 
             setName("");
             setOpen(false);
         } catch (err) {
             console.error(err);
-            alert(err.message || "No se pudo crear el rol");
+            if (!handleAuthError(err)) {
+                const message = err?.response?.data?.message || err.message || "No se pudo crear el rol";
+                toast({ description: message, variant: "destructive" });
+            }
         } finally {
             setSaving(false);
         }
@@ -89,22 +97,20 @@ export default function Roles() {
     // Delete role (DELETE)
     // -----------------------------
     async function onDeleteRole(id) {
+        if (!canManageRoles) return;
         const ok = confirm("¿Eliminar este rol?");
         if (!ok) return;
 
         try {
-            const response = await fetch(`/api/roles/${id}`, {
-                method: "DELETE",
-            });
-
-            if (!response.ok) {
-                throw new Error("Error al eliminar rol");
-            }
+            await axios.delete(`/api/roles/${id}`);
 
             setRoles((prev) => prev.filter((r) => r.id !== id));
+            toast({ description: "Rol eliminado correctamente" });
         } catch (err) {
             console.error(err);
-            alert("No se pudo eliminar el rol");
+            if (!handleAuthError(err)) {
+                toast({ description: "No se pudo eliminar el rol", variant: "destructive" });
+            }
         }
     }
 
@@ -127,10 +133,10 @@ export default function Roles() {
                 {/* Create Role Dialog */}
                 <Dialog open={open} onOpenChange={setOpen}>
                     <DialogTrigger asChild>
-                        <Button>Crear rol</Button>
+                        <Button disabled={!canManageRoles}>Crear rol</Button>
                     </DialogTrigger>
 
-                    <DialogContent className="sm:max-w-md">
+                    <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
                         <DialogHeader>
                             <DialogTitle>Nuevo rol</DialogTitle>
                         </DialogHeader>
@@ -142,8 +148,9 @@ export default function Roles() {
                                     id="role-name"
                                     value={name}
                                     onChange={(e) => setName(e.target.value)}
-                                    placeholder="Ej. Admin, Editor, Soporte…"
+                                    placeholder="Ej. Admin, Editor, Soporte..."
                                     autoFocus
+                                    disabled={!canManageRoles}
                                 />
                                 <p className="text-xs text-muted-foreground">
                                     Mínimo 3 caracteres. El slug se genera en el
@@ -159,15 +166,16 @@ export default function Roles() {
                                         setOpen(false);
                                         setName("");
                                     }}
+                                    disabled={!canManageRoles}
                                 >
                                     Cancelar
                                 </Button>
 
                                 <Button
                                     type="submit"
-                                    disabled={!canSave || saving}
+                                    disabled={!canManageRoles || !canSave || saving}
                                 >
-                                    {saving ? "Guardando…" : "Crear"}
+                                    {saving ? "Guardando..." : "Crear"}
                                 </Button>
                             </div>
                         </form>
@@ -197,7 +205,7 @@ export default function Roles() {
                                     colSpan={5}
                                     className="text-center text-muted-foreground py-10"
                                 >
-                                    Cargando roles…
+                                    Cargando roles...
                                 </TableCell>
                             </TableRow>
                         ) : roles.length === 0 ? (
@@ -228,9 +236,8 @@ export default function Roles() {
                                         <Button
                                             variant="destructive"
                                             size="sm"
-                                            onClick={() =>
-                                                onDeleteRole(role.id)
-                                            }
+                                            onClick={() => onDeleteRole(role.id)}
+                                            disabled={!canManageRoles}
                                         >
                                             Eliminar
                                         </Button>
@@ -244,3 +251,4 @@ export default function Roles() {
         </div>
     );
 }
+

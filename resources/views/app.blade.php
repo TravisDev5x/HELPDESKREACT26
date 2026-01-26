@@ -1,14 +1,33 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Laravel React Shadcn</title>
+  <script>
+    (function () {
+      try {
+        const storedTheme = localStorage.getItem('theme');
+        const storedLocale = localStorage.getItem('locale');
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const theme = storedTheme || (prefersDark ? 'dark' : 'light');
+        const THEMES = ['light','light-dim','dark','dark-deep','aeroglass','aeroglass-dark'];
+        const root = document.documentElement;
+        root.dataset.themeInit = '1';
+        THEMES.forEach(t => root.classList.remove(t));
+        root.classList.add(theme);
+        root.style.colorScheme = theme.includes('dark') ? 'dark' : 'light';
+        if (storedLocale) root.lang = storedLocale;
+      } catch (e) {}
+    })();
+  </script>
 
-    @viteReactRefresh
-    @vite('resources/js/app.jsx')
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HelpDesk Enterprise</title>
+
+  @viteReactRefresh
+  @vite('resources/js/app.jsx')
 </head>
-<body class="min-h-screen bg-background text-foreground">
-    <div id="app"></div>
+
+<body>
+  <div id="app"></div>
 </body>
 </html>

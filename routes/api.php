@@ -1,17 +1,188 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\AuthController;
 use App\Http\Controllers\Api\RoleController;
+use App\Http\Controllers\Api\CampaignController;
+use App\Http\Controllers\Api\AreaController;
+use App\Http\Controllers\Api\PositionController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\UserRoleController;
+use App\Http\Controllers\Api\CatalogController;
+use App\Http\Controllers\Api\ProfileController;
+use App\Http\Controllers\Api\PasswordResetController;
+use App\Http\Controllers\Api\AdminNotificationController;
+use App\Http\Controllers\Api\PermissionController;
+use App\Http\Controllers\Api\RolePermissionController;
 
-// Roles
-Route::apiResource('roles', RoleController::class)
-    ->only(['index', 'store', 'destroy']);
+/*
+|--------------------------------------------------------------------------
+| API Routes
+|--------------------------------------------------------------------------
+*/
 
-// Users
-Route::apiResource('users', UserController::class)
-    ->only(['index', 'store', 'destroy']);
+// ==========================
+// AUTH
+// ==========================
 
-// Asignar roles a usuario
-Route::post('users/{user}/roles', [UserRoleController::class, 'sync']);
+Route::post('login', [AuthController::class, 'login'])
+    ->middleware(['throttle:10,1','locale']);
+Route::post('register', [AuthController::class, 'register'])
+    ->middleware(['throttle:5,1','locale']);
+Route::get('register/verify', [AuthController::class, 'verifyEmail']);
+Route::post('logout', [AuthController::class, 'logout'])
+    ->middleware(['auth:sanctum','locale']);
+Route::get('check-auth', [AuthController::class, 'checkAuth'])
+    ->middleware(['auth:sanctum','locale']);
+
+// PASSWORD RESET
+Route::post('password/forgot', [PasswordResetController::class, 'forgot'])
+    ->middleware(['throttle:5,1','locale']);
+Route::post('password/reset', [PasswordResetController::class, 'reset'])
+    ->middleware(['throttle:10,1','locale']);
+
+
+// ==========================
+// USUARIOS
+// ==========================
+
+Route::middleware(['auth:sanctum','locale','perm:users.manage'])->group(function () {
+
+    Route::post('users/mass-delete', [UserController::class, 'massDestroy'])
+        ->middleware('throttle:5,1');
+
+    Route::post('users/blacklist', [UserController::class, 'toggleBlacklist'])
+        ->middleware('throttle:5,1');
+
+    Route::post('users/{id}/restore', [UserController::class, 'restore'])
+        ->middleware('throttle:10,1');
+
+    Route::delete('users/{id}/force', [UserController::class, 'forceDelete'])
+        ->middleware('throttle:5,1');
+
+    Route::apiResource('users', UserController::class)
+        ->only(['index', 'store', 'update', 'destroy']);
+
+});
+
+
+// ==========================
+// ROLES
+// ==========================
+
+// Roles: GET accesible con auth; mutaciones requieren roles.manage
+Route::middleware(['auth:sanctum','locale'])->get('roles', [RoleController::class, 'index']);
+Route::middleware(['auth:sanctum','locale','perm:roles.manage'])->group(function () {
+    Route::apiResource('roles', RoleController::class)
+        ->only(['store', 'update', 'destroy']);
+    Route::post('roles/{role}/permissions', [RolePermissionController::class, 'sync']);
+});
+
+// ==========================
+// PERMISOS
+// ==========================
+
+// Permisos: GET accesible con auth; mutaciones requieren permisos.manage o roles.manage
+Route::middleware(['auth:sanctum','locale'])->get('permissions', [PermissionController::class, 'index']);
+Route::middleware(['auth:sanctum','locale','perm:permissions.manage|roles.manage'])->group(function () {
+    Route::apiResource('permissions', PermissionController::class)
+        ->only(['store', 'update', 'destroy']);
+});
+
+// ==========================
+// CAMPAÑAS
+// ==========================
+
+Route::middleware(['auth:sanctum','locale','perm:catalogs.manage'])->group(function () {
+    Route::apiResource('campaigns', CampaignController::class)
+        ->only(['index', 'store', 'update', 'destroy']);
+    Route::apiResource('sedes', \App\Http\Controllers\Api\SedeController::class)
+        ->only(['index', 'store', 'update', 'destroy']);
+    Route::apiResource('ubicaciones', \App\Http\Controllers\Api\UbicacionController::class)
+        ->only(['index', 'store', 'update', 'destroy']);
+    Route::apiResource('priorities', \App\Http\Controllers\Api\PriorityController::class)
+        ->only(['index', 'store', 'update', 'destroy']);
+    Route::apiResource('ticket-states', \App\Http\Controllers\Api\TicketStateController::class)
+        ->only(['index', 'store', 'update', 'destroy']);
+    Route::apiResource('ticket-types', \App\Http\Controllers\Api\TicketTypeController::class)
+        ->only(['index', 'store', 'update', 'destroy']);
+});
+
+// Tickets: acceso con auth + permisos especÃ­ficos (Policies refuerzan alcance)
+Route::middleware(['auth:sanctum','locale','perm:tickets.manage_all|tickets.view_area|tickets.view_own|tickets.create'])->group(function () {
+    // Analytics debe declararse antes de los params {ticket} para evitar binding
+    Route::get('tickets/analytics', \App\Http\Controllers\Api\TicketAnalyticsController::class);
+    Route::get('tickets/export', [\App\Http\Controllers\Api\TicketController::class, 'export']);
+    Route::post('tickets/{ticket}/take', [\App\Http\Controllers\Api\TicketController::class, 'take']);
+    Route::post('tickets/{ticket}/assign', [\App\Http\Controllers\Api\TicketController::class, 'assign']);
+    Route::post('tickets/{ticket}/unassign', [\App\Http\Controllers\Api\TicketController::class, 'unassign']);
+    Route::post('tickets/{ticket}/escalate', [\App\Http\Controllers\Api\TicketController::class, 'escalate']);
+    Route::apiResource('tickets', \App\Http\Controllers\Api\TicketController::class)
+        ->only(['index', 'store', 'update', 'show']);
+});
+
+// Notificaciones (in-app, sólo lectura)
+Route::middleware(['auth:sanctum','locale'])->group(function () {
+    Route::get('notifications', [\App\Http\Controllers\Api\NotificationController::class, 'index']);
+    Route::post('notifications/read-all', [\App\Http\Controllers\Api\NotificationController::class, 'readAll']);
+});
+
+// ==========================
+// AREAS
+// ==========================
+
+Route::middleware(['auth:sanctum','locale','perm:catalogs.manage'])->group(function () {
+    Route::apiResource('areas', AreaController::class)
+        ->only(['index', 'store', 'update', 'destroy']);
+});
+
+// ==========================
+// PUESTOS
+// ==========================
+
+Route::middleware(['auth:sanctum','locale','perm:catalogs.manage'])->group(function () {
+    Route::apiResource('positions', PositionController::class)
+        ->only(['index', 'store', 'update', 'destroy']);
+});
+
+
+// ==========================
+// ASIGNACIONES
+// ==========================
+
+Route::middleware(['auth:sanctum','locale','perm:users.manage'])->group(function () {
+    Route::post('users/{user}/roles', [UserRoleController::class, 'sync']);
+});
+
+
+// ==========================
+// CATÁLOGOS
+// ==========================
+
+// CatÃ¡logos leÃ­dos por la UI (solo lectura, cualquier usuario autenticado)
+Route::get('catalogs', [CatalogController::class, 'index'])
+    ->middleware(['auth:sanctum','locale']);
+
+
+// ==========================
+// PERFIL
+// ==========================
+
+Route::middleware(['auth:sanctum','locale'])->group(function () {
+
+    Route::get('profile', [ProfileController::class, 'show']);
+    Route::post('profile', [ProfileController::class, 'update']);
+    Route::put('profile/password', [ProfileController::class, 'updatePassword']);
+    Route::put('profile/theme', [ProfileController::class, 'updateTheme']);
+    Route::put('profile/density', [ProfileController::class, 'updateDensity']);
+    Route::put('profile/sidebar', [ProfileController::class, 'updateSidebar']);
+    Route::put('profile/preferences', [ProfileController::class, 'updatePreferences']);
+
+    // Admin notifications (básico)
+    Route::middleware('perm:notifications.manage')->group(function () {
+        Route::get('admin/notifications', [AdminNotificationController::class, 'index']);
+        Route::post('admin/notifications/{id}/read', [AdminNotificationController::class, 'markRead']);
+        Route::post('admin/notifications/{id}/resolve-password', [AdminNotificationController::class, 'resolvePasswordReset']);
+    });
+
+});

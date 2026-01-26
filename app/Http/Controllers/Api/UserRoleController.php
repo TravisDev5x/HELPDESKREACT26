@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Models\Role;
 use Illuminate\Http\Request;
 
 class UserRoleController extends Controller
@@ -16,10 +17,12 @@ class UserRoleController extends Controller
     {
         $data = $request->validate([
             'roles' => ['array'],
-            'roles.*' => ['exists:roles,id'],
+            'roles.*' => ['exists:roles,id,deleted_at,NULL'],
         ]);
 
-        $user->roles()->sync($data['roles'] ?? []);
+        $roleIds = $data['roles'] ?? [];
+        $roles = $roleIds ? Role::whereIn('id', $roleIds)->get() : [];
+        $user->syncRoles($roles);
 
         return response()->noContent();
     }

@@ -1,3 +1,460 @@
-@tailwinnd base;
-@tailwind components;
-@tailwind utilities;
+﻿/* resources/css/app.css */
+@import "tailwindcss";
+@config "../../tailwind.config.js";
+
+/* ===== shadcn tokens ===== */
+:root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
+
+    --radius: 0.75rem;
+}
+
+.light {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
+}
+
+.light-dim {
+    --background: 210 16% 93%;
+    --foreground: 215 20% 18%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 215 20% 18%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 215 20% 18%;
+
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 215 20% 92%;
+    --secondary-foreground: 215 20% 18%;
+
+    --muted: 215 20% 90%;
+    --muted-foreground: 215 15% 35%;
+
+    --accent: 215 20% 90%;
+    --accent-foreground: 215 20% 18%;
+
+    --destructive: 0 72% 55%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 215 20% 82%;
+    --input: 215 20% 82%;
+    --ring: 215 20% 18%;
+}
+
+.dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+
+    --card: 222.2 84% 6.5%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217.2 32.6% 22%;
+    --input: 217.2 32.6% 22%;
+    --ring: 212.7 26.8% 83.9%;
+}
+
+.dark-deep {
+    --background: 220 25% 6%;
+    --foreground: 210 40% 96%;
+
+    --card: 220 25% 10%;
+    --card-foreground: 210 40% 96%;
+
+    --popover: 220 25% 8%;
+    --popover-foreground: 210 40% 96%;
+
+    --primary: 210 60% 70%;
+    --primary-foreground: 220 30% 10%;
+
+    --secondary: 220 18% 12%;
+    --secondary-foreground: 210 40% 90%;
+
+    --muted: 220 18% 14%;
+    --muted-foreground: 210 12% 70%;
+
+    --accent: 220 18% 14%;
+    --accent-foreground: 210 40% 90%;
+
+    --destructive: 0 65% 45%;
+    --destructive-foreground: 210 40% 96%;
+
+    --border: 220 18% 22%;
+    --input: 220 18% 22%;
+    --ring: 210 40% 80%;
+}
+
+.aeroglass {
+    --background: 210 30% 97%;
+    --foreground: 220 30% 14%;
+
+    --card: 210 35% 99%;
+    --card-foreground: 220 30% 14%;
+
+    --popover: 210 35% 99%;
+    --popover-foreground: 220 30% 14%;
+
+    --primary: 210 85% 44%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 210 28% 93%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+
+    --muted: 210 26% 91%;
+    --muted-foreground: 215 18% 38%;
+
+    --accent: 205 72% 91%;
+    --accent-foreground: 215 28% 20%;
+
+    --destructive: 0 72% 55%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 210 28% 84%;
+    --input: 210 28% 84%;
+    --ring: 210 78% 46%;
+
+    --glass: 210 24% 94%;
+}
+
+html.aeroglass body {
+    background:
+        linear-gradient(135deg, rgba(255, 255, 255, 0.82), rgba(214, 234, 255, 0.68)),
+        radial-gradient(circle at 18% 18%, rgba(120, 180, 255, 0.2), transparent 36%),
+        radial-gradient(circle at 82% 0%, rgba(255, 190, 230, 0.2), transparent 34%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.65), rgba(235, 245, 255, 0.6)),
+        hsl(var(--background));
+    backdrop-filter: blur(8px);
+}
+
+.aeroglass .glass-card {
+    background-color: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(14px) saturate(122%);
+    box-shadow: 0 18px 48px rgba(55, 120, 190, 0.16);
+    border: 1px solid rgba(120, 160, 210, 0.24);
+}
+
+.aeroglass .glass-chip {
+    background-color: rgba(255, 255, 255, 0.6);
+    border: 1px solid rgba(120, 160, 210, 0.28);
+    backdrop-filter: blur(10px) saturate(115%);
+}
+
+.aeroglass .glass-nav {
+    background-color: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(16px) saturate(125%);
+    border-right: 1px solid rgba(120, 160, 210, 0.22);
+    box-shadow: 2px 0 24px rgba(80, 140, 200, 0.08);
+}
+
+.aeroglass .bg-card,
+.aeroglass .bg-background {
+    background-color: rgba(255, 255, 255, 0.78) !important;
+    backdrop-filter: blur(12px) saturate(118%);
+}
+
+.aeroglass .bg-muted {
+    background-color: rgba(245, 248, 255, 0.7) !important;
+    backdrop-filter: blur(8px);
+}
+
+.aeroglass-dark {
+    --background: 218 18% 10%;
+    --foreground: 210 32% 94%;
+
+    --card: 218 18% 14%;
+    --card-foreground: 210 32% 94%;
+
+    --popover: 218 18% 12%;
+    --popover-foreground: 210 32% 94%;
+
+    --primary: 210 88% 68%;
+    --primary-foreground: 215 22% 12%;
+
+    --secondary: 216 16% 18%;
+    --secondary-foreground: 210 32% 92%;
+
+    --muted: 216 16% 20%;
+    --muted-foreground: 210 26% 78%;
+
+    --accent: 215 22% 24%;
+    --accent-foreground: 210 32% 92%;
+
+    --destructive: 0 70% 58%;
+    --destructive-foreground: 210 35% 94%;
+
+    --border: 216 18% 28%;
+    --input: 216 18% 28%;
+    --ring: 210 88% 68%;
+
+    --glass: 216 22% 16%;
+}
+
+html.aeroglass-dark body {
+    background:
+        linear-gradient(150deg, rgba(18, 24, 36, 0.95), rgba(10, 14, 22, 0.94)),
+        radial-gradient(circle at 18% 18%, rgba(120, 180, 255, 0.16), transparent 32%),
+        radial-gradient(circle at 82% 0%, rgba(255, 150, 210, 0.14), transparent 30%),
+        hsl(var(--background));
+    backdrop-filter: blur(10px);
+}
+
+.aeroglass-dark .glass-card {
+    background-color: rgba(22, 28, 42, 0.78);
+    backdrop-filter: blur(16px) saturate(135%);
+    box-shadow: 0 22px 58px rgba(5, 10, 20, 0.52);
+    border: 1px solid rgba(120, 170, 230, 0.2);
+}
+
+.aeroglass-dark .glass-chip {
+    background-color: rgba(28, 36, 52, 0.75);
+    border: 1px solid rgba(120, 170, 230, 0.2);
+    backdrop-filter: blur(10px);
+}
+
+.aeroglass-dark .glass-nav {
+    background-color: rgba(18, 24, 34, 0.72);
+    backdrop-filter: blur(16px);
+    border-right: 1px solid rgba(120, 170, 230, 0.16);
+}
+
+.aeroglass-dark .bg-card,
+.aeroglass-dark .bg-background {
+    background-color: rgba(22, 28, 40, 0.78) !important;
+    backdrop-filter: blur(12px) saturate(120%);
+}
+
+.aeroglass-dark .bg-muted {
+    background-color: rgba(30, 38, 52, 0.7) !important;
+    backdrop-filter: blur(10px);
+}
+
+/* ===== base styles sin @apply (v4-friendly) ===== */
+html,
+body {
+    height: 100%;
+}
+
+body {
+    margin: 0;
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
+}
+
+/* Densidad compacta */
+:root[data-ui-density="compact"] {
+    --space-1: 0.2rem;
+    --space-2: 0.35rem;
+    --space-3: 0.5rem;
+    --space-4: 0.75rem;
+}
+
+/* Ajustes de densidad para controles */
+:root[data-ui-density="compact"] input,
+:root[data-ui-density="compact"] textarea {
+    padding: 0.4rem 0.55rem;
+    min-height: 2.3rem;
+}
+:root[data-ui-density="compact"] button[aria-haspopup],
+:root[data-ui-density="compact"] button[role="combobox"],
+:root[data-ui-density="compact"] select {
+    padding: 0.35rem 0.65rem;
+    min-height: 2.4rem;
+}
+:root[data-ui-density="compact"] table th,
+:root[data-ui-density="compact"] table td {
+    padding: 0.35rem 0.45rem;
+}
+
+/* Evita parpadeo de transiciones mientras se aplica el tema inicial */
+html[data-theme-init="1"] *, 
+html[data-theme-init="1"] *::before, 
+html[data-theme-init="1"] *::after {
+    transition: none !important;
+}
+html[data-theme-switching="1"] *, 
+html[data-theme-switching="1"] *::before, 
+html[data-theme-switching="1"] *::after {
+    transition: none !important;
+}
+
+/* bordes consistentes */
+* {
+    border-color: hsl(var(--border));
+}
+
+/* Anillos de foco consistentes */
+:focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+}
+
+/* ===== Optimización glass (append-only, retrocompatible) ===== */
+:root[data-effect= high],
+[data-effect=high] {
+    --glass-blur: var(--glass-blur-high, 12px);
+    --glass-opacity: var(--glass-opacity-high, 0.78);
+    --glass-shadow: var(--glass-shadow-high, 0 18px 42px -18px rgba(0, 0, 0, 0.35));
+}
+:root[data-effect=med],
+[data-effect=med] {
+    --glass-blur: var(--glass-blur-med, 10px);
+    --glass-opacity: var(--glass-opacity-med, 0.84);
+    --glass-shadow: var(--glass-shadow-med, 0 12px 28px -16px rgba(0, 0, 0, 0.28));
+}
+:root[data-effect=low],
+[data-effect=low] {
+    --glass-blur: var(--glass-blur-low, 8px);
+    --glass-opacity: var(--glass-opacity-low, 0.9);
+    --glass-shadow: var(--glass-shadow-low, 0 8px 18px -12px rgba(0, 0, 0, 0.22));
+}
+
+/* Tokens específicos de temas glass */
+.aeroglass {
+    --glass-blur-high: 16px;
+    --glass-blur-med: 12px;
+    --glass-blur-low: 8px;
+    --glass-opacity-high: 0.75;
+    --glass-opacity-med: 0.82;
+    --glass-opacity-low: 0.9;
+    --glass-shadow-high: 0 18px 42px -18px rgba(0, 0, 0, 0.35);
+    --glass-shadow-med: 0 12px 28px -16px rgba(0, 0, 0, 0.28);
+    --glass-shadow-low: 0 8px 18px -12px rgba(0, 0, 0, 0.22);
+    --glass-sat: 125%;
+}
+.aeroglass .glass-card,
+.aeroglass .glass-nav,
+.aeroglass .bg-card,
+.aeroglass .bg-background,
+.aeroglass .bg-muted {
+    background-color: rgba(255, 255, 255, var(--glass-opacity, 0.82)) !important;
+    backdrop-filter: blur(var(--glass-blur, 12px)) saturate(var(--glass-sat, 120%));
+    -webkit-backdrop-filter: blur(var(--glass-blur, 12px)) saturate(var(--glass-sat, 120%));
+    box-shadow: var(--glass-shadow, 0 12px 28px -16px rgba(0, 0, 0, 0.28));
+}
+.aeroglass .glass-chip {
+    background-color: rgba(255, 255, 255, calc(var(--glass-opacity, 0.82) + 0.05));
+}
+.aeroglass .bg-muted {
+    backdrop-filter: blur(calc(var(--glass-blur, 12px) * 0.5));
+    -webkit-backdrop-filter: blur(calc(var(--glass-blur, 12px) * 0.5));
+}
+
+.aeroglass-dark {
+    --glass-blur-high: 18px;
+    --glass-blur-med: 13px;
+    --glass-blur-low: 9px;
+    --glass-opacity-high: 0.78;
+    --glass-opacity-med: 0.84;
+    --glass-opacity-low: 0.9;
+    --glass-shadow-high: 0 20px 50px -22px rgba(0, 0, 0, 0.55);
+    --glass-shadow-med: 0 14px 32px -18px rgba(0, 0, 0, 0.42);
+    --glass-shadow-low: 0 10px 22px -14px rgba(0, 0, 0, 0.3);
+    --glass-sat: 135%;
+}
+.aeroglass-dark .glass-card,
+.aeroglass-dark .glass-nav,
+.aeroglass-dark .bg-card,
+.aeroglass-dark .bg-background,
+.aeroglass-dark .bg-muted {
+    background-color: rgba(22, 28, 40, var(--glass-opacity, 0.84)) !important;
+    backdrop-filter: blur(var(--glass-blur, 13px)) saturate(var(--glass-sat, 130%));
+    -webkit-backdrop-filter: blur(var(--glass-blur, 13px)) saturate(var(--glass-sat, 130%));
+    box-shadow: var(--glass-shadow, 0 14px 32px -18px rgba(0, 0, 0, 0.42));
+}
+.aeroglass-dark .glass-chip {
+    background-color: rgba(28, 36, 52, calc(var(--glass-opacity, 0.84) + 0.05));
+}
+.aeroglass-dark .bg-muted {
+    backdrop-filter: blur(calc(var(--glass-blur, 13px) * 0.6));
+    -webkit-backdrop-filter: blur(calc(var(--glass-blur, 13px) * 0.6));
+}
+
+/* Fallback sin soporte de backdrop-filter */
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+    .aeroglass .glass-card,
+    .aeroglass .glass-nav,
+    .aeroglass .bg-card,
+    .aeroglass .bg-background,
+    .aeroglass .bg-muted,
+    .aeroglass-dark .glass-card,
+    .aeroglass-dark .glass-nav,
+    .aeroglass-dark .bg-card,
+    .aeroglass-dark .bg-background,
+    .aeroglass-dark .bg-muted {
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+        --glass-opacity: var(--glass-opacity-low, 0.9);
+        box-shadow: var(--glass-shadow-low, 0 8px 18px -12px rgba(0, 0, 0, 0.22));
+    }
+}
