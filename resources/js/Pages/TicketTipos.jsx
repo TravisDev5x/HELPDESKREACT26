@@ -5,8 +5,10 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
-import { toast } from "@/hooks/use-toast";
+import { notify } from "@/lib/notify";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { clearCatalogCache } from "@/lib/catalogCache";
+import { getApiErrorMessage } from "@/lib/apiErrors";
 
 export default function TicketTipos() {
     const [types, setTypes] = useState([]);
@@ -26,8 +28,8 @@ export default function TicketTipos() {
             ]);
             setTypes(typeData);
             setAreas(areasData);
-        } catch {
-            toast({ description: "No se pudieron cargar", variant: "destructive" });
+        } catch (err) {
+            notify.error(getApiErrorMessage(err, "No se pudieron cargar"));
         } finally { setLoading(false); }
     };
 
@@ -50,10 +52,11 @@ export default function TicketTipos() {
                 area_ids: selectedAreas,
             });
             setTypes((prev) => [data, ...prev]);
+            clearCatalogCache();
             setName(""); setCode(""); setSelectedAreas([]);
-            toast({ description: "Tipo de ticket creado" });
+            notify.success("Tipo de ticket creado");
         } catch (err) {
-            toast({ description: err?.response?.data?.message || "No se pudo crear", variant: "destructive" });
+            notify.error(getApiErrorMessage(err, "No se pudo crear"));
         } finally { setSaving(false); }
     };
 
@@ -61,8 +64,9 @@ export default function TicketTipos() {
         try {
             const { data } = await axios.put(`/api/ticket-types/${item.id}`, { ...item, is_active: !item.is_active });
             setTypes((prev) => prev.map((t) => t.id === data.id ? data : t));
-        } catch {
-            toast({ description: "No se pudo actualizar", variant: "destructive" });
+            clearCatalogCache();
+        } catch (err) {
+            notify.error(getApiErrorMessage(err, "No se pudo actualizar"));
         }
     };
 

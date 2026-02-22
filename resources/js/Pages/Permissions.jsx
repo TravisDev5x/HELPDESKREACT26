@@ -4,11 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { toast } from "@/hooks/use-toast";
+import { notify } from "@/lib/notify";
 import { Trash2, ShieldCheck, Search, Plus, Save, Loader2, ChevronRight } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/context/AuthContext";
+import { handleAuthError, getApiErrorMessage } from "@/lib/apiErrors";
 
 const LABELS = {
     "users.manage": "Gestionar usuarios",
@@ -19,15 +20,6 @@ const LABELS = {
 };
 
 const formatLabel = (name) => LABELS[name] || name.split('.').pop().replace(/\b\w/g, (c) => c.toUpperCase());
-
-const handleAuthError = (error) => {
-    const status = error?.response?.status;
-    if (status === 401 || status === 419) {
-        window.location.href = "/login";
-        return true;
-    }
-    return false;
-};
 
 export default function Permissions() {
     const { can } = useAuth();
@@ -66,7 +58,7 @@ export default function Permissions() {
                 }
             } catch (err) {
                 if (!handleAuthError(err)) {
-                    toast({ description: "No se pudieron cargar los permisos", variant: "destructive" });
+                    notify.error(getApiErrorMessage(err, "No se pudieron cargar los permisos"));
                 }
             } finally {
                 if (!cancelled) setLoading(false);
@@ -127,9 +119,9 @@ export default function Permissions() {
             });
             const mappedPermissions = permissions.filter((p) => selectedPermissionIds.includes(p.id));
             setRoles((prev) => prev.map((role) => role.id === selectedRole.id ? { ...role, permissions: mappedPermissions } : role));
-            toast({ description: "Permisos actualizados con éxito" });
+            notify.success("Permisos actualizados con éxito");
         } catch (err) {
-            if (!handleAuthError(err)) toast({ description: "Error al actualizar", variant: "destructive" });
+            if (!handleAuthError(err)) notify.error(getApiErrorMessage(err, "Error al actualizar"));
         } finally { setSaving(false); }
     };
 
@@ -143,9 +135,9 @@ export default function Permissions() {
             const { data } = await axios.post("/api/permissions", { name });
             setPermissions((prev) => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
             setNewPermission("");
-            toast({ description: "Permiso creado" });
+            notify.success("Permiso creado");
         } catch (err) {
-            if (!handleAuthError(err)) toast({ description: "Error al crear", variant: "destructive" });
+            if (!handleAuthError(err)) notify.error(getApiErrorMessage(err, "Error al crear"));
         } finally { setCreating(false); }
     };
 
@@ -156,9 +148,9 @@ export default function Permissions() {
             await axios.delete(`/api/permissions/${perm.id}`);
             setPermissions((prev) => prev.filter((p) => p.id !== perm.id));
             setSelectedPermissionIds((prev) => prev.filter((id) => id !== perm.id));
-            toast({ description: "Permiso eliminado" });
+            notify.success("Permiso eliminado");
         } catch (err) {
-            if (!handleAuthError(err)) toast({ description: "Error al eliminar", variant: "destructive" });
+            if (!handleAuthError(err)) notify.error(getApiErrorMessage(err, "Error al eliminar"));
         }
     };
 

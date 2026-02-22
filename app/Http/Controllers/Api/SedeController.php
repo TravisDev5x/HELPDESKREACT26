@@ -17,8 +17,8 @@ class SedeController extends Controller
     public function store(Request $request)
     {
         $data = $request->validate([
-            'name' => ['required', 'min:2', 'unique:sedes,name'],
-            'code' => ['nullable', 'max:20', 'unique:sedes,code'],
+            'name' => ['required', 'min:2', 'unique:sites,name'],
+            'code' => ['nullable', 'max:20', 'unique:sites,code'],
             'type' => ['required', Rule::in(['physical', 'virtual'])],
             'is_active' => ['boolean'],
         ]);
@@ -30,8 +30,8 @@ class SedeController extends Controller
     public function update(Request $request, Sede $sede)
     {
         $data = $request->validate([
-            'name' => ['required', 'min:2', Rule::unique('sedes', 'name')->ignore($sede->id)],
-            'code' => ['nullable', 'max:20', Rule::unique('sedes', 'code')->ignore($sede->id)],
+            'name' => ['required', 'min:2', Rule::unique('sites', 'name')->ignore($sede->id)],
+            'code' => ['nullable', 'max:20', Rule::unique('sites', 'code')->ignore($sede->id)],
             'type' => ['required', Rule::in(['physical', 'virtual'])],
             'is_active' => ['boolean'],
         ]);

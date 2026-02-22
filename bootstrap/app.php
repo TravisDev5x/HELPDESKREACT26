@@ -4,8 +4,10 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
+use App\Http\Middleware\EnforcePasswordChange;
+use App\Http\Middleware\AuditReportAccess;
+use App\Http\Middleware\SecurityHeaders;
 use App\Http\Middleware\SetLocale;
-use App\Http\Middleware\EnsureAdminRole;
 use App\Http\Middleware\EnsurePermissionOrAdmin;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -29,11 +31,20 @@ return Application::configure(basePath: dirname(__DIR__))
             EnsureFrontendRequestsAreStateful::class,
         ]);
 
+        $middleware->api(append: [
+            EnforcePasswordChange::class,
+            SecurityHeaders::class,
+        ]);
+
+        $middleware->web(append: [
+            SecurityHeaders::class,
+        ]);
+
         // Alias para poder usarlo en rutas (y colocar después de auth)
         $middleware->alias([
             'locale' => SetLocale::class,
-            'admin.role' => EnsureAdminRole::class,
             'perm' => EnsurePermissionOrAdmin::class,
+            'report.audit' => AuditReportAccess::class,
             'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,
             'permission' => \Spatie\Permission\Middleware\PermissionMiddleware::class,
             'role_or_permission' => \Spatie\Permission\Middleware\RoleOrPermissionMiddleware::class,
@@ -44,3 +55,4 @@ return Application::configure(basePath: dirname(__DIR__))
         //
     })
     ->create();
+

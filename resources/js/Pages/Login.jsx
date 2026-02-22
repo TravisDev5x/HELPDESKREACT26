@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
 import { Button } from "@/components/ui/button";
@@ -7,13 +7,12 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Link } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
-import { useToast } from "@/hooks/use-toast";
+import { notify } from "@/lib/notify";
 import { Checkbox } from "@/components/ui/checkbox";
 
 export default function Login() {
     const { login } = useAuth();
     const { isDark, toggleTheme } = useTheme();
-    const { toast } = useToast();
     const navigate = useNavigate();
     const [form, setForm] = useState({ identifier: "", password: "" });
     const [remember, setRemember] = useState(() => {
@@ -46,11 +45,7 @@ export default function Login() {
         const validationError = validate();
         if (validationError) {
             setError(validationError);
-            toast({
-                title: "No se pudo iniciar sesión",
-                description: validationError,
-                variant: "destructive",
-            });
+            notify.error({ title: "No se pudo iniciar sesión", description: validationError });
             return;
         }
         setLoading(true);
@@ -79,11 +74,7 @@ export default function Login() {
                 message = "Error del servidor. Intenta más tarde.";
             }
             setError(message);
-            toast({
-                title: "No se pudo iniciar sesión",
-                description: message,
-                variant: "destructive",
-            });
+            notify.error({ title: "No se pudo iniciar sesión", description: message });
         } finally {
             setLoading(false);
         }

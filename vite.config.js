@@ -11,6 +11,9 @@ export default defineConfig({
         }),
         react(),
     ],
+    server: {
+        cors: true,
+    },
     resolve: {
         alias: {
             "@": path.resolve(__dirname, "resources/js"),

@@ -5,8 +5,10 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
-import { toast } from "@/hooks/use-toast";
+import { notify } from "@/lib/notify";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { clearCatalogCache } from "@/lib/catalogCache";
+import { getApiErrorMessage } from "@/lib/apiErrors";
 
 export default function Sedes() {
     const [list, setList] = useState([]);
@@ -22,7 +24,7 @@ export default function Sedes() {
             const { data } = await axios.get("/api/sedes");
             setList(data);
         } catch (err) {
-            toast({ description: "No se pudieron cargar las sedes", variant: "destructive" });
+            notify.error(getApiErrorMessage(err, "No se pudieron cargar las sedes"));
         } finally {
             setLoading(false);
         }
@@ -37,10 +39,11 @@ export default function Sedes() {
         try {
             const { data } = await axios.post("/api/sedes", { name, code: code || null, type });
             setList((prev) => [data, ...prev]);
+            clearCatalogCache();
             setName(""); setCode(""); setType("physical");
-            toast({ description: "Sede creada" });
+            notify.success("Sede creada");
         } catch (err) {
-            toast({ description: err?.response?.data?.message || "No se pudo crear", variant: "destructive" });
+            notify.error(getApiErrorMessage(err, "No se pudo crear"));
         } finally { setSaving(false); }
     };
 
@@ -48,8 +51,9 @@ export default function Sedes() {
         try {
             const { data } = await axios.put(`/api/sedes/${sede.id}`, { ...sede, is_active: !sede.is_active });
             setList((prev) => prev.map((s) => s.id === data.id ? data : s));
-        } catch {
-            toast({ description: "No se pudo actualizar", variant: "destructive" });
+            clearCatalogCache();
+        } catch (err) {
+            notify.error(getApiErrorMessage(err, "No se pudo actualizar"));
         }
     };
 

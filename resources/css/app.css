@@ -1,4 +1,4 @@
-﻿/* resources/css/app.css */
+/* resources/css/app.css */
 @import "tailwindcss";
 @config "../../tailwind.config.js";
 
@@ -33,6 +33,10 @@
     --ring: 222.2 84% 4.9%;
 
     --radius: 0.75rem;
+
+    /* Sidebar (comportamiento por defecto = izquierda) */
+    --sidebar-width: 16rem;
+    --sidebar-width-collapsed: 72px;
 }
 
 .light {
@@ -93,6 +97,106 @@
     --border: 215 20% 82%;
     --input: 215 20% 82%;
     --ring: 215 20% 18%;
+}
+
+/* AdminLTE Legacy: inspirado en AdminLTE clásico (mismas variables, paleta compatible) */
+.adminlte-legacy {
+    --background: 220 14% 96%;
+    --foreground: 220 15% 18%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 220 15% 18%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 15% 18%;
+
+    --primary: 199 63% 49%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 12% 92%;
+    --secondary-foreground: 220 15% 18%;
+
+    --muted: 220 12% 90%;
+    --muted-foreground: 220 10% 40%;
+
+    --accent: 199 45% 92%;
+    --accent-foreground: 199 63% 35%;
+
+    --destructive: 0 72% 55%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 220 12% 86%;
+    --input: 220 12% 86%;
+    --ring: 199 63% 49%;
+}
+
+/* AdminLTE Legacy: sidebar oscura tipo AdminLTE 3 (solo cuando el tema es adminlte-legacy) */
+.adminlte-legacy [data-sidebar="main"] {
+    background: #222d32 !important;
+    border-inline-end-color: rgba(255, 255, 255, 0.08);
+    border-right-color: rgba(255, 255, 255, 0.08); /* fallback LTR */
+}
+.adminlte-legacy [data-sidebar="main"] .text-foreground,
+.adminlte-legacy [data-sidebar="main"] .text-foreground\/90 {
+    color: #f4f4f5 !important;
+}
+.adminlte-legacy [data-sidebar="main"] .text-muted-foreground,
+.adminlte-legacy [data-sidebar="main"] .text-muted-foreground\/50,
+.adminlte-legacy [data-sidebar="main"] .text-muted-foreground\/70,
+.adminlte-legacy [data-sidebar="main"] .text-muted-foreground\/80 {
+    color: #b8c7ce !important;
+}
+.adminlte-legacy [data-sidebar="main"] .border-border\/50,
+.adminlte-legacy [data-sidebar="main"] .border-border\/40 {
+    border-color: rgba(255, 255, 255, 0.08) !important;
+}
+.adminlte-legacy [data-sidebar="main"] .bg-primary {
+    background-color: #357ca2 !important;
+}
+.adminlte-legacy [data-sidebar="main"] .bg-primary\/10 {
+    background-color: rgba(53, 124, 162, 0.25) !important;
+}
+.adminlte-legacy [data-sidebar="main"] .text-primary {
+    color: #7ab8e8 !important;
+}
+.adminlte-legacy [data-sidebar="main"] .bg-muted\/5,
+.adminlte-legacy [data-sidebar="main"] .bg-muted\/10 {
+    background-color: rgba(255, 255, 255, 0.04) !important;
+}
+.adminlte-legacy [data-sidebar="main"] button:hover,
+.adminlte-legacy [data-sidebar="main"] a:hover,
+.adminlte-legacy [data-sidebar="main"] [role="button"]:hover {
+    background-color: rgba(255, 255, 255, 0.06) !important;
+}
+.adminlte-legacy [data-sidebar="main"] a[aria-current="page"],
+.adminlte-legacy [data-sidebar="main"] a.bg-secondary,
+.adminlte-legacy [data-sidebar="main"] .bg-secondary[data-state="active"] {
+    background-color: #357ca2 !important;
+    color: #fff !important;
+}
+.adminlte-legacy [data-sidebar="main"] a.bg-secondary:hover {
+    background-color: #2d6a8f !important;
+    color: #fff !important;
+}
+.adminlte-legacy [data-sidebar="main"] .data-\[state=open\]\:bg-accent,
+.adminlte-legacy [data-sidebar="main"] [data-state="open"] {
+    background-color: rgba(255, 255, 255, 0.06) !important;
+}
+.adminlte-legacy [data-sidebar="main"] .shadow-primary\/20 {
+    box-shadow: 0 4px 12px rgba(53, 124, 162, 0.3);
+}
+.adminlte-legacy [data-sidebar="main"] .bg-primary\/10.text-primary {
+    color: #7ab8e8 !important;
+}
+/* Sidebar a la derecha: borde en el lado que toca el contenido */
+[data-sidebar-position="right"].adminlte-legacy [data-sidebar="main"] {
+    border-inline-start-color: rgba(255, 255, 255, 0.08);
+    border-left-color: rgba(255, 255, 255, 0.08);
+}
+
+/* AdminLTE Legacy: área principal más clara (contraste con sidebar oscura) */
+.adminlte-legacy main.bg-muted\/10 {
+    background-color: #ecf0f5 !important;
 }
 
 .dark {

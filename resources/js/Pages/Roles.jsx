@@ -18,18 +18,9 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { toast } from "@/hooks/use-toast";
+import { notify } from "@/lib/notify";
 import { useAuth } from "@/context/AuthContext";
-
-// Helper de errores de auth
-const handleAuthError = (error) => {
-    const status = error?.response?.status;
-    if (status === 401 || status === 419) {
-        window.location.href = "/login";
-        return true;
-    }
-    return false;
-};
+import { handleAuthError, getApiErrorMessage } from "@/lib/apiErrors";
 
 export default function Roles() {
     const { can } = useAuth();
@@ -58,9 +49,8 @@ export default function Roles() {
             .get("/api/roles")
             .then((res) => setRoles(res.data))
             .catch((err) => {
-                console.error(err);
                 if (!handleAuthError(err)) {
-                    toast({ description: "No se pudieron cargar los roles", variant: "destructive" });
+                    notify.error(getApiErrorMessage(err, "No se pudieron cargar los roles"));
                 }
             })
             .finally(() => setLoading(false));
@@ -83,10 +73,8 @@ export default function Roles() {
             setName("");
             setOpen(false);
         } catch (err) {
-            console.error(err);
             if (!handleAuthError(err)) {
-                const message = err?.response?.data?.message || err.message || "No se pudo crear el rol";
-                toast({ description: message, variant: "destructive" });
+                notify.error(getApiErrorMessage(err, "No se pudo crear el rol"));
             }
         } finally {
             setSaving(false);
@@ -105,11 +93,10 @@ export default function Roles() {
             await axios.delete(`/api/roles/${id}`);
 
             setRoles((prev) => prev.filter((r) => r.id !== id));
-            toast({ description: "Rol eliminado correctamente" });
+            notify.success("Rol eliminado correctamente");
         } catch (err) {
-            console.error(err);
             if (!handleAuthError(err)) {
-                toast({ description: "No se pudo eliminar el rol", variant: "destructive" });
+                notify.error(getApiErrorMessage(err, "No se pudo eliminar el rol"));
             }
         }
     }

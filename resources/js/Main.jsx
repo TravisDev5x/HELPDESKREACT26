@@ -1,36 +1,45 @@
-﻿import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from "react-router-dom";
-import { Toaster } from "@/components/ui/toaster";
+import { lazy, Suspense } from "react";
+import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from "react-router-dom";
+import { Toaster } from "sileo";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
+import { SidebarPositionProvider } from "@/context/SidebarPositionContext";
 import { I18nProvider } from "@/i18n/I18nProvider";
 
-// Layout
+// Layout (no lazy: se necesita de inmediato para la shell)
 import AppLayout from "@/layouts/AppLayout";
 
-// Vistas (lazy)
-import Dashboard from "@/Pages/Dashboard";
-import Users from "@/Pages/Users";
-import Roles from "@/Pages/Roles";
-import Campaigns from "@/Pages/Campaigns";
-import Areas from "@/Pages/Areas";
-import Positions from "@/Pages/Positions";
-import Sedes from "@/Pages/Sedes";
-import Ubicaciones from "@/Pages/Ubicaciones";
-import Prioridades from "@/Pages/Prioridades";
-import TicketEstados from "@/Pages/TicketEstados";
-import TicketTipos from "@/Pages/TicketTipos";
-import TicketDetalle from "@/Pages/TicketDetalle";
-import Tickets from "@/Pages/Tickets";
-import Settings from "@/Pages/Settings";
-import Permissions from "@/Pages/Permissions";
-import Profile from "@/Pages/Profile";
+// Vistas privadas (lazy)
+const Dashboard = lazy(() => import("@/Pages/Dashboard"));
+const Users = lazy(() => import("@/Pages/Users"));
+const Roles = lazy(() => import("@/Pages/Roles"));
+const Campaigns = lazy(() => import("@/Pages/Campaigns"));
+const Areas = lazy(() => import("@/Pages/Areas"));
+const Positions = lazy(() => import("@/Pages/Positions"));
+const Sedes = lazy(() => import("@/Pages/Sedes"));
+const Ubicaciones = lazy(() => import("@/Pages/Ubicaciones"));
+const Prioridades = lazy(() => import("@/Pages/Prioridades"));
+const TicketEstados = lazy(() => import("@/Pages/TicketEstados"));
+const TicketTipos = lazy(() => import("@/Pages/TicketTipos"));
+const TicketDetalle = lazy(() => import("@/Pages/TicketDetalle"));
+const Tickets = lazy(() => import("@/Pages/Tickets"));
+const Incidents = lazy(() => import("@/Pages/Incidents"));
+const IncidentDetalle = lazy(() => import("@/Pages/IncidentDetalle"));
+const IncidentTipos = lazy(() => import("@/Pages/IncidentTipos"));
+const IncidentSeveridades = lazy(() => import("@/Pages/IncidentSeveridades"));
+const IncidentEstados = lazy(() => import("@/Pages/IncidentEstados"));
+const Settings = lazy(() => import("@/Pages/Settings"));
+const Sessions = lazy(() => import("@/Pages/Sessions"));
+const Permissions = lazy(() => import("@/Pages/Permissions"));
+const Profile = lazy(() => import("@/Pages/Profile"));
 
-// Público / auth
-import Login from "@/Pages/Login";
-import ForgotPassword from "@/Pages/ForgotPassword";
-import ResetPassword from "@/Pages/ResetPassword";
-import ForceChangePassword from "@/Pages/ForceChangePassword";
-import Register from "@/Pages/Register";
-import Manual from "@/Pages/Manual";
+// Público / auth (lazy)
+const Login = lazy(() => import("@/Pages/Login"));
+const ForgotPassword = lazy(() => import("@/Pages/ForgotPassword"));
+const ResetPassword = lazy(() => import("@/Pages/ResetPassword"));
+const ForceChangePassword = lazy(() => import("@/Pages/ForceChangePassword"));
+const Register = lazy(() => import("@/Pages/Register"));
+const Manual = lazy(() => import("@/Pages/Manual"));
+const VerifyEmail = lazy(() => import("@/Pages/VerifyEmail"));
 
 const Fallback = () => (
     <div className="p-6 text-sm text-muted-foreground">Cargando…</div>
@@ -71,14 +80,28 @@ function NotFound() {
 export default function Main() {
     return (
         <AuthProvider>
-            <I18nProvider>
-                <Toaster />
-                <BrowserRouter>
-                    
+            <SidebarPositionProvider>
+                <I18nProvider>
+                    <Toaster
+                        position="top-center"
+                        options={{
+                            fill: "hsl(var(--card))",
+                            roundness: 12,
+                            styles: {
+                                title: "!text-foreground !font-semibold",
+                                description: "!text-foreground/90",
+                                badge: "!bg-primary/15 !text-primary !border !border-primary/30",
+                                button: "!bg-muted hover:!bg-accent !text-foreground",
+                            },
+                        }}
+                    />
+                    <BrowserRouter>
+                    <Suspense fallback={<Fallback />}>
                         <Routes>
 
                             {/* ZONA PÚBLICA (Login) */}
                             <Route path="/manual" element={<Manual />} />
+                            <Route path="/verify-email" element={<VerifyEmail />} />
                             <Route element={<GuestRoute />}>
                                 <Route path="/login" element={<Login />} />
                                 <Route path="/register" element={<Register />} />
@@ -102,8 +125,14 @@ export default function Main() {
                                     <Route path="/ticket-types" element={<TicketTipos />} />
                                     <Route path="/tickets" element={<Tickets />} />
                                     <Route path="/tickets/:id" element={<TicketDetalle />} />
+                                    <Route path="/incidents" element={<Incidents />} />
+                                    <Route path="/incidents/:id" element={<IncidentDetalle />} />
+                                    <Route path="/incident-types" element={<IncidentTipos />} />
+                                    <Route path="/incident-severities" element={<IncidentSeveridades />} />
+                                    <Route path="/incident-statuses" element={<IncidentEstados />} />
                                     <Route path="/roles" element={<Roles />} />
                                     <Route path="/settings" element={<Settings />} />
+                                    <Route path="/sessions" element={<Sessions />} />
                                     <Route path="/permissions" element={<Permissions />} />
                                     <Route path="/profile" element={<Profile />} />
                                     <Route path="*" element={<NotFound />} />
@@ -111,9 +140,10 @@ export default function Main() {
                             </Route>
 
                         </Routes>
-                    
+                    </Suspense>
                 </BrowserRouter>
-            </I18nProvider>
+                </I18nProvider>
+            </SidebarPositionProvider>
         </AuthProvider>
     );
 }

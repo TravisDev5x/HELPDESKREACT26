@@ -15,6 +15,8 @@ class User extends Authenticatable implements MustVerifyEmail
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory, Notifiable, SoftDeletes, HasRoles;
 
+    protected $guard_name = 'web';
+
     /**
      * The attributes that are mass assignable.
      *
@@ -37,7 +39,9 @@ class User extends Authenticatable implements MustVerifyEmail
         'ui_density',
         'sidebar_state',
         'sidebar_hover_preview',
+        'sidebar_position',
         'locale',
+        'availability',
     ];
 
     /**

@@ -25,11 +25,13 @@ class ProfileController extends Controller
             'email'  => 'required|email|unique:users,email,' . $user->id,
             'phone'  => 'nullable|string|max:20',
             'avatar' => 'nullable|image|max:5120',
-            'theme'  => 'nullable|in:light,light-dim,dark,dark-deep,aeroglass,aeroglass-dark',
+            'theme'  => 'nullable|in:light,light-dim,adminlte-legacy,dark,dark-deep,aeroglass,aeroglass-dark',
             'ui_density' => 'nullable|in:normal,compact',
             'sidebar_state' => 'nullable|in:expanded,collapsed',
             'sidebar_hover_preview' => 'nullable|boolean',
+            'sidebar_position' => 'nullable|in:left,right',
             'locale' => 'nullable|in:es,en,ja,de,zh,fr',
+            'availability' => 'nullable|in:available,busy,disconnected',
         ]);
 
         if ($request->hasFile('avatar')) {
@@ -44,12 +46,6 @@ class ProfileController extends Controller
                     'message' => $message,
                 ], 422);
             }
-            $realPath = $file->getRealPath();
-            if (!$realPath || !is_file($realPath)) {
-                return response()->json([
-                    'message' => 'Archivo inválido o corrupto. Intenta otra imagen.',
-                ], 422);
-            }
             if (is_string($user->avatar_path) && trim($user->avatar_path) !== '') {
                 try {
                     Storage::disk('public')->delete($user->avatar_path);
@@ -57,8 +53,19 @@ class ProfileController extends Controller
                     // Si falla borrar el anterior, continuamos con el nuevo
                 }
             }
-            $path = Storage::disk('public')->putFile('avatars', $file);
-            if (!$path) {
+            // Guardar por contenido para evitar "Path must not be empty" cuando la ruta temporal no está disponible (p. ej. Windows/Laragon)
+            $extension = $file->getClientOriginalExtension() ?: 'jpg';
+            $filename = 'avatar_' . uniqid('', true) . '.' . strtolower($extension);
+            $path = 'avatars/' . $filename;
+            try {
+                $contents = $file->get();
+                if ($contents === false || $contents === '') {
+                    return response()->json(['message' => __('api.avatar_failed')], 422);
+                }
+                if (!Storage::disk('public')->put($path, $contents)) {
+                    return response()->json(['message' => __('api.avatar_failed')], 422);
+                }
+            } catch (\Throwable $e) {
                 return response()->json([
                     'message' => __('api.avatar_failed'),
                 ], 422);
@@ -81,8 +88,14 @@ class ProfileController extends Controller
         if ($request->has('sidebar_hover_preview')) {
             $user->sidebar_hover_preview = (bool) $request->sidebar_hover_preview;
         }
+        if ($request->filled('sidebar_position')) {
+            $user->sidebar_position = $request->sidebar_position;
+        }
         if ($request->filled('locale')) {
             $user->locale = $request->locale;
+        }
+        if ($request->filled('availability')) {
+            $user->availability = $request->availability;
         }
 
         $user->saveQuietly();
@@ -96,7 +109,7 @@ class ProfileController extends Controller
     public function updateTheme(Request $request)
     {
         $data = $request->validate([
-            'theme' => ['required', 'in:light,light-dim,dark,dark-deep,aeroglass,aeroglass-dark'],
+            'theme' => ['required', 'in:light,light-dim,adminlte-legacy,dark,dark-deep,aeroglass,aeroglass-dark'],
         ]);
 
         $user = Auth::user();
@@ -147,11 +160,13 @@ class ProfileController extends Controller
     public function updatePreferences(Request $request)
     {
         $data = $request->validate([
-            'theme' => 'nullable|in:light,light-dim,dark,dark-deep,aeroglass,aeroglass-dark',
+            'theme' => 'nullable|in:light,light-dim,adminlte-legacy,dark,dark-deep,aeroglass,aeroglass-dark',
             'ui_density' => 'nullable|in:normal,compact',
             'sidebar_state' => 'nullable|in:expanded,collapsed',
             'sidebar_hover_preview' => 'nullable|boolean',
+            'sidebar_position' => 'nullable|in:left,right',
             'locale' => 'nullable|in:es,en,ja,de,zh,fr',
+            'availability' => 'nullable|in:available,busy,disconnected',
         ]);
 
         $user = Auth::user();
@@ -168,8 +183,14 @@ class ProfileController extends Controller
         if (array_key_exists('sidebar_hover_preview', $data)) {
             $user->sidebar_hover_preview = (bool) $data['sidebar_hover_preview'];
         }
+        if (array_key_exists('sidebar_position', $data) && $data['sidebar_position'] !== null) {
+            $user->sidebar_position = $data['sidebar_position'];
+        }
         if (array_key_exists('locale', $data) && $data['locale'] !== null) {
             $user->locale = $data['locale'];
+        }
+        if (array_key_exists('availability', $data) && $data['availability'] !== null) {
+            $user->availability = $data['availability'];
         }
 
         $user->saveQuietly();

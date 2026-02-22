@@ -20,9 +20,12 @@ class Ticket extends Model
         'ubicacion_id',
         'requester_id',
         'requester_position_id',
+        'assigned_user_id',
+        'assigned_at',
         'ticket_type_id',
         'priority_id',
         'ticket_state_id',
+        'resolved_at',
     ];
 
     protected $appends = [
@@ -55,7 +58,7 @@ class Ticket extends Model
         $ageHours = now()->diffInHours($this->created_at);
         if ($ageHours <= 72) return false;
 
-        $stateName = strtolower($this->state->name ?? '');
-        return !str_contains($stateName, 'cerrad');
+        $isFinal = (bool) ($this->state?->is_final ?? false);
+        return !$isFinal;
     }
 }

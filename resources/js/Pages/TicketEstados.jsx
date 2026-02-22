@@ -5,7 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
-import { toast } from "@/hooks/use-toast";
+import { notify } from "@/lib/notify";
+import { clearCatalogCache } from "@/lib/catalogCache";
+import { getApiErrorMessage } from "@/lib/apiErrors";
 
 export default function TicketEstados() {
     const [list, setList] = useState([]);
@@ -20,8 +22,8 @@ export default function TicketEstados() {
         try {
             const { data } = await axios.get("/api/ticket-states");
             setList(data);
-        } catch {
-            toast({ description: "No se pudieron cargar", variant: "destructive" });
+        } catch (err) {
+            notify.error(getApiErrorMessage(err, "No se pudieron cargar"));
         } finally { setLoading(false); }
     };
     useEffect(() => { load(); }, []);
@@ -33,10 +35,11 @@ export default function TicketEstados() {
         try {
             const { data } = await axios.post("/api/ticket-states", { name, code, is_final: isFinal });
             setList((prev) => [data, ...prev]);
+            clearCatalogCache();
             setName(""); setCode(""); setIsFinal(false);
-            toast({ description: "Estado creado" });
+            notify.success("Estado creado");
         } catch (err) {
-            toast({ description: err?.response?.data?.message || "No se pudo crear", variant: "destructive" });
+            notify.error(getApiErrorMessage(err, "No se pudo crear"));
         } finally { setSaving(false); }
     };
 
@@ -44,8 +47,9 @@ export default function TicketEstados() {
         try {
             const { data } = await axios.put(`/api/ticket-states/${item.id}`, { ...item, is_active: !item.is_active });
             setList((prev) => prev.map((s) => s.id === data.id ? data : s));
-        } catch {
-            toast({ description: "No se pudo actualizar", variant: "destructive" });
+            clearCatalogCache();
+        } catch (err) {
+            notify.error(getApiErrorMessage(err, "No se pudo actualizar"));
         }
     };
 

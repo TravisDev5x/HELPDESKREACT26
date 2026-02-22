@@ -1,6 +1,6 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import axios from "@/lib/axios";
-import { strongPasswordSchema } from "@/lib/passwordSchema";
+import { passwordWithConfirmationSchema } from "@/lib/passwordSchema";
 import { useTheme } from "@/hooks/useTheme";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +16,7 @@ export default function Register() {
         email: "",
         phone: "",
         password: "",
+        password_confirmation: "",
     });
     const [error, setError] = useState("");
     const [success, setSuccess] = useState("");
@@ -24,8 +25,16 @@ export default function Register() {
     const validate = () => {
         if (!form.employee_number.trim()) return "El número de empleado es obligatorio.";
         if (!form.name.trim()) return "El nombre es obligatorio.";
-        const passwordValidation = strongPasswordSchema.safeParse(form.password);
-        if (!passwordValidation.success) return passwordValidation.error.errors[0].message;
+        const passwordValidation = passwordWithConfirmationSchema.safeParse({
+            password: form.password,
+            password_confirmation: form.password_confirmation,
+        });
+        if (!passwordValidation.success) {
+            const err = passwordValidation.error;
+            const first = err?.issues?.[0] ?? err?.errors?.[0];
+            const msg = typeof first?.message === 'string' ? first.message : null;
+            return msg ?? "Revisa contraseña y confirmación.";
+        }
         if (form.email && !form.email.endsWith("@ecd.mx")) return "El correo debe ser @ecd.mx.";
         if (form.phone && form.phone.length !== 10) return "El teléfono debe tener 10 dígitos.";
         return "";
@@ -51,14 +60,22 @@ export default function Register() {
                 email: form.email.trim() || null,
                 phone: form.phone.trim() || null,
                 password: form.password,
+                password_confirmation: form.password_confirmation,
             });
             setSuccess(data?.message || "Registro creado correctamente.");
-            setForm({ employee_number: "", name: "", email: "", phone: "", password: "" });
+            setForm({ employee_number: "", name: "", email: "", phone: "", password: "", password_confirmation: "" });
         } catch (err) {
             const status = err?.response?.status;
-            const serverMessage =
-                err?.response?.data?.errors?.root ||
-                err?.response?.data?.message;
+            const data = err?.response?.data;
+            let serverMessage = null;
+            if (data && typeof data === 'object') {
+                if (data.errors?.root != null) serverMessage = data.errors.root;
+                else if (data.message && typeof data.message === 'string') serverMessage = data.message;
+                else if (data.errors && typeof data.errors === 'object') {
+                    const first = Object.values(data.errors).flat()[0];
+                    if (typeof first === 'string') serverMessage = first;
+                }
+            }
 
             if (status === 429) {
                 setError("Demasiados intentos. Intenta más tarde.");
@@ -137,6 +154,17 @@ export default function Register() {
                                 type="password"
                                 value={form.password}
                                 onChange={(e) => setForm({ ...form, password: e.target.value })}
+                                autoComplete="new-password"
+                                disabled={loading}
+                            />
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label>Confirmar contraseña</Label>
+                            <Input
+                                type="password"
+                                value={form.password_confirmation}
+                                onChange={(e) => setForm({ ...form, password_confirmation: e.target.value })}
                                 autoComplete="new-password"
                                 disabled={loading}
                             />

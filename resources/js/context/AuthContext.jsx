@@ -1,4 +1,4 @@
-﻿import { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext, useState, useEffect } from "react";
 import axios from "@/lib/axios";
 
 const AuthContext = createContext(null);
@@ -55,6 +55,21 @@ export const AuthProvider = ({ children }) => {
         setUser((prev) => (prev ? { ...prev, ...prefs } : prev));
     };
 
+    const refreshUser = () => {
+        return axios.get('/api/check-auth').then((res) => {
+            const payload = res.data;
+            if (payload?.user) {
+                setUser({
+                    ...payload.user,
+                    roles: payload.roles || [],
+                    permissions: payload.permissions || [],
+                });
+            } else {
+                setUser(null);
+            }
+        }).catch(() => setUser(null));
+    };
+
     const updateUserTheme = (theme) => updateUserPrefs({ theme });
 
     const can = (permission) => {
@@ -68,7 +83,7 @@ export const AuthProvider = ({ children }) => {
     };
 
     return (
-        <AuthContext.Provider value={{ user, login, logout, loading, updateUserTheme, updateUserPrefs, can, hasRole }}>
+        <AuthContext.Provider value={{ user, login, logout, loading, updateUserTheme, updateUserPrefs, refreshUser, can, hasRole }}>
             {!loading && children}
         </AuthContext.Provider>
     );

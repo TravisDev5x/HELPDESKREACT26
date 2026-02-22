@@ -5,8 +5,10 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { toast } from "@/hooks/use-toast";
+import { notify } from "@/lib/notify";
 import { Switch } from "@/components/ui/switch";
+import { clearCatalogCache } from "@/lib/catalogCache";
+import { getApiErrorMessage } from "@/lib/apiErrors";
 
 export default function Ubicaciones() {
     const [sedes, setSedes] = useState([]);
@@ -28,8 +30,8 @@ export default function Ubicaciones() {
             setSedes(sedesData);
             setList(ubis);
             if (!sedeForNew && sedesData.length) setSedeForNew(String(sedesData[0].id));
-        } catch {
-            toast({ description: "No se pudieron cargar ubicaciones", variant: "destructive" });
+        } catch (err) {
+            notify.error(getApiErrorMessage(err, "No se pudieron cargar ubicaciones"));
         } finally { setLoading(false); }
     };
 
@@ -51,10 +53,11 @@ export default function Ubicaciones() {
                 sede_id: sedeForNew,
             });
             setList((prev) => [data, ...prev]);
+            clearCatalogCache();
             setName(""); setCode("");
-            toast({ description: "Ubicación creada" });
+            notify.success("Ubicación creada");
         } catch (err) {
-            toast({ description: err?.response?.data?.message || "No se pudo crear", variant: "destructive" });
+            notify.error(getApiErrorMessage(err, "No se pudo crear"));
         } finally { setSaving(false); }
     };
 
@@ -65,8 +68,9 @@ export default function Ubicaciones() {
                 is_active: !ubic.is_active,
             });
             setList((prev) => prev.map((u) => u.id === data.id ? data : u));
-        } catch {
-            toast({ description: "No se pudo actualizar", variant: "destructive" });
+            clearCatalogCache();
+        } catch (err) {
+            notify.error(getApiErrorMessage(err, "No se pudo actualizar"));
         }
     };
 

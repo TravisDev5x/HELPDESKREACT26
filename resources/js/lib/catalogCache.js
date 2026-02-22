@@ -1,6 +1,6 @@
 ﻿import axios from "@/lib/axios";
 
-const CACHE_KEY = "catalogs.cache.v1";
+const CACHE_KEY = "catalogs.cache.v2";
 const TTL_MS = 5 * 60 * 1000; // 5 minutos
 
 function getCached() {

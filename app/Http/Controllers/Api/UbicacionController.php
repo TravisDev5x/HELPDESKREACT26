@@ -22,9 +22,9 @@ class UbicacionController extends Controller
     public function store(Request $request)
     {
         $data = $request->validate([
-            'sede_id' => ['required', 'exists:sedes,id'],
+            'sede_id' => ['required', 'exists:sites,id'],
             'name' => ['required', 'min:2'],
-            'code' => ['nullable', 'max:20', 'unique:ubicaciones,code'],
+            'code' => ['nullable', 'max:20', 'unique:locations,code'],
             'is_active' => ['boolean'],
         ]);
         $data['is_active'] = $data['is_active'] ?? true;
@@ -32,7 +32,7 @@ class UbicacionController extends Controller
         $sedeId = $data['sede_id'];
         // unique per sede
         $request->validate([
-            'name' => Rule::unique('ubicaciones', 'name')->where('sede_id', $sedeId),
+            'name' => Rule::unique('locations', 'name')->where('sede_id', $sedeId),
         ]);
 
         $ubicacion = Ubicacion::create($data);
@@ -42,13 +42,13 @@ class UbicacionController extends Controller
     public function update(Request $request, Ubicacion $ubicacione)
     {
         $data = $request->validate([
-            'sede_id' => ['required', 'exists:sedes,id'],
+            'sede_id' => ['required', 'exists:sites,id'],
             'name' => ['required', 'min:2'],
-            'code' => ['nullable', 'max:20', Rule::unique('ubicaciones', 'code')->ignore($ubicacione->id)],
+            'code' => ['nullable', 'max:20', Rule::unique('locations', 'code')->ignore($ubicacione->id)],
             'is_active' => ['boolean'],
         ]);
         $request->validate([
-            'name' => Rule::unique('ubicaciones', 'name')
+            'name' => Rule::unique('locations', 'name')
                 ->where('sede_id', $data['sede_id'])
                 ->ignore($ubicacione->id),
         ]);

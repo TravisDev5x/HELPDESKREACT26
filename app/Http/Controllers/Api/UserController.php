@@ -93,8 +93,8 @@ class UserController extends Controller
             'campaign' => 'required|exists:campaigns,name',
             'area' => 'required|exists:areas,name',
             'position' => 'required|exists:positions,name',
-            'sede' => 'nullable|exists:sedes,name',
-            'ubicacion' => 'nullable|exists:ubicaciones,name',
+            'sede' => 'nullable|exists:sites,name',
+            'ubicacion' => 'nullable|exists:locations,name',
         ]);
 
         $campaignId = \App\Models\Campaign::where('name', $request->campaign)->first()->id;
@@ -113,6 +113,17 @@ class UserController extends Controller
             }
         }
 
+        $role = null;
+        if (!empty($validated['role_id'])) {
+            $expectedGuard = config('auth.defaults.guard', 'web');
+            $role = $this->resolveRoleForGuard((int) $validated['role_id'], $expectedGuard);
+            if (!$role) {
+                return response()->json([
+                    'message' => 'Rol incompatible con el guard actual',
+                ], 422);
+            }
+        }
+
         $user = User::create([
             'name' => $request->name,
             'email' => $request->email,
@@ -126,11 +137,8 @@ class UserController extends Controller
             'ubicacion_id' => $ubicacionId,
         ]);
 
-        if (!empty($validated['role_id'])) {
-            $role = Role::find((int) $validated['role_id']);
-            if ($role) {
-                $user->syncRoles([$role]);
-            }
+        if ($role) {
+            $user->syncRoles([$role]);
         }
 
         return response()->json($user, 201);
@@ -157,8 +165,8 @@ class UserController extends Controller
             'campaign' => 'required|exists:campaigns,name',
             'area' => 'required|exists:areas,name',
             'position' => 'required|exists:positions,name',
-            'sede' => 'nullable|exists:sedes,name',
-            'ubicacion' => 'nullable|exists:ubicaciones,name',
+            'sede' => 'nullable|exists:sites,name',
+            'ubicacion' => 'nullable|exists:locations,name',
         ]);
 
         if ($request->has('campaign')) {
@@ -191,11 +199,25 @@ class UserController extends Controller
 
         $emailChanged = $request->has('email') && $request->email !== $originalEmail;
 
+        $role = null;
+        if ($request->filled('role_id')) {
+            $expectedGuard = config('auth.defaults.guard', 'web');
+            $role = $this->resolveRoleForGuard((int) $request->role_id, $expectedGuard);
+            if (!$role) {
+                return response()->json([
+                    'message' => 'Rol incompatible con el guard actual',
+                ], 422);
+            }
+        }
+
         $user->save();
 
         if ($request->filled('role_id')) {
-            $role = Role::find((int) $request->role_id);
             $user->syncRoles($role ? [$role] : []);
+        }
+
+        if ($user->status === 'pending_admin' && $user->roles()->count() > 0) {
+            $user->update(['status' => 'active']);
         }
 
         if ($emailChanged && $user->email) {
@@ -221,6 +243,22 @@ class UserController extends Controller
         }
 
         return response()->json(['message' => 'Usuario actualizado', 'user' => $user]);
+    }
+
+    protected function resolveRoleForGuard(int $roleId, string $expectedGuard): ?Role
+    {
+        $role = Role::find($roleId);
+        if (!$role) {
+            return null;
+        }
+
+        if ($role->guard_name === $expectedGuard) {
+            return $role;
+        }
+
+        return Role::where('name', $role->name)
+            ->where('guard_name', $expectedGuard)
+            ->first();
     }
 
     public function destroy(User $user)

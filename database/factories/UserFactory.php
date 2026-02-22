@@ -30,15 +30,16 @@ class UserFactory extends Factory
 
             // --- CORRECCIÓN AQUÍ ---
             // Usamos '_id' y buscamos un ID existente en la BD
-            'campaign_id' => Campaign::inRandomOrder()->first()->id, 
-            'area_id' => Area::inRandomOrder()->first()->id,
-            'position_id' => Position::inRandomOrder()->first()->id,
-            'sede_id' => Sede::inRandomOrder()->first()->id,
-            'ubicacion_id' => Ubicacion::inRandomOrder()->first()->id ?? null,
+            'campaign_id' => Campaign::inRandomOrder()->first()?->id ?? Campaign::first()?->id,
+            'area_id' => Area::inRandomOrder()->first()?->id ?? Area::first()?->id,
+            'position_id' => Position::inRandomOrder()->first()?->id ?? Position::first()?->id,
+            'sede_id' => Sede::inRandomOrder()->first()?->id ?? Sede::first()?->id,
+            'ubicacion_id' => Ubicacion::inRandomOrder()->first()?->id,
             // -----------------------
 
             'email_verified_at' => now(),
-            'password' => Hash::make('password123'), // password
+            'status' => 'active',
+            'password' => Hash::make('password123'),
             'remember_token' => Str::random(10),
         ];
     }

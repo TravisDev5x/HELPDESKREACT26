@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import axios from "@/lib/axios";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,17 +20,10 @@ import {
 } from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { toast } from "@/hooks/use-toast";
-
-// Manejo de expiración de sesión
-const handleAuthError = (error) => {
-    const status = error?.response?.status;
-    if (status === 401 || status === 419) {
-        window.location.href = "/login";
-        return true;
-    }
-    return false;
-};
+import { Skeleton } from "@/components/ui/skeleton";
+import { notify } from "@/lib/notify";
+import { handleAuthError, getApiErrorMessage } from "@/lib/apiErrors";
+import { clearCatalogCache } from "@/lib/catalogCache";
 
 const emptyForm = { name: "", is_active: true };
 
@@ -50,9 +43,8 @@ export default function Campaigns() {
             .get("/api/campaigns")
             .then((res) => setCampaigns(res.data))
             .catch((err) => {
-                console.error(err);
                 if (!handleAuthError(err)) {
-                    toast({ description: "No se pudieron cargar las campañas", variant: "destructive" });
+                    notify.error(getApiErrorMessage(err, "No se pudieron cargar las campañas"));
                 }
             })
             .finally(() => setLoading(false));
@@ -83,19 +75,19 @@ export default function Campaigns() {
             if (editing) {
                 const { data } = await axios.put(`/api/campaigns/${editing.id}`, form);
                 setCampaigns((prev) => prev.map((c) => (c.id === data.id ? data : c)));
-                toast({ description: "Campaña actualizada" });
+                clearCatalogCache();
+                notify.success("Campaña actualizada");
             } else {
                 const { data } = await axios.post("/api/campaigns", form);
                 setCampaigns((prev) => [data, ...prev]);
-                toast({ description: "Campaña creada" });
+                clearCatalogCache();
+                notify.success("Campaña creada");
             }
             setOpen(false);
             resetForm();
         } catch (err) {
-            console.error(err);
             if (!handleAuthError(err)) {
-                const msg = err?.response?.data?.message || "No se pudo guardar la campaña";
-                toast({ description: msg, variant: "destructive" });
+                notify.error(getApiErrorMessage(err, "No se pudo guardar la campaña"));
             }
         } finally {
             setSaving(false);
@@ -110,10 +102,10 @@ export default function Campaigns() {
                 is_active: next,
             });
             setCampaigns((prev) => prev.map((c) => (c.id === data.id ? data : c)));
+            clearCatalogCache();
         } catch (err) {
-            console.error(err);
             if (!handleAuthError(err)) {
-                toast({ description: "No se pudo actualizar el estado", variant: "destructive" });
+                notify.error(getApiErrorMessage(err, "No se pudo actualizar el estado"));
             }
         }
     };
@@ -124,11 +116,11 @@ export default function Campaigns() {
         try {
             await axios.delete(`/api/campaigns/${campaign.id}`);
             setCampaigns((prev) => prev.filter((c) => c.id !== campaign.id));
-            toast({ description: "Campaña eliminada" });
+            clearCatalogCache();
+            notify.success("Campaña eliminada");
         } catch (err) {
-            console.error(err);
             if (!handleAuthError(err)) {
-                toast({ description: "No se pudo eliminar la campaña", variant: "destructive" });
+                notify.error(getApiErrorMessage(err, "No se pudo eliminar la campaña"));
             }
         }
     };
@@ -182,7 +174,12 @@ export default function Campaigns() {
                                     Cancelar
                                 </Button>
                                 <Button type="submit" disabled={!canSave || saving}>
-                                    {saving ? "Guardando..." : editing ? "Actualizar" : "Crear"}
+                                    {saving ? (
+                                        <>
+                                            <span className="animate-spin mr-2 inline-block h-4 w-4 border-2 border-current border-t-transparent rounded-full" aria-hidden />
+                                            Guardando...
+                                        </>
+                                    ) : editing ? "Actualizar" : "Crear"}
                                 </Button>
                             </div>
                         </form>
@@ -203,11 +200,15 @@ export default function Campaigns() {
                     </TableHeader>
                     <TableBody>
                         {loading ? (
-                            <TableRow>
-                                <TableCell colSpan={5} className="text-center text-muted-foreground py-10">
-                                    Cargando campañas...
-                                </TableCell>
-                            </TableRow>
+                            [...Array(4)].map((_, i) => (
+                                <TableRow key={i}>
+                                    <TableCell><Skeleton className="h-5 w-10" /></TableCell>
+                                    <TableCell><Skeleton className="h-5 w-32" /></TableCell>
+                                    <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+                                    <TableCell><Skeleton className="h-5 w-28" /></TableCell>
+                                    <TableCell className="text-right"><Skeleton className="h-8 w-20 ml-auto" /></TableCell>
+                                </TableRow>
+                            ))
                         ) : campaigns.length === 0 ? (
                             <TableRow>
                                 <TableCell colSpan={5} className="text-center text-muted-foreground py-10">

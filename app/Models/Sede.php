@@ -10,6 +10,9 @@ class Sede extends Model
 {
     use HasFactory;
 
+    /** Table name in English (was: sedes) */
+    protected $table = 'sites';
+
     protected $fillable = [
         'name',
         'code',

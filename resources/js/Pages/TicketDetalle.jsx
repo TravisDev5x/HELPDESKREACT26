@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import axios from "@/lib/axios";
 import { loadCatalogs } from "@/lib/catalogCache";
@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { toast } from "@/hooks/use-toast";
+import { notify } from "@/lib/notify";
 import { Loader2 } from "lucide-react";
 
 export default function TicketDetalle() {
@@ -34,7 +34,7 @@ export default function TicketDetalle() {
             });
             setTicket(ticketRes.data);
         } catch (err) {
-            toast({ description: "No se pudo cargar el ticket", variant: "destructive" });
+            notify.error("No se pudo cargar el ticket");
         }
     };
 
@@ -47,9 +47,9 @@ export default function TicketDetalle() {
             setTicket(data);
             setNote("");
             setAssigneeId("none");
-            toast({ description: "Ticket actualizado" });
+            notify.success("Ticket actualizado");
         } catch (err) {
-            toast({ description: err?.response?.data?.message || "No se pudo actualizar", variant: "destructive" });
+            notify.error(err?.response?.data?.message || "No se pudo actualizar");
         } finally { setUpdating(false); }
     };
 
@@ -58,9 +58,9 @@ export default function TicketDetalle() {
         try {
             const { data } = await axios.post(`/api/tickets/${id}/take`);
             setTicket(data);
-            toast({ description: "Ticket tomado" });
+            notify.success("Ticket tomado");
         } catch (err) {
-            toast({ description: err?.response?.data?.message || "No se pudo tomar", variant: "destructive" });
+            notify.error(err?.response?.data?.message || "No se pudo tomar");
         } finally { setUpdating(false); }
     };
 
@@ -71,9 +71,9 @@ export default function TicketDetalle() {
             const { data } = await axios.post(`/api/tickets/${id}/assign`, { assigned_user_id: Number(assigneeId) });
             setTicket(data);
             setAssigneeId("none");
-            toast({ description: "Responsable asignado" });
+            notify.success("Responsable asignado");
         } catch (err) {
-            toast({ description: err?.response?.data?.message || "No se pudo reasignar", variant: "destructive" });
+            notify.error(err?.response?.data?.message || "No se pudo reasignar");
         } finally { setUpdating(false); }
     };
 
@@ -82,9 +82,9 @@ export default function TicketDetalle() {
         try {
             const { data } = await axios.post(`/api/tickets/${id}/unassign`);
             setTicket(data);
-            toast({ description: "Ticket liberado" });
+            notify.success("Ticket liberado");
         } catch (err) {
-            toast({ description: err?.response?.data?.message || "No se pudo liberar", variant: "destructive" });
+            notify.error(err?.response?.data?.message || "No se pudo liberar");
         } finally { setUpdating(false); }
     };
 

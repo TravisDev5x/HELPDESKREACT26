@@ -13,6 +13,8 @@ use App\Notifications\Tickets\TicketReassignedNotification;
 use App\Notifications\Tickets\TicketEscalatedNotification;
 use App\Events\TicketCreated;
 use App\Events\TicketUpdated;
+use App\Http\Requests\StoreTicketRequest;
+use App\Http\Requests\UpdateTicketRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -53,43 +55,7 @@ class TicketController extends Controller
         $policy = app(\App\Policies\TicketPolicy::class);
         $query = $policy->scopeFor($user, $query);
 
-        $filters = [
-            'area_current_id' => 'area_current_id',
-            'area_origin_id' => 'area_origin_id',
-            'sede_id' => 'sede_id',
-            'ubicacion_id' => 'ubicacion_id',
-            'ticket_type_id' => 'ticket_type_id',
-            'priority_id' => 'priority_id',
-            'ticket_state_id' => 'ticket_state_id',
-        ];
-        foreach ($filters as $param => $column) {
-            if ($request->filled($param)) {
-                if ($param === 'sede_id' && !$user->can('tickets.filter_by_sede') && !$user->can('tickets.manage_all')) {
-                    continue;
-                }
-                $query->where($column, $request->input($param));
-            }
-        }
-
-        $assignedTo = $request->input('assigned_to');
-        $assignedStatus = $request->input('assigned_status');
-        if ($assignedTo === 'me') {
-            $query->where('assigned_user_id', $user->id);
-        } elseif ($assignedStatus === 'unassigned') {
-            $query->whereNull('assigned_user_id');
-        } elseif ($request->filled('assigned_user_id')) {
-            $assigneeId = (int) $request->input('assigned_user_id');
-            $allowed = true;
-            if (!$user->can('tickets.manage_all')) {
-                $allowed = DB::table('users')
-                    ->where('id', $assigneeId)
-                    ->where('area_id', $user->area_id)
-                    ->exists();
-            }
-            if ($allowed) {
-                $query->where('assigned_user_id', $assigneeId);
-            }
-        }
+        $this->applyCatalogFilters($request, $user, $query);
 
         $assignedTo = $request->input('assigned_to');
         $assignedStatus = $request->input('assigned_status');
@@ -124,6 +90,91 @@ class TicketController extends Controller
     }
 
     /**
+     * Resumen de tickets (cards) segun filtros y permisos actuales.
+     */
+    public function summary(Request $request)
+    {
+        $user = Auth::user();
+        if (!$user) {
+            return response()->json(['message' => 'No autorizado'], 401);
+        }
+
+        // Mensaje claro si falta area para permisos de area (no aplica a manage_all)
+        if (!$user->can('tickets.manage_all') && $user->can('tickets.view_area') && !$user->area_id) {
+            Log::warning('tickets.view_area sin area_id', ['user_id' => $user->id]);
+            return response()->json(['message' => 'Asigna tu area para acceder a tickets'], 403);
+        }
+
+        Gate::authorize('viewAny', Ticket::class);
+
+        $query = Ticket::query();
+        $policy = app(\App\Policies\TicketPolicy::class);
+        $query = $policy->scopeFor($user, $query);
+
+        $this->applyCatalogFilters($request, $user, $query);
+
+        $assignedTo = $request->input('assigned_to');
+        $assignedStatus = $request->input('assigned_status');
+        if ($assignedTo === 'me') {
+            $query->where('assigned_user_id', $user->id);
+        } elseif ($assignedStatus === 'unassigned') {
+            $query->whereNull('assigned_user_id');
+        } elseif ($request->filled('assigned_user_id')) {
+            $assigneeId = (int) $request->input('assigned_user_id');
+            $allowed = true;
+            if (!$user->can('tickets.manage_all')) {
+                $allowed = DB::table('users')
+                    ->where('id', $assigneeId)
+                    ->where('area_id', $user->area_id)
+                    ->exists();
+            }
+            if ($allowed) {
+                $query->where('assigned_user_id', $assigneeId);
+            }
+        }
+
+        $total = (clone $query)->count();
+
+        $states = TicketState::select('id', 'name', 'code', 'is_final')->get()->keyBy('id');
+        $byState = (clone $query)
+            ->select('ticket_state_id', DB::raw('count(*) as total'))
+            ->groupBy('ticket_state_id')
+            ->get()
+            ->map(function ($row) use ($states) {
+                $state = $states->get($row->ticket_state_id);
+                return [
+                    'id' => $row->ticket_state_id,
+                    'label' => $state?->name ?? 'Sin estado',
+                    'code' => $state?->code,
+                    'is_final' => (bool) ($state?->is_final ?? false),
+                    'value' => (int) $row->total,
+                ];
+            })
+            ->values();
+
+        $finalStateIds = $states->filter(fn ($s) => $s->is_final)->keys();
+        $burnedCount = (clone $query)
+            ->where('created_at', '<=', now()->subHours(72))
+            ->when($finalStateIds->isNotEmpty(), fn ($q) => $q->whereNotIn('ticket_state_id', $finalStateIds))
+            ->count();
+
+        $cancelStateId = TicketState::where('code', 'cancelado')->value('id');
+        if (!$cancelStateId) {
+            $cancelStateId = TicketState::where('name', 'Cancelado')->value('id');
+        }
+        $canceledCount = $cancelStateId
+            ? (clone $query)->where('ticket_state_id', $cancelStateId)->count()
+            : 0;
+
+        return response()->json([
+            'total' => $total,
+            'burned' => $burnedCount,
+            'canceled' => $canceledCount,
+            'by_state' => $byState,
+        ]);
+    }
+
+    /**
      * Exporta tickets visibles para el usuario en CSV.
      */
     public function export(Request $request)
@@ -146,23 +197,7 @@ class TicketController extends Controller
         $policy = app(\App\Policies\TicketPolicy::class);
         $query = $policy->scopeFor($user, $query);
 
-        $filters = [
-            'area_current_id' => 'area_current_id',
-            'area_origin_id' => 'area_origin_id',
-            'sede_id' => 'sede_id',
-            'ubicacion_id' => 'ubicacion_id',
-            'ticket_type_id' => 'ticket_type_id',
-            'priority_id' => 'priority_id',
-            'ticket_state_id' => 'ticket_state_id',
-        ];
-        foreach ($filters as $param => $column) {
-            if ($request->filled($param)) {
-                if ($param === 'sede_id' && !$user->can('tickets.filter_by_sede') && !$user->can('tickets.manage_all')) {
-                    continue;
-                }
-                $query->where($column, $request->input($param));
-            }
-        }
+        $this->applyCatalogFilters($request, $user, $query);
 
         $headers = [
             'Content-Type' => 'text/csv',
@@ -227,7 +262,7 @@ class TicketController extends Controller
         return $this->withAbilities($ticket);
     }
 
-    public function store(Request $request)
+    public function store(StoreTicketRequest $request)
     {
         $user = Auth::user();
         if (!$user) return response()->json(['message' => 'No autorizado'], 401);
@@ -236,18 +271,7 @@ class TicketController extends Controller
             return response()->json(['message' => 'No autorizado'], 403);
         }
 
-        $data = $request->validate([
-            'subject' => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'area_origin_id' => 'required|exists:areas,id',
-            'area_current_id' => 'required|exists:areas,id',
-            'sede_id' => 'required|exists:sedes,id',
-            'ubicacion_id' => 'nullable|exists:ubicaciones,id',
-            'ticket_type_id' => 'required|exists:ticket_types,id',
-            'priority_id' => 'required|exists:priorities,id',
-            'ticket_state_id' => 'required|exists:ticket_states,id',
-            'created_at' => 'required|date|before_or_equal:now',
-        ]);
+        $data = $request->validated();
 
         $data['requester_id'] = $user->id;
         $data['requester_position_id'] = $user->position_id ?? null;
@@ -259,21 +283,15 @@ class TicketController extends Controller
             $ticket->created_at = $clientCreatedAt;
             $ticket->save();
 
-            try {
-                TicketAreaAccess::firstOrCreate(
-                    ['ticket_id' => $ticket->id, 'area_id' => $ticket->area_origin_id],
-                    ['reason' => 'created', 'created_at' => now()]
-                );
-            } catch (\Throwable $e) {
-                // fallos silenciosos para no afectar la creacion del ticket
-            }
-            try {
-                TicketAreaAccess::firstOrCreate(
-                    ['ticket_id' => $ticket->id, 'area_id' => $ticket->area_current_id],
-                    ['reason' => 'created', 'created_at' => now()]
-                );
-            } catch (\Throwable $e) {
-                // fallos silenciosos para no afectar la creacion del ticket
+            foreach ([$ticket->area_origin_id, $ticket->area_current_id] as $areaId) {
+                try {
+                    TicketAreaAccess::firstOrCreate(
+                        ['ticket_id' => $ticket->id, 'area_id' => $areaId],
+                        ['reason' => 'created', 'created_at' => now()]
+                    );
+                } catch (\Throwable $e) {
+                    // fallos silenciosos para no afectar la creacion del ticket
+                }
             }
 
             TicketHistory::create([
@@ -301,7 +319,7 @@ class TicketController extends Controller
         });
     }
 
-    public function update(Request $request, Ticket $ticket)
+    public function update(UpdateTicketRequest $request, Ticket $ticket)
     {
         $user = Auth::user();
         if (!$user) return response()->json(['message' => 'No autorizado'], 401);
@@ -311,14 +329,13 @@ class TicketController extends Controller
         }
         Gate::authorize('update', $ticket);
 
-        $data = $request->validate([
-            'ticket_state_id' => 'nullable|exists:ticket_states,id',
-            'priority_id' => 'nullable|exists:priorities,id',
-            'area_current_id' => 'nullable|exists:areas,id',
-            'note' => 'nullable|string|max:1000',
-        ]);
+        $data = $request->validated();
 
         return DB::transaction(function () use ($data, $ticket, $user) {
+            $beforeStateId = $ticket->ticket_state_id;
+            $beforePriorityId = $ticket->priority_id;
+            $beforeAreaId = $ticket->area_current_id;
+            $beforeAssigneeId = $ticket->assigned_user_id;
             $fromArea = $ticket->area_current_id;
             $toArea = null;
             $fromAssignee = $ticket->assigned_user_id;
@@ -379,6 +396,26 @@ class TicketController extends Controller
                 'to_assignee_id' => $didEscalate ? null : null,
             ]);
 
+            $changes = [];
+            if ((int) $beforeStateId !== (int) $ticket->ticket_state_id) {
+                $changes['ticket_state_id'] = ['from' => $beforeStateId, 'to' => $ticket->ticket_state_id];
+            }
+            if ((int) $beforePriorityId !== (int) $ticket->priority_id) {
+                $changes['priority_id'] = ['from' => $beforePriorityId, 'to' => $ticket->priority_id];
+            }
+            if ((int) $beforeAreaId !== (int) $ticket->area_current_id) {
+                $changes['area_current_id'] = ['from' => $beforeAreaId, 'to' => $ticket->area_current_id];
+            }
+            if ((int) $beforeAssigneeId !== (int) $ticket->assigned_user_id) {
+                $changes['assigned_user_id'] = ['from' => $beforeAssigneeId, 'to' => $ticket->assigned_user_id];
+            }
+            if (!empty($changes)) {
+                $this->auditTicketChange($user, $ticket, 'update', $changes, [
+                    'note_provided' => (bool) $noteProvided,
+                    'note_length' => $noteProvided ? strlen((string) $data['note']) : 0,
+                ]);
+            }
+
             if ($didEscalate && $toArea) {
                 $this->notifyEscalated($ticket, $user, (int) $toArea);
             }
@@ -419,13 +456,9 @@ class TicketController extends Controller
 
         return DB::transaction(function () use ($ticket, $user) {
             $openStateId = TicketState::where('code', 'abierto')->value('id');
-            if (!$openStateId) {
-                $openStateId = TicketState::where('name', 'like', '%abiert%')->value('id');
-            }
             $progressStateId = TicketState::where('code', 'en_progreso')->value('id');
-            if (!$progressStateId) {
-                $progressStateId = TicketState::where('name', 'like', '%progres%')->value('id');
-            }
+            $beforeStateId = $ticket->ticket_state_id;
+            $beforeAssigneeId = $ticket->assigned_user_id;
 
             $ticket->assigned_user_id = $user->id;
             $ticket->assigned_at = now();
@@ -444,6 +477,14 @@ class TicketController extends Controller
                 'from_assignee_id' => null,
                 'to_assignee_id' => $user->id,
             ]);
+
+            $changes = [
+                'assigned_user_id' => ['from' => $beforeAssigneeId, 'to' => $ticket->assigned_user_id],
+            ];
+            if ((int) $beforeStateId !== (int) $ticket->ticket_state_id) {
+                $changes['ticket_state_id'] = ['from' => $beforeStateId, 'to' => $ticket->ticket_state_id];
+            }
+            $this->auditTicketChange($user, $ticket, 'take', $changes);
 
             $this->notifyAssignment($ticket, $user, $user->id, 'assigned');
 
@@ -507,6 +548,10 @@ class TicketController extends Controller
                 'to_assignee_id' => $newUser->id,
             ]);
 
+            $this->auditTicketChange($user, $ticket, 'assign', [
+                'assigned_user_id' => ['from' => $prevAssignee, 'to' => $newUser->id],
+            ]);
+
             $this->notifyAssignment($ticket, $user, $newUser->id, 'reassigned');
 
             $ticket->load(
@@ -555,6 +600,10 @@ class TicketController extends Controller
                 'action' => 'unassigned',
                 'from_assignee_id' => $prevAssignee,
                 'to_assignee_id' => null,
+            ]);
+
+            $this->auditTicketChange($user, $ticket, 'unassign', [
+                'assigned_user_id' => ['from' => $prevAssignee, 'to' => null],
             ]);
 
             $ticket->load(
@@ -631,6 +680,14 @@ class TicketController extends Controller
                 'to_assignee_id' => null,
             ]);
 
+            $this->auditTicketChange($user, $ticket, 'escalate', [
+                'area_current_id' => ['from' => $fromArea, 'to' => $newArea],
+                'assigned_user_id' => ['from' => $fromAssignee, 'to' => null],
+            ], [
+                'note_provided' => !empty($data['note']),
+                'note_length' => !empty($data['note']) ? strlen((string) $data['note']) : 0,
+            ]);
+
             $this->notifyEscalated($ticket, $user, $newArea);
 
             $ticket->load(
@@ -667,6 +724,46 @@ class TicketController extends Controller
             'tickets.escalate',
             'tickets.manage_all',
         ]);
+    }
+
+    protected function applyCatalogFilters(Request $request, User $user, $query): void
+    {
+        $filters = [
+            'area_current_id' => 'area_current_id',
+            'area_origin_id' => 'area_origin_id',
+            'sede_id' => 'sede_id',
+            'ubicacion_id' => 'ubicacion_id',
+            'ticket_type_id' => 'ticket_type_id',
+            'priority_id' => 'priority_id',
+            'ticket_state_id' => 'ticket_state_id',
+        ];
+
+        foreach ($filters as $param => $column) {
+            if ($request->filled($param)) {
+                if ($param === 'sede_id' && !$user->can('tickets.filter_by_sede') && !$user->can('tickets.manage_all')) {
+                    continue;
+                }
+                $query->where($column, $request->input($param));
+            }
+        }
+
+        if ($request->filled('date_from')) {
+            try {
+                $from = Carbon::parse($request->input('date_from'))->startOfDay();
+                $query->where('created_at', '>=', $from);
+            } catch (\Throwable $e) {
+                // ignore invalid date_from
+            }
+        }
+
+        if ($request->filled('date_to')) {
+            try {
+                $to = Carbon::parse($request->input('date_to'))->endOfDay();
+                $query->where('created_at', '<=', $to);
+            } catch (\Throwable $e) {
+                // ignore invalid date_to
+            }
+        }
     }
 
     protected function notifyAssignment(Ticket $ticket, User $actor, int $assigneeId, string $action): void
@@ -756,5 +853,25 @@ class TicketController extends Controller
         ]);
 
         return $ticket;
+    }
+
+    protected function auditTicketChange(?User $actor, Ticket $ticket, string $action, array $changes, array $meta = []): void
+    {
+        if (!config('helpdesk.tickets.audit_enabled', false)) {
+            return;
+        }
+
+        try {
+            $channel = config('helpdesk.tickets.audit_channel', 'audit');
+            Log::channel($channel)->info('ticket.audit', [
+                'actor_id' => $actor?->id,
+                'ticket_id' => $ticket->id,
+                'action' => $action,
+                'changes' => $changes,
+                'meta' => $meta,
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('ticket audit failed', ['error' => $e->getMessage()]);
+        }
     }
 }

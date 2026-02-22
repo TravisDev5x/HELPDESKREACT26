@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\PasswordResetController;
 use App\Http\Controllers\Api\AdminNotificationController;
 use App\Http\Controllers\Api\PermissionController;
 use App\Http\Controllers\Api\RolePermissionController;
+use App\Http\Controllers\Api\SessionMonitorController;
 
 /*
 |--------------------------------------------------------------------------
@@ -26,13 +27,15 @@ use App\Http\Controllers\Api\RolePermissionController;
 // ==========================
 
 Route::post('login', [AuthController::class, 'login'])
-    ->middleware(['throttle:10,1','locale']);
+    ->middleware(['throttle:login','locale']);
 Route::post('register', [AuthController::class, 'register'])
-    ->middleware(['throttle:5,1','locale']);
+    ->middleware(['throttle:register','locale']);
 Route::get('register/verify', [AuthController::class, 'verifyEmail']);
 Route::post('logout', [AuthController::class, 'logout'])
     ->middleware(['auth:sanctum','locale']);
 Route::get('check-auth', [AuthController::class, 'checkAuth'])
+    ->middleware(['auth:sanctum','locale']);
+Route::get('ping', [AuthController::class, 'ping'])
     ->middleware(['auth:sanctum','locale']);
 
 // PASSWORD RESET
@@ -47,6 +50,9 @@ Route::post('password/reset', [PasswordResetController::class, 'reset'])
 // ==========================
 
 Route::middleware(['auth:sanctum','locale','perm:users.manage'])->group(function () {
+
+    Route::get('sessions', [SessionMonitorController::class, 'index'])
+        ->middleware('throttle:30,1');
 
     Route::post('users/mass-delete', [UserController::class, 'massDestroy'])
         ->middleware('throttle:5,1');
@@ -106,18 +112,39 @@ Route::middleware(['auth:sanctum','locale','perm:catalogs.manage'])->group(funct
         ->only(['index', 'store', 'update', 'destroy']);
     Route::apiResource('ticket-types', \App\Http\Controllers\Api\TicketTypeController::class)
         ->only(['index', 'store', 'update', 'destroy']);
+    Route::apiResource('incident-types', \App\Http\Controllers\Api\IncidentTypeController::class)
+        ->only(['index', 'store', 'update', 'destroy']);
+    Route::apiResource('incident-severities', \App\Http\Controllers\Api\IncidentSeverityController::class)
+        ->only(['index', 'store', 'update', 'destroy']);
+    Route::apiResource('incident-statuses', \App\Http\Controllers\Api\IncidentStatusController::class)
+        ->only(['index', 'store', 'update', 'destroy']);
 });
 
 // Tickets: acceso con auth + permisos especÃ­ficos (Policies refuerzan alcance)
 Route::middleware(['auth:sanctum','locale','perm:tickets.manage_all|tickets.view_area|tickets.view_own|tickets.create'])->group(function () {
     // Analytics debe declararse antes de los params {ticket} para evitar binding
-    Route::get('tickets/analytics', \App\Http\Controllers\Api\TicketAnalyticsController::class);
-    Route::get('tickets/export', [\App\Http\Controllers\Api\TicketController::class, 'export']);
+    Route::get('tickets/analytics', \App\Http\Controllers\Api\TicketAnalyticsController::class)
+        ->middleware('report.audit');
+    Route::get('tickets/summary', [\App\Http\Controllers\Api\TicketController::class, 'summary'])
+        ->middleware('report.audit');
+    Route::get('tickets/export', [\App\Http\Controllers\Api\TicketController::class, 'export'])
+        ->middleware('report.audit');
     Route::post('tickets/{ticket}/take', [\App\Http\Controllers\Api\TicketController::class, 'take']);
     Route::post('tickets/{ticket}/assign', [\App\Http\Controllers\Api\TicketController::class, 'assign']);
     Route::post('tickets/{ticket}/unassign', [\App\Http\Controllers\Api\TicketController::class, 'unassign']);
     Route::post('tickets/{ticket}/escalate', [\App\Http\Controllers\Api\TicketController::class, 'escalate']);
     Route::apiResource('tickets', \App\Http\Controllers\Api\TicketController::class)
+        ->only(['index', 'store', 'update', 'show']);
+});
+
+// Incidencias: acceso con auth + permisos especificos (Policies refuerzan alcance)
+Route::middleware(['auth:sanctum','locale','perm:incidents.manage_all|incidents.view_area|incidents.view_own|incidents.create'])->group(function () {
+    Route::post('incidents/{incident}/take', [\App\Http\Controllers\Api\IncidentController::class, 'take']);
+    Route::post('incidents/{incident}/assign', [\App\Http\Controllers\Api\IncidentController::class, 'assign']);
+    Route::post('incidents/{incident}/unassign', [\App\Http\Controllers\Api\IncidentController::class, 'unassign']);
+    Route::post('incidents/{incident}/attachments', [\App\Http\Controllers\Api\IncidentAttachmentController::class, 'store']);
+    Route::delete('incidents/{incident}/attachments/{attachment}', [\App\Http\Controllers\Api\IncidentAttachmentController::class, 'destroy']);
+    Route::apiResource('incidents', \App\Http\Controllers\Api\IncidentController::class)
         ->only(['index', 'store', 'update', 'show']);
 });
 

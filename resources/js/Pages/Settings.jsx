@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import axios from "@/lib/axios";
 import { useTheme, DEFAULT_PREFS } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
-import { useToast } from "@/hooks/use-toast";
+import { useSidebarPosition } from "@/context/SidebarPositionContext";
+import { notify } from "@/lib/notify";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
@@ -28,6 +29,7 @@ import {
 const OPTIONS_THEME = [
     { value: "light", label: "Claro", description: "Blanco limpio", color: "bg-slate-100" },
     { value: "light-dim", label: "Claro suave", description: "Fondo gris claro", color: "bg-slate-200" },
+    { value: "adminlte-legacy", label: "AdminLTE Legacy", description: "Inspirado en AdminLTE clásico", color: "bg-[#3c8dbc]" },
     { value: "dark", label: "Oscuro", description: "Oscuro equilibrado", color: "bg-slate-900" },
     { value: "dark-deep", label: "Oscuro profundo", description: "Más contraste", color: "bg-black" },
     { value: "aeroglass", label: "AeroGlass", description: "Transparencia con brillo sutil", color: "bg-blue-100/50" },
@@ -46,7 +48,7 @@ const OPTIONS_LOCALE = [
 export default function Settings() {
     const { theme, setTheme, density, setDensity, locale, setLocale } = useTheme();
     const { user, updateUserPrefs } = useAuth();
-    const { toast } = useToast();
+    const { position: sidebarPosition, setPosition: setSidebarPosition } = useSidebarPosition();
     const { t } = useI18n();
 
     const [pendingTheme, setPendingTheme] = useState(() => theme || DEFAULT_PREFS.theme);
@@ -73,15 +75,17 @@ export default function Settings() {
     const isDirty = useMemo(() => {
         const baseSidebarState = user?.sidebar_state ?? DEFAULT_PREFS.sidebar_state;
         const baseHover = typeof user?.sidebar_hover_preview !== "undefined" ? user.sidebar_hover_preview : DEFAULT_PREFS.sidebar_hover_preview;
+        const baseSidebarPosition = user?.sidebar_position ?? 'left';
         const baseLocale = user?.locale ?? DEFAULT_PREFS.locale;
         return (
             pendingTheme !== theme ||
             pendingDensity !== density ||
             pendingLocale !== baseLocale ||
             sidebarState !== baseSidebarState ||
-            hoverPreview !== baseHover
+            hoverPreview !== baseHover ||
+            sidebarPosition !== baseSidebarPosition
         );
-    }, [pendingTheme, theme, pendingDensity, density, pendingLocale, locale, sidebarState, hoverPreview, user?.sidebar_state, user?.sidebar_hover_preview, user?.locale]);
+    }, [pendingTheme, theme, pendingDensity, density, pendingLocale, locale, sidebarState, hoverPreview, sidebarPosition, user?.sidebar_state, user?.sidebar_hover_preview, user?.sidebar_position, user?.locale]);
 
     const saveAll = async () => {
         if (!isDirty) return;
@@ -92,6 +96,7 @@ export default function Settings() {
                 ui_density: pendingDensity,
                 sidebar_state: sidebarState,
                 sidebar_hover_preview: sidebarState === 'collapsed' ? hoverPreview : false,
+                sidebar_position: sidebarPosition,
                 locale: pendingLocale,
             };
             await axios.put('/api/profile/preferences', { ...payload });
@@ -100,9 +105,9 @@ export default function Settings() {
             setLocale(pendingLocale, { persist: false });
             updateUserPrefs({ ...payload });
             localStorage.setItem('sidebar-collapsed', sidebarState === 'collapsed' ? '1' : '0');
-            toast({ description: t('settings.toast.saved') });
+            notify.success(t('settings.toast.saved'));
         } catch (e) {
-            toast({ description: t('settings.toast.failed'), variant: "destructive" });
+            notify.error(t('settings.toast.failed'));
         } finally {
             setSaving(false);
         }
@@ -114,7 +119,7 @@ export default function Settings() {
             const res = await axios.get('/api/admin/notifications');
             setNotifications(res.data.notifications || []);
         } catch (e) {
-            toast({ description: "No se pudieron cargar las notificaciones", variant: "destructive" });
+            notify.error("No se pudieron cargar las notificaciones");
         } finally {
             setLoadingNotif(false);
         }
@@ -122,7 +127,7 @@ export default function Settings() {
 
     const resolveNotification = async (notif) => {
         if (!tempUserId || !tempPass) {
-            toast({ description: "ID y clave son obligatorios", variant: "destructive" });
+            notify.error("ID y clave son obligatorios");
             return;
         }
         try {
@@ -134,9 +139,9 @@ export default function Settings() {
             await axios.post(`/api/admin/notifications/${notif.id}/read`);
             setTempPass(""); setTempUserId(""); setTempComment("");
             loadNotifications();
-            toast({ description: "Resuelto con éxito" });
+            notify.success("Resuelto con éxito");
         } catch (e) {
-            toast({ description: "Error al resolver", variant: "destructive" });
+            notify.error("Error al resolver");
         }
     };
 
@@ -148,6 +153,7 @@ export default function Settings() {
         setPendingLocale(DEFAULT_PREFS.locale);
         setSidebarState(DEFAULT_PREFS.sidebar_state);
         setHoverPreview(DEFAULT_PREFS.sidebar_hover_preview);
+        setSidebarPosition('left');
     };
 
     return (
@@ -273,6 +279,21 @@ export default function Settings() {
                                         {state === 'expanded' ? 'Expandida' : 'Colapsada'}
                                     </Button>
                                 ))}
+                            </div>
+                            <div className="space-y-2">
+                                <p className="text-sm font-semibold">{t('settings.sidebar.position')}</p>
+                                <div className="flex gap-2">
+                                    {['left', 'right'].map((pos) => (
+                                        <Button
+                                            key={pos}
+                                            variant={sidebarPosition === pos ? 'default' : 'outline'}
+                                            onClick={() => setSidebarPosition(pos)}
+                                            className="flex-1 h-11"
+                                        >
+                                            {pos === 'left' ? t('settings.sidebar.positionLeft') : t('settings.sidebar.positionRight')}
+                                        </Button>
+                                    ))}
+                                </div>
                             </div>
                             <Separator className="bg-border/40" />
                             <div className="flex items-center justify-between p-4 bg-muted/20 rounded-xl border border-border/40">

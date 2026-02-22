@@ -4,12 +4,12 @@ import { useAuth } from '@/context/AuthContext'
 
 const STORAGE_KEY = 'theme'
 const STORAGE_LOCALE = 'locale'
-const THEME_ORDER = ['light', 'light-dim', 'dark', 'dark-deep', 'aeroglass', 'aeroglass-dark']
+const THEME_ORDER = ['light', 'light-dim', 'adminlte-legacy', 'dark', 'dark-deep', 'aeroglass', 'aeroglass-dark']
 
 export const DEFAULT_PREFS = {
     theme: 'light',
     ui_density: 'normal',
-    sidebar_state: 'expanded',
+    sidebar_state: 'collapsed',
     sidebar_hover_preview: true,
     locale: 'es',
 }

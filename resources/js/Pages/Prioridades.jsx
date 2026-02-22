@@ -5,7 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
-import { toast } from "@/hooks/use-toast";
+import { notify } from "@/lib/notify";
+import { clearCatalogCache } from "@/lib/catalogCache";
+import { getApiErrorMessage } from "@/lib/apiErrors";
 
 export default function Prioridades() {
     const [list, setList] = useState([]);
@@ -19,8 +21,8 @@ export default function Prioridades() {
         try {
             const { data } = await axios.get("/api/priorities");
             setList(data);
-        } catch {
-            toast({ description: "No se pudieron cargar", variant: "destructive" });
+        } catch (err) {
+            notify.error(getApiErrorMessage(err, "No se pudieron cargar"));
         } finally { setLoading(false); }
     };
 
@@ -33,10 +35,11 @@ export default function Prioridades() {
         try {
             const { data } = await axios.post("/api/priorities", { name, level });
             setList((prev) => [data, ...prev].sort((a, b) => a.level - b.level));
+            clearCatalogCache();
             setName(""); setLevel(1);
-            toast({ description: "Prioridad creada" });
+            notify.success("Prioridad creada");
         } catch (err) {
-            toast({ description: err?.response?.data?.message || "No se pudo crear", variant: "destructive" });
+            notify.error(getApiErrorMessage(err, "No se pudo crear"));
         } finally { setSaving(false); }
     };
 
@@ -44,8 +47,9 @@ export default function Prioridades() {
         try {
             const { data } = await axios.put(`/api/priorities/${item.id}`, { ...item, is_active: !item.is_active });
             setList((prev) => prev.map((p) => p.id === data.id ? data : p));
-        } catch {
-            toast({ description: "No se pudo actualizar", variant: "destructive" });
+            clearCatalogCache();
+        } catch (err) {
+            notify.error(getApiErrorMessage(err, "No se pudo actualizar"));
         }
     };
 

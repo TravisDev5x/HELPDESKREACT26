@@ -21,8 +21,29 @@ class UserRoleController extends Controller
         ]);
 
         $roleIds = $data['roles'] ?? [];
-        $roles = $roleIds ? Role::whereIn('id', $roleIds)->get() : [];
-        $user->syncRoles($roles);
+        $roles = $roleIds ? Role::whereIn('id', $roleIds)->get() : collect();
+        $expectedGuard = config('auth.defaults.guard', 'web');
+
+        $normalized = $roles->map(function ($role) use ($expectedGuard) {
+            if ($role->guard_name === $expectedGuard) {
+                return $role;
+            }
+            return Role::where('name', $role->name)
+                ->where('guard_name', $expectedGuard)
+                ->first();
+        })->filter();
+
+        if ($roles->count() !== $normalized->count()) {
+            return response()->json([
+                'message' => 'Roles incompatibles con el guard actual',
+            ], 422);
+        }
+
+        $user->syncRoles($normalized->unique('id'));
+
+        if ($user->status === 'pending_admin' && $user->roles()->count() > 0) {
+            $user->update(['status' => 'active']);
+        }
 
         return response()->noContent();
     }

@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Log;
 use App\Models\User;
 use App\Mail\VerifyEmail;
 
@@ -30,6 +31,10 @@ class AuthController extends Controller
         // Buscar usuario (mismo mensaje para no filtrar existencia)
         $user = User::where($fieldType, $input)->first();
         if (! $user || ! Hash::check($request->password, $user->password)) {
+            Log::channel('single')->warning('Login fallido', [
+                'identifier_type' => $fieldType,
+                'ip' => $request->ip(),
+            ]);
             return response()->json([
                 'errors' => ['root' => 'Credenciales inválidas']
             ], 422);
@@ -41,20 +46,19 @@ class AuthController extends Controller
             ], 403);
         }
 
-        if ($user->status !== 'active') {
+        // Solo pending_email y blocked no pueden entrar. pending_admin puede entrar y ver app con mensaje de espera.
+        if (in_array($user->status, ['pending_email', 'blocked'], true)) {
             $message = match ($user->status) {
                 'pending_email' => 'Verifica tu correo para activar la cuenta',
-                'pending_admin' => 'Tu cuenta está pendiente de aprobación',
                 'blocked' => 'Tu cuenta está bloqueada',
                 default => 'Tu cuenta no está activa',
             };
-
             return response()->json([
                 'errors' => ['root' => $message]
             ], 403);
         }
 
-        if ($user->email && is_null($user->email_verified_at)) {
+        if ($user->status === 'active' && $user->email && is_null($user->email_verified_at)) {
             return response()->json([
                 'errors' => ['root' => 'Verifica tu correo para activar la cuenta']
             ], 403);
@@ -80,7 +84,7 @@ class AuthController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'email' => ['nullable', 'email', 'unique:users,email'],
             'phone' => ['nullable', 'digits:10'],
-            'sede_id' => ['nullable', 'exists:sedes,id'],
+            'sede_id' => ['nullable', 'exists:sites,id'],
             'password' => [
                 'required',
                 'string',
@@ -89,6 +93,7 @@ class AuthController extends Controller
                 'regex:/[A-Z]/',
                 'regex:/[0-9]/',
                 'regex:/[^A-Za-z0-9]/',
+                'confirmed',
             ],
         ]);
 
@@ -116,7 +121,7 @@ class AuthController extends Controller
                 'updated_at' => now(),
             ]);
 
-            $url = url("/api/register/verify?token={$token}");
+            $url = url("/verify-email?token={$token}");
             try {
                 Mail::to($user->email)->send(new VerifyEmail($url));
                 $mailSent = true;
@@ -160,11 +165,12 @@ class AuthController extends Controller
             return response()->json(['message' => 'Usuario no encontrado'], 404);
         }
 
-        $user->email_verified_at = now();
-        $user->status = 'active';
-        $user->save();
-
-        DB::table('email_verification_tokens')->where('token', $token)->delete();
+        DB::transaction(function () use ($user, $token) {
+            $user->email_verified_at = now();
+            $user->status = 'active';
+            $user->save();
+            DB::table('email_verification_tokens')->where('token', $token)->delete();
+        });
 
         return response()->json(['message' => 'Correo verificado. Ya puedes iniciar sesion.']);
     }
@@ -197,5 +203,14 @@ class AuthController extends Controller
         return response()->json([
             'user' => null
         ]);
+    }
+
+    /**
+     * Ping ligero para heartbeat: actualiza last_activity de la sesión sin devolver datos.
+     * Mejora la precisión del monitor de sesiones cuando el usuario tiene la app abierta.
+     */
+    public function ping()
+    {
+        return response()->noContent();
     }
 }

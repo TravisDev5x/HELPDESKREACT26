@@ -1,4 +1,4 @@
-﻿import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -16,7 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { useToast } from "@/hooks/use-toast";
+import { notify } from "@/lib/notify";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card } from "@/components/ui/card";
@@ -75,6 +75,15 @@ const StatusBadge = ({ status, isBlacklisted }) => {
             {labels[status] || status}
         </Badge>
     );
+};
+
+const resolveRoleId = (userRoles, availableRoles) => {
+    const role = userRoles?.[0];
+    if (!role) return "";
+    const byId = availableRoles.find((r) => String(r.id) === String(role.id));
+    if (byId) return String(byId.id);
+    const byName = availableRoles.find((r) => r.name === role.name);
+    return byName ? String(byName.id) : "";
 };
 
 // --- FORMULARIO DE USUARIO ---
@@ -237,8 +246,6 @@ function UserForm({ defaultValues, onSubmit, onCancel, catalogs, isEdit = false 
 
 // --- COMPONENTE PRINCIPAL ---
 export default function Users() {
-    const { toast } = useToast();
-
     const [users, setUsers] = useState([]);
     const [catalogs, setCatalogs] = useState({ campaigns: [], areas: [], positions: [], roles: [], sedes: [], ubicaciones: [] });
 
@@ -315,11 +322,11 @@ export default function Users() {
             setUsers(uRes.data || []);
             setPagination({ current: uRes.current_page, last: uRes.last_page, total: uRes.total });
         } catch (err) {
-            toast({ description: "Error al cargar datos", variant: "destructive" });
+            notify.error("Error al cargar datos");
         } finally {
             setLoading(false);
         }
-    }, [debouncedSearch, perPage, showTrashed, sort, filters, toast]);
+    }, [debouncedSearch, perPage, showTrashed, sort, filters]);
 
     useEffect(() => { fetchData(1); }, [fetchData]);
 
@@ -354,9 +361,9 @@ export default function Users() {
             fetchData(pagination.current);
             setSelectedIds([]);
             setConfirmOpen(false);
-            toast({ description: "Acción realizada correctamente" });
+            notify.success("Acción realizada correctamente");
         } catch (e) {
-            toast({ description: "Error en la operación", variant: "destructive" });
+            notify.error("Error en la operación");
         } finally { setProcessing(false); }
     };
 
@@ -377,10 +384,10 @@ export default function Users() {
             }
             setCreateOpen(false);
             fetchData(1);
-            toast({ description: "Usuario creado correctamente" });
+            notify.success("Usuario creado correctamente");
         } catch (error) {
             mapValidationErrors(form, error);
-            toast({ description: error.response?.data?.message || "Error al crear", variant: "destructive" });
+            notify.error(error.response?.data?.message || "Error al crear");
         }
     };
 
@@ -396,10 +403,10 @@ export default function Users() {
             setEditOpen(false);
             setApproveMode(false);
             fetchData(pagination.current);
-            toast({ description: "Usuario actualizado" });
+            notify.success("Usuario actualizado");
         } catch (error) {
             mapValidationErrors(form, error);
-            toast({ description: error.response?.data?.message || "Error al actualizar", variant: "destructive" });
+            notify.error(error.response?.data?.message || "Error al actualizar");
         }
     };
 
@@ -409,7 +416,7 @@ export default function Users() {
             {showTrashed ? (
                 <>
                     <Button size="icon" variant="ghost" className="h-8 w-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
-                            onClick={() => axios.post(`/api/users/${user.id}/restore`).then(() => { fetchData(); toast({ description: "Restaurado" }); })}>
+                            onClick={() => axios.post(`/api/users/${user.id}/restore`).then(() => { fetchData(); notify.success("Restaurado"); })}>
                         <RotateCcw className="h-4 w-4" />
                     </Button>
                     <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:bg-destructive/10"
@@ -741,7 +748,7 @@ export default function Users() {
                             defaultValues={editOpen ? {
                                 ...selectedUser,
                                 email: selectedUser.email ?? "",
-                                role_id: selectedUser.roles?.[0]?.id ? String(selectedUser.roles[0].id) : "",
+                                role_id: resolveRoleId(selectedUser.roles, catalogs.roles),
                                 password: ""
                             } : undefined}
                         />

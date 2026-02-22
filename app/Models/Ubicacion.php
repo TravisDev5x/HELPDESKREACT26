@@ -11,7 +11,8 @@ class Ubicacion extends Model
 {
     use HasFactory;
 
-    protected $table = 'ubicaciones';
+    /** Table name in English (was: ubicaciones) */
+    protected $table = 'locations';
 
     protected $fillable = [
         'sede_id',

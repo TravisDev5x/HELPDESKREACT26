@@ -1,25 +1,34 @@
-﻿import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useAuth } from "@/context/AuthContext";
 import axios from "@/lib/axios";
-import { toast } from "@/hooks/use-toast";
+import { notify } from "@/lib/notify";
 import { passwordWithConfirmationSchema } from "@/lib/passwordSchema";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
-import { Loader2, Camera, Save, KeyRound } from "lucide-react";
+import { Loader2, Camera, Save, KeyRound, CircleDot } from "lucide-react";
+
+/** Valores de disponibilidad para futuro chat interno (compatible con API). */
+export const AVAILABILITY_OPTIONS = [
+    { value: "available", label: "Disponible" },
+    { value: "busy", label: "Ocupado" },
+    { value: "disconnected", label: "Desconectado" },
+];
 
 //validaciones Zod
 const profileSchema = z.object({
     name: z.string().min(2, "Mínimo 2 caracteres"),
     email: z.string().email("Correo electrónico inválido"),
     phone: z.string().optional(),
+    availability: z.enum(["available", "busy", "disconnected"]).optional(),
 });
 
 const passwordSchema = passwordWithConfirmationSchema.extend({
@@ -32,6 +41,7 @@ export default function Profile() {
     const [profileLoading, setProfileLoading] = useState(false);
     const [passwordLoading, setPasswordLoading] = useState(false);
     const [preview, setPreview] = useState(null);
+    const [avatarImgError, setAvatarImgError] = useState(false);
     const fileInputRef = useRef(null);
 
     /* =========================
@@ -44,6 +54,7 @@ export default function Profile() {
             name: user?.name || "",
             email: user?.email || "",
             phone: user?.phone || "",
+            availability: user?.availability || "disconnected",
         },
     });
 
@@ -66,12 +77,13 @@ export default function Profile() {
         if (!file) return;
 
         if (file.size > 5 * 1024 * 1024) {
-            toast({ description: "La imagen es demasiado pesada. Máximo 5MB.", variant: "destructive" });
+            notify.error("La imagen es demasiado pesada. Máximo 5MB.");
             if (fileInputRef.current) fileInputRef.current.value = "";
             return;
         }
 
         setPreview(URL.createObjectURL(file));
+        setAvatarImgError(false);
     };
 
     // Sincroniza datos del usuario cuando cambien
@@ -81,6 +93,7 @@ export default function Profile() {
             name: user.name || "",
             email: user.email || "",
             phone: user.phone || "",
+            availability: user.availability || "disconnected",
         });
     }, [user, formProfile]);
 
@@ -90,6 +103,11 @@ export default function Profile() {
             if (preview) URL.revokeObjectURL(preview);
         };
     }, [preview]);
+
+    // Permitir reintento cuando cambia la URL del avatar (ej. tras subir uno nuevo)
+    useEffect(() => {
+        setAvatarImgError(false);
+    }, [user?.avatar_path]);
 
     /* =========================
        GUARDAR PERFIL + AVATAR
@@ -103,28 +121,28 @@ export default function Profile() {
             formData.append("name", values.name);
             formData.append("email", values.email);
             formData.append("phone", values.phone || "");
+            if (values.availability) {
+                formData.append("availability", values.availability);
+            }
 
             if (fileInputRef.current?.files[0]) {
                 formData.append("avatar", fileInputRef.current.files[0]);
             }
 
-                                    // ✅ Axios ya envía cookies (Sanctum)
-                                    // ✅ Axios maneja multipart automáticamente
-            const res = await axios.post("/api/profile", formData, {
-                headers: { "Content-Type": "multipart/form-data" },
-            });
+            // No fijar Content-Type: axios lo pone con boundary al enviar FormData
+            const res = await axios.post("/api/profile", formData);
 
             if (res?.data?.user) {
                 updateUserPrefs(res.data.user);
             }
             setPreview(null);
             if (fileInputRef.current) fileInputRef.current.value = "";
-            toast({ description: "Perfil actualizado correctamente" });
+            notify.success("Perfil actualizado correctamente");
 
         } catch (error) {
             console.error(error);
             const msg = error.response?.data?.message || "Error al actualizar perfil";
-            toast({ description: msg, variant: "destructive" });
+            notify.error(msg);
         } finally {
             setProfileLoading(false);
         }
@@ -139,12 +157,12 @@ export default function Profile() {
 
         try {
             await axios.put("/api/profile/password", values);
-            toast({ description: "Contraseña actualizada con éxito" });
+            notify.success("Contraseña actualizada con éxito");
             formPass.reset();
         } catch (error) {
             console.error(error);
             const msg = error.response?.data?.message || "Error al cambiar contraseña";
-            toast({ description: msg, variant: "destructive" });
+            notify.error(msg);
         } finally {
             setPasswordLoading(false);
         }
@@ -187,15 +205,14 @@ export default function Profile() {
                                         onClick={() => fileInputRef.current?.click()}
                                     >
                                         <Avatar className="h-24 w-24 border-2 border-primary/20 group-hover:border-primary transition-colors">
-                                            <AvatarImage
-                                                src={
-                                                    preview ||
-                                                    (user?.avatar_path
-                                                        ? `/storage/${user.avatar_path}`
-                                                        : null)
-                                                }
-                                                className="object-cover"
-                                            />
+                                            {(preview || (user?.avatar_path && !avatarImgError)) && (
+                                                <AvatarImage
+                                                    src={preview || `/storage/${user.avatar_path}`}
+                                                    alt={user?.name}
+                                                    className="object-cover"
+                                                    onError={() => setAvatarImgError(true)}
+                                                />
+                                            )}
                                             <AvatarFallback className="text-2xl font-black bg-muted">
                                                 {user?.name?.substring(0, 2).toUpperCase()}
                                             </AvatarFallback>
@@ -264,6 +281,37 @@ export default function Profile() {
                                                 <FormControl>
                                                     <Input {...field} className="bg-muted/20" />
                                                 </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+
+                                    <FormField
+                                        control={formProfile.control}
+                                        name="availability"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel className="text-[10px] font-black uppercase flex items-center gap-2">
+                                                    <CircleDot className="h-3.5 w-3.5" />
+                                                    Estado de disponibilidad
+                                                </FormLabel>
+                                                <Select
+                                                    value={field.value || "disconnected"}
+                                                    onValueChange={field.onChange}
+                                                >
+                                                    <FormControl>
+                                                        <SelectTrigger className="bg-muted/20">
+                                                            <SelectValue placeholder="Seleccionar estado" />
+                                                        </SelectTrigger>
+                                                    </FormControl>
+                                                    <SelectContent>
+                                                        {AVAILABILITY_OPTIONS.map((opt) => (
+                                                            <SelectItem key={opt.value} value={opt.value}>
+                                                                {opt.label}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
                                                 <FormMessage />
                                             </FormItem>
                                         )}

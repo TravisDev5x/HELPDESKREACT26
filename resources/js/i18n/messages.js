@@ -41,6 +41,9 @@ const messages = {
         'settings.sidebar.collapsed': 'Colapsada',
         'settings.sidebar.hover.title': 'Vista previa al hover',
         'settings.sidebar.hover.desc': 'Expande temporalmente la barra al pasar el mouse cuando está colapsada. No tiene efecto si la barra está expandida.',
+        'settings.sidebar.position': 'Posición de la barra',
+        'settings.sidebar.positionLeft': 'Izquierda',
+        'settings.sidebar.positionRight': 'Derecha',
 
         'settings.actions.save': 'Guardar cambios',
         'settings.actions.reset': 'Restablecer valores por defecto',
@@ -93,6 +96,9 @@ const messages = {
         'settings.sidebar.collapsed': 'Collapsed',
         'settings.sidebar.hover.title': 'Hover preview',
         'settings.sidebar.hover.desc': 'Temporarily expands the sidebar on hover when collapsed. No effect if it is expanded.',
+        'settings.sidebar.position': 'Sidebar position',
+        'settings.sidebar.positionLeft': 'Left',
+        'settings.sidebar.positionRight': 'Right',
 
         'settings.actions.save': 'Save changes',
         'settings.actions.reset': 'Reset defaults',

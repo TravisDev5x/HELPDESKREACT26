@@ -25,7 +25,10 @@ export default function ResetPassword() {
 
         if (!password || !confirm) return setError("La contraseña y confirmación son obligatorias.");
         const pwdCheck = strongPasswordSchema.safeParse(password);
-        if (!pwdCheck.success) return setError(pwdCheck.error.errors[0].message);
+        if (!pwdCheck.success) {
+            const first = pwdCheck.error?.issues?.[0] ?? pwdCheck.error?.errors?.[0];
+            return setError(first?.message ?? "Revisa la contraseña.");
+        }
         if (password !== confirm) return setError("Las contraseñas no coinciden.");
 
         setLoading(true);

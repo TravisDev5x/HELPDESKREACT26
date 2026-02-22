@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import axios from "@/lib/axios";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,16 +20,10 @@ import {
 } from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { toast } from "@/hooks/use-toast";
-
-const handleAuthError = (error) => {
-    const status = error?.response?.status;
-    if (status === 401 || status === 419) {
-        window.location.href = "/login";
-        return true;
-    }
-    return false;
-};
+import { Skeleton } from "@/components/ui/skeleton";
+import { notify } from "@/lib/notify";
+import { handleAuthError, getApiErrorMessage } from "@/lib/apiErrors";
+import { clearCatalogCache } from "@/lib/catalogCache";
 
 const emptyForm = { name: "", is_active: true };
 
@@ -48,9 +42,8 @@ export default function Areas() {
             .get("/api/areas")
             .then((res) => setAreas(res.data))
             .catch((err) => {
-                console.error(err);
                 if (!handleAuthError(err)) {
-                    toast({ description: "No se pudieron cargar las áreas", variant: "destructive" });
+                    notify.error(getApiErrorMessage(err, "No se pudieron cargar las áreas"));
                 }
             })
             .finally(() => setLoading(false));
@@ -81,19 +74,19 @@ export default function Areas() {
             if (editing) {
                 const { data } = await axios.put(`/api/areas/${editing.id}`, form);
                 setAreas((prev) => prev.map((a) => (a.id === data.id ? data : a)));
-                toast({ description: "Área actualizada" });
+                clearCatalogCache();
+                notify.success("Área actualizada");
             } else {
                 const { data } = await axios.post("/api/areas", form);
                 setAreas((prev) => [data, ...prev]);
-                toast({ description: "Área creada" });
+                clearCatalogCache();
+                notify.success("Área creada");
             }
             setOpen(false);
             resetForm();
         } catch (err) {
-            console.error(err);
             if (!handleAuthError(err)) {
-                const msg = err?.response?.data?.message || "No se pudo guardar el área";
-                toast({ description: msg, variant: "destructive" });
+                notify.error(getApiErrorMessage(err, "No se pudo guardar el área"));
             }
         } finally {
             setSaving(false);
@@ -108,10 +101,10 @@ export default function Areas() {
                 is_active: next,
             });
             setAreas((prev) => prev.map((a) => (a.id === data.id ? data : a)));
+            clearCatalogCache();
         } catch (err) {
-            console.error(err);
             if (!handleAuthError(err)) {
-                toast({ description: "No se pudo actualizar el estado", variant: "destructive" });
+                notify.error(getApiErrorMessage(err, "No se pudo actualizar el estado"));
             }
         }
     };
@@ -122,11 +115,11 @@ export default function Areas() {
         try {
             await axios.delete(`/api/areas/${area.id}`);
             setAreas((prev) => prev.filter((a) => a.id !== area.id));
-            toast({ description: "Área eliminada" });
+            clearCatalogCache();
+            notify.success("Área eliminada");
         } catch (err) {
-            console.error(err);
             if (!handleAuthError(err)) {
-                toast({ description: "No se pudo eliminar el área", variant: "destructive" });
+                notify.error(getApiErrorMessage(err, "No se pudo eliminar el área"));
             }
         }
     };
@@ -180,7 +173,12 @@ export default function Areas() {
                                     Cancelar
                                 </Button>
                                 <Button type="submit" disabled={!canSave || saving}>
-                                    {saving ? "Guardando..." : editing ? "Actualizar" : "Crear"}
+                                    {saving ? (
+                                        <>
+                                            <span className="animate-spin mr-2 inline-block h-4 w-4 border-2 border-current border-t-transparent rounded-full" aria-hidden />
+                                            Guardando...
+                                        </>
+                                    ) : editing ? "Actualizar" : "Crear"}
                                 </Button>
                             </div>
                         </form>
@@ -201,11 +199,15 @@ export default function Areas() {
                     </TableHeader>
                     <TableBody>
                         {loading ? (
-                            <TableRow>
-                                <TableCell colSpan={5} className="text-center text-muted-foreground py-10">
-                                    Cargando áreas...
-                                </TableCell>
-                            </TableRow>
+                            [...Array(4)].map((_, i) => (
+                                <TableRow key={i}>
+                                    <TableCell><Skeleton className="h-5 w-10" /></TableCell>
+                                    <TableCell><Skeleton className="h-5 w-32" /></TableCell>
+                                    <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+                                    <TableCell><Skeleton className="h-5 w-28" /></TableCell>
+                                    <TableCell className="text-right"><Skeleton className="h-8 w-20 ml-auto" /></TableCell>
+                                </TableRow>
+                            ))
                         ) : areas.length === 0 ? (
                             <TableRow>
                                 <TableCell colSpan={5} className="text-center text-muted-foreground py-10">
