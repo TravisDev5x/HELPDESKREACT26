@@ -445,8 +445,8 @@ export default function AppLayout() {
             label: t('nav.general'),
             items: [
                 { to: '/', label: t('nav.home'), icon: LayoutDashboard, emphasis: true },
-                { to: '/tickets', label: 'Tickets', icon: Ticket, emphasis: true },
-                { to: '/incidents', label: 'Incidencias', icon: AlertTriangle, emphasis: true },
+                { to: '/tickets', label: t('nav.tickets'), icon: Ticket, emphasis: true },
+                { to: '/incidents', label: t('nav.incidents'), icon: AlertTriangle, emphasis: true },
                 { to: '/users', label: t('nav.users'), icon: Users, emphasis: true },
             ],
         },
@@ -454,36 +454,36 @@ export default function AppLayout() {
             label: t('nav.catalogs'),
             items: [
                 {
-                    label: 'Catálogos de Tickets',
+                    label: t('nav.catalogsTickets'),
                     icon: Layers,
                     children: [
-                        { to: '/priorities', label: 'Prioridades', icon: SignalHigh },
-                        { to: '/ticket-states', label: 'Estados de Ticket', icon: Workflow },
-                        { to: '/ticket-types', label: 'Tipos de Ticket', icon: Tags },
+                        { to: '/priorities', label: t('nav.priorities'), icon: SignalHigh },
+                        { to: '/ticket-states', label: t('nav.ticketStates'), icon: Workflow },
+                        { to: '/ticket-types', label: t('nav.ticketTypes'), icon: Tags },
                     ],
                 },
                 {
-                    label: 'Catálogos de Incidencias',
+                    label: t('nav.catalogsIncidents'),
                     icon: AlertTriangle,
                     children: [
-                        { to: '/incident-types', label: 'Tipos de Incidencia', icon: Tags },
-                        { to: '/incident-severities', label: 'Severidades', icon: SignalHigh },
-                        { to: '/incident-statuses', label: 'Estados de Incidencia', icon: Workflow },
+                        { to: '/incident-types', label: t('nav.incidentTypes'), icon: Tags },
+                        { to: '/incident-severities', label: t('nav.severities'), icon: SignalHigh },
+                        { to: '/incident-statuses', label: t('nav.incidentStates'), icon: Workflow },
                     ],
                 },
                 {
-                    label: 'Organización',
+                    label: t('nav.organization'),
                     icon: Building2,
                     children: [
                         { to: '/campaigns', label: t('nav.campaigns'), icon: Megaphone },
                         { to: '/areas', label: t('nav.areas'), icon: Network },
                         { to: '/positions', label: t('nav.positions'), icon: BadgeCheck },
-                        { to: '/sedes', label: 'Sedes', icon: MapPinHouse },
-                        { to: '/ubicaciones', label: 'Ubicaciones', icon: MapPinned },
+                        { to: '/sedes', label: t('nav.sedes'), icon: MapPinHouse },
+                        { to: '/ubicaciones', label: t('nav.ubicaciones'), icon: MapPinned },
                     ],
                 },
                 {
-                    label: 'Seguridad',
+                    label: t('nav.security'),
                     icon: Shield,
                     children: [
                         { to: '/roles', label: t('nav.roles'), icon: ShieldCheck },
@@ -495,7 +495,7 @@ export default function AppLayout() {
         {
             label: t('nav.system'),
             items: [
-                ...(can('users.manage') ? [{ to: '/sessions', label: 'Sesiones activas', icon: Monitor }] : []),
+                ...(can('users.manage') ? [{ to: '/sessions', label: t('nav.sessions'), icon: Monitor }] : []),
                 { to: '/settings', label: t('nav.settings'), icon: Settings },
             ],
         },
@@ -510,11 +510,11 @@ export default function AppLayout() {
         '/roles': t('nav.roles'),
         '/permissions': t('nav.permissions'),
         '/settings': t('nav.settings'),
-        '/sessions': 'Sesiones activas',
-        '/sedes': 'Sedes',
-        '/ubicaciones': 'Ubicaciones',
-        '/tickets': 'Gestión de Tickets',
-        '/incidents': 'Gestión de Incidencias',
+        '/sessions': t('nav.sessions'),
+        '/sedes': t('nav.sedes'),
+        '/ubicaciones': t('nav.ubicaciones'),
+        '/tickets': t('section.tickets'),
+        '/incidents': t('section.incidents'),
         '/profile': t('layout.profile'),
     }
     const title = titleMap[pathname] ?? t('layout.section.default')
