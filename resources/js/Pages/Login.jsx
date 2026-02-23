@@ -1,18 +1,19 @@
 import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
+import { useI18n } from "@/hooks/useI18n";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Link } from "react-router-dom";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { notify } from "@/lib/notify";
 import { Checkbox } from "@/components/ui/checkbox";
 
 export default function Login() {
     const { login } = useAuth();
     const { isDark, toggleTheme } = useTheme();
+    const { t } = useI18n();
     const navigate = useNavigate();
     const [form, setForm] = useState({ identifier: "", password: "" });
     const [remember, setRemember] = useState(() => {
@@ -33,8 +34,8 @@ export default function Login() {
         const identifier = form.identifier.trim();
         const password = form.password;
 
-        if (!identifier) return "El correo o número de empleado es obligatorio.";
-        if (!password) return "La contraseña es obligatoria.";
+        if (!identifier) return t("login.validation.identifierRequired");
+        if (!password) return t("login.validation.passwordRequired");
 
         return "";
     };
@@ -45,7 +46,7 @@ export default function Login() {
         const validationError = validate();
         if (validationError) {
             setError(validationError);
-            notify.error({ title: "No se pudo iniciar sesión", description: validationError });
+            notify.error({ title: t("login.error.title"), description: validationError });
             return;
         }
         setLoading(true);
@@ -63,18 +64,18 @@ export default function Login() {
             const serverMessage = err?.response?.data?.errors?.root;
             const retryAfter = err?.response?.headers?.["retry-after"];
 
-            let message = "Credenciales incorrectas.";
+            let message = t("login.error.badCredentials");
             if (status === 429) {
                 message = retryAfter
-                    ? `Demasiados intentos. Intenta de nuevo en ${retryAfter} segundos.`
-                    : "Demasiados intentos. Intenta de nuevo en unos segundos.";
-            } else if ((status === 422 || status === 403) && serverMessage) {
+                    ? t("login.error.tooManyRetry", { seconds: String(retryAfter) })
+                    : t("login.error.tooManyRetryFallback");
+            } else if ((status === 422 || status === 403) && typeof serverMessage === "string") {
                 message = serverMessage;
             } else if (status >= 500) {
-                message = "Error del servidor. Intenta más tarde.";
+                message = t("login.error.server");
             }
             setError(message);
-            notify.error({ title: "No se pudo iniciar sesión", description: message });
+            notify.error({ title: t("login.error.title"), description: message });
         } finally {
             setLoading(false);
         }
@@ -87,19 +88,22 @@ export default function Login() {
                 variant="ghost"
                 onClick={toggleTheme}
                 className="absolute top-4 right-4 h-auto text-xs font-semibold text-muted-foreground hover:text-foreground border border-border px-3 py-1 rounded-full bg-background/80 backdrop-blur hover:bg-transparent"
-                aria-label="Cambiar tema"
+                aria-label={t("login.toggleTheme")}
             >
-                {isDark ? "Modo claro" : "Modo oscuro"}
+                {isDark ? t("login.themeLight") : t("login.themeDark")}
             </Button>
-            <Card className="w-[400px]">
-                <CardHeader>
-                    <CardTitle className="text-center">Helpdesk Enterprise</CardTitle>
+            <Card className="w-full max-w-[400px]">
+                <CardHeader className="text-center space-y-1">
+                    <CardTitle className="text-xl">{t("brand.title")}</CardTitle>
+                    <p className="text-sm text-muted-foreground font-medium">{t("brand.subtitle")}</p>
+                    <p className="text-xs text-muted-foreground pt-1">{t("login.lead")}</p>
                 </CardHeader>
                 <CardContent>
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <div className="space-y-2">
-                            <Label>Correo o No. de Empleado</Label>
+                            <Label htmlFor="login-identifier">{t("login.identifier")}</Label>
                             <Input
+                                id="login-identifier"
                                 value={form.identifier}
                                 onChange={(e) =>
                                     setForm({ ...form, identifier: e.target.value })
@@ -112,9 +116,10 @@ export default function Login() {
                         </div>
 
                         <div className="space-y-2">
-                            <Label>Contraseña</Label>
+                            <Label htmlFor="login-password">{t("login.password")}</Label>
                             <div className="relative">
                                 <Input
+                                    id="login-password"
                                     type={showPassword ? "text" : "password"}
                                     value={form.password}
                                     onChange={(e) =>
@@ -132,8 +137,9 @@ export default function Login() {
                                     onClick={() => setShowPassword((v) => !v)}
                                     className="absolute right-2 top-1/2 -translate-y-1/2 h-auto px-2 py-1 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-transparent"
                                     disabled={loading}
+                                    aria-label={showPassword ? t("login.hidePassword") : t("login.showPassword")}
                                 >
-                                    {showPassword ? "Ocultar" : "Ver"}
+                                    {showPassword ? t("login.hidePassword") : t("login.showPassword")}
                                 </Button>
                             </div>
                         </div>
@@ -146,7 +152,7 @@ export default function Login() {
                                 disabled={loading}
                             />
                             <Label htmlFor="remember" className="text-sm text-muted-foreground">
-                                Recordar usuario (no la contraseña)
+                                {t("login.remember")}
                             </Label>
                         </div>
 
@@ -157,31 +163,31 @@ export default function Login() {
                         )}
 
                         <Button type="submit" className="w-full" disabled={loading}>
-                            {loading ? "Ingresando..." : "Ingresar"}
+                            {loading ? t("login.submitting") : t("login.submit")}
                         </Button>
 
                         <p className="text-center text-xs text-muted-foreground">
-                            ¿No tienes cuenta?{" "}
+                            {t("login.noAccount")}{" "}
                             <Link to="/register" className="text-primary hover:underline">
-                                Regístrate
+                                {t("login.register")}
                             </Link>
                         </p>
                         <p className="text-center text-xs text-muted-foreground">
                             <Button
                                 type="button"
                                 variant="link"
-                                onClick={() => navigate('/forgot-password')}
+                                onClick={() => navigate("/forgot-password")}
                                 className="h-auto p-0 text-primary hover:underline font-normal"
                                 disabled={loading}
                             >
-                                ¿Olvidaste tu contraseña?
+                                {t("login.forgotPassword")}
                             </Button>
                         </p>
                     </form>
                 </CardContent>
             </Card>
             <div className="mt-6 text-center text-xs text-muted-foreground space-y-1">
-                <p>¿Necesitas ayuda o documentación?</p>
+                <p>{t("login.help")}</p>
                 <Button
                     type="button"
                     variant="link"
@@ -189,7 +195,7 @@ export default function Login() {
                     asChild
                 >
                     <Link to="/manual" target="_blank" rel="noopener noreferrer">
-                        Abrir manual y guía de la aplicación
+                        {t("login.manual")}
                     </Link>
                 </Button>
             </div>
