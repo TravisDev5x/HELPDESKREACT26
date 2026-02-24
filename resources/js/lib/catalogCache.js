@@ -1,4 +1,4 @@
-﻿import axios from "@/lib/axios";
+import axios from "@/lib/axios";
 
 const CACHE_KEY = "catalogs.cache.v2";
 const TTL_MS = 5 * 60 * 1000; // 5 minutos
@@ -35,5 +35,7 @@ export async function loadCatalogs() {
 
 export function clearCatalogCache() {
     if (typeof sessionStorage === "undefined") return;
-    sessionStorage.removeItem(CACHE_KEY);
+    try {
+        sessionStorage.removeItem(CACHE_KEY);
+    } catch (_) {}
 }

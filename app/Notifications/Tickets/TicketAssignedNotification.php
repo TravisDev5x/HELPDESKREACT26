@@ -11,6 +11,11 @@ class TicketAssignedNotification extends BaseTicketNotification
     ) {
     }
 
+    protected function kind(): string
+    {
+        return 'ticket_assigned';
+    }
+
     public function toArray(object $notifiable): array
     {
         return $this->basePayload($this->ticketId, $this->message, $this->actorId);

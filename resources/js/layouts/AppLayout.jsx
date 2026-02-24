@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { NavLink, Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import { useSidebarPosition } from '@/context/SidebarPositionContext'
 import { useTheme } from '@/hooks/useTheme'
@@ -30,7 +30,8 @@ import {
     KeyRound, Ticket, AlertTriangle, Settings, Menu, UserCircle,
     LogOut, Sun, Moon, ChevronsLeft, ChevronsRight, ChevronDown,
     ChevronRight, Bell, BellOff, Layers, Shield, Maximize2,
-    Minimize2, Square, SquareDashed, MoreHorizontal, Monitor, Check, CircleDot
+    Minimize2, Square, SquareDashed, MoreHorizontal, Monitor, Check, CircleDot,
+    CalendarDays
 } from 'lucide-react'
 
 // ----------------------------------------------------------------------
@@ -348,6 +349,7 @@ export default function AppLayout() {
     const { t } = useI18n()
     const { user, logout, refreshUser, can, updateUserPrefs } = useAuth()
     const [notifications, setNotifications] = useState([])
+    const [unreadCount, setUnreadCount] = useState(0)
     const [notifOpen, setNotifOpen] = useState(false)
 
     // Sidebar colapsada por defecto; expandida si el usuario lo guardó explícitamente
@@ -396,18 +398,26 @@ export default function AppLayout() {
         }
     }, [collapsed, hoverPreviewEnabled, user, focused])
 
-    // Fetch Notifications
+    // Fetch Notifications (inicial + cada 60s + al abrir el dropdown)
+    const loadNotifs = React.useCallback(async () => {
+        try {
+            const { data } = await axios.get('/api/notifications')
+            const list = data?.notifications ?? (Array.isArray(data) ? data : [])
+            setNotifications(list)
+            if (typeof data?.unread_count === 'number') setUnreadCount(data.unread_count)
+            else setUnreadCount(list.filter((n) => !n.read_at).length)
+        } catch (_) {}
+    }, [])
+
     useEffect(() => {
-        const loadNotifs = async () => {
-            try {
-                const { data } = await axios.get('/api/notifications')
-                setNotifications(data || [])
-            } catch (_) {}
-        }
         loadNotifs()
         const id = setInterval(loadNotifs, 60000)
         return () => clearInterval(id)
-    }, [])
+    }, [loadNotifs])
+
+    useEffect(() => {
+        if (notifOpen) loadNotifs()
+    }, [notifOpen, loadNotifs])
 
     // Heartbeat: actualiza last_activity de la sesión cada 2 min para que el monitor de sesiones sea más preciso
     useEffect(() => {
@@ -431,26 +441,60 @@ export default function AppLayout() {
         }
     }
 
-    const unreadCount = notifications.filter(n => !n.read_at).length
     const markAllRead = async () => {
         try {
             await axios.post('/api/notifications/read-all')
             setNotifications((prev) => prev.map((n) => ({ ...n, read_at: new Date().toISOString() })))
+            setUnreadCount(0)
         } catch (_) {}
     }
 
+    const markOneRead = async (id) => {
+        try {
+            await axios.post(`/api/notifications/${id}/read`)
+            setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read_at: new Date().toISOString() } : n)))
+            setUnreadCount((c) => Math.max(0, c - 1))
+        } catch (_) {}
+    }
+
+    const notificationTitle = (n) => {
+        const d = n.data || {}
+        if (d.message) return d.message
+        if (d.subject && d.action) return `${d.action === 'created' ? 'Creado' : 'Actualizado'}: ${d.subject}`
+        if (d.ticket_id) return `Ticket #${d.ticket_id}`
+        return 'Notificación'
+    }
+
+    const notificationTime = (n) => {
+        if (!n.created_at) return ''
+        const date = new Date(n.created_at)
+        const now = new Date()
+        const diffMs = now - date
+        if (diffMs < 60000) return 'Ahora'
+        if (diffMs < 3600000) return `${Math.floor(diffMs / 60000)} min`
+        if (diffMs < 86400000) return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        return date.toLocaleDateString()
+    }
+
     // --- CONFIGURACIÓN DE NAVEGACIÓN ---
-    const NAV = React.useMemo(() => ([
-        {
-            label: t('nav.general'),
-            items: [
-                { to: '/', label: t('nav.home'), icon: LayoutDashboard, emphasis: true },
-                { to: '/tickets', label: t('nav.tickets'), icon: Ticket, emphasis: true },
-                { to: '/incidents', label: t('nav.incidents'), icon: AlertTriangle, emphasis: true },
-                { to: '/users', label: t('nav.users'), icon: Users, emphasis: true },
-            ],
-        },
-        {
+    const canSeeCatalogs = can('catalogs.manage') || can('tickets.view_area') || can('tickets.manage_all')
+    const canSeeUsers = can('users.manage')
+    const canSeeIncidents = can('incidents.view_own') || can('incidents.view_area') || can('incidents.manage_all')
+    const canSeeTicketsModule = can('tickets.manage_all') || can('tickets.view_area')
+
+    const NAV = React.useMemo(() => {
+        const generalItems = [
+            { to: '/', label: t('nav.home'), icon: LayoutDashboard, emphasis: true },
+            { to: '/calendario', label: t('nav.calendar'), icon: CalendarDays, emphasis: true },
+            ...(canSeeTicketsModule ? [{ to: '/tickets', label: t('nav.tickets'), icon: Ticket, emphasis: true }] : []),
+        ]
+        if (canSeeIncidents) generalItems.push({ to: '/incidents', label: t('nav.incidents'), icon: AlertTriangle, emphasis: true })
+        if (canSeeUsers) generalItems.push({ to: '/users', label: t('nav.users'), icon: Users, emphasis: true })
+
+        const sections = [
+            { label: t('nav.general'), items: generalItems },
+        ]
+        if (canSeeCatalogs) sections.push({
             label: t('nav.catalogs'),
             items: [
                 {
@@ -491,18 +535,20 @@ export default function AppLayout() {
                     ],
                 },
             ],
-        },
-        {
+        })
+        sections.push({
             label: t('nav.system'),
             items: [
                 ...(can('users.manage') ? [{ to: '/sessions', label: t('nav.sessions'), icon: Monitor }] : []),
                 { to: '/settings', label: t('nav.settings'), icon: Settings },
             ],
-        },
-    ]), [t, can])
+        })
+        return sections
+    }, [t, can, canSeeCatalogs, canSeeUsers, canSeeIncidents, canSeeTicketsModule])
 
     const titleMap = {
         '/': t('nav.home'),
+        '/calendario': t('nav.calendar'),
         '/users': t('nav.users'),
         '/campaigns': t('nav.campaigns'),
         '/areas': t('nav.areas'),
@@ -514,6 +560,7 @@ export default function AppLayout() {
         '/sedes': t('nav.sedes'),
         '/ubicaciones': t('nav.ubicaciones'),
         '/tickets': t('section.tickets'),
+        '/tickets/new': t('section.tickets'),
         '/incidents': t('section.incidents'),
         '/profile': t('layout.profile'),
     }
@@ -685,7 +732,11 @@ export default function AppLayout() {
                                 <DropdownMenuTrigger asChild>
                                     <Button variant="ghost" size="icon" className="h-9 w-9 relative rounded-full hover:bg-muted/50">
                                         <Bell className={cn("h-5 w-5", unreadCount > 0 ? "text-foreground" : "text-muted-foreground")} />
-                                        {unreadCount > 0 && <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-red-600 ring-2 ring-background animate-pulse" />}
+                                        {unreadCount > 0 && (
+                                            <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-destructive-foreground ring-2 ring-background px-1">
+                                                {unreadCount > 99 ? "99+" : unreadCount}
+                                            </span>
+                                        )}
                                     </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end" className="w-80 p-0 shadow-xl border-border/60">
@@ -705,20 +756,40 @@ export default function AppLayout() {
                                             </div>
                                         ) : (
                                             <div className="flex flex-col">
-                                                {notifications.map((n) => (
-                                                    <div key={n.id} className={cn(
-                                                        "flex flex-col gap-1 p-3 border-b border-border/40 hover:bg-muted/30 transition-colors cursor-pointer text-left",
-                                                        !n.read_at && "bg-muted/10 border-l-2 border-l-primary"
-                                                    )}>
-                                                        <div className="flex items-center justify-between">
-                                                            <span className="text-xs font-semibold">{n.data?.subject || 'Sistema'}</span>
-                                                            <span className="text-[10px] text-muted-foreground">Reciente</span>
+                                                {notifications.map((n) => {
+                                                    const ticketId = n.data?.ticket_id
+                                                    const content = (
+                                                        <div className={cn(
+                                                            "flex flex-col gap-1 p-3 border-b border-border/40 hover:bg-muted/30 transition-colors text-left w-full",
+                                                            !n.read_at && "bg-muted/10 border-l-2 border-l-primary"
+                                                        )}>
+                                                            <div className="flex items-center justify-between gap-2">
+                                                                <span className="text-[10px] text-muted-foreground shrink-0">{notificationTime(n)}</span>
+                                                                {ticketId && (
+                                                                    <span className="text-[10px] font-mono text-muted-foreground">#{ticketId}</span>
+                                                                )}
+                                                            </div>
+                                                            <p className="text-xs text-foreground/90 line-clamp-2">
+                                                                {notificationTitle(n)}
+                                                            </p>
                                                         </div>
-                                                        <p className="text-xs text-muted-foreground line-clamp-2">
-                                                            {n.data?.action} - Ticket #{n.data?.ticket_id}
-                                                        </p>
-                                                    </div>
-                                                ))}
+                                                    )
+                                                    return ticketId ? (
+                                                        <Link
+                                                            key={n.id}
+                                                            to={`/tickets/${ticketId}`}
+                                                            onClick={() => {
+                                                                markOneRead(n.id)
+                                                                setNotifOpen(false)
+                                                            }}
+                                                            className="block"
+                                                        >
+                                                            {content}
+                                                        </Link>
+                                                    ) : (
+                                                        <div key={n.id} className="cursor-default">{content}</div>
+                                                    )
+                                                })}
                                             </div>
                                         )}
                                     </ScrollArea>

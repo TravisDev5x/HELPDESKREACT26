@@ -11,6 +11,11 @@ class TicketRequesterCommentNotification extends BaseTicketNotification
     ) {
     }
 
+    protected function kind(): string
+    {
+        return 'ticket_requester_comment';
+    }
+
     public function toArray(object $notifiable): array
     {
         return $this->basePayload($this->ticketId, $this->message, $this->actorId);

@@ -2,7 +2,7 @@
 
 namespace App\Notifications\Tickets;
 
-class TicketRequesterResolvedNotification extends BaseTicketNotification
+class TicketRequesterAlertNotification extends BaseTicketNotification
 {
     public function __construct(
         public int $ticketId,
@@ -13,7 +13,7 @@ class TicketRequesterResolvedNotification extends BaseTicketNotification
 
     protected function kind(): string
     {
-        return 'ticket_requester_resolved';
+        return 'ticket_requester_alert';
     }
 
     public function toArray(object $notifiable): array

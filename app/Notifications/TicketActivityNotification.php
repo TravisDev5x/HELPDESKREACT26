@@ -27,12 +27,17 @@ class TicketActivityNotification extends Notification implements ShouldQueue
 
     public function toArray(object $notifiable): array
     {
+        $actionLabel = $this->action === 'created' ? 'creado' : 'actualizado';
+        $message = "Ticket #{$this->ticket->id} ({$this->ticket->subject}) {$actionLabel}.";
+
         return [
+            'kind' => 'ticket_activity',
             'ticket_id' => $this->ticket->id,
+            'message' => $message,
             'subject' => $this->ticket->subject,
             'area_current_id' => $this->ticket->area_current_id,
             'action' => $this->action,
-            'created_at' => $this->ticket->created_at,
+            'created_at' => $this->ticket->created_at?->toIso8601String(),
         ];
     }
 }

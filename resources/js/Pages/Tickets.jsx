@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, memo } from "react";
-import { Link } from "react-router-dom";
+import { Link, Navigate, useSearchParams } from "react-router-dom";
 import axios from "@/lib/axios";
 import { useAuth } from "@/context/AuthContext";
 
@@ -17,7 +17,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Label } from "@/components/ui/label";
 import { notify } from "@/lib/notify";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { loadCatalogs } from "@/lib/catalogCache";
+import { loadCatalogs, clearCatalogCache } from "@/lib/catalogCache";
+import { cn } from "@/lib/utils";
 
 // --- ICONS ---
 import {
@@ -34,9 +35,13 @@ import {
 const TicketRow = memo(function TicketRow({ ticket }) {
     // Detectar si el ticket requiere atención inmediata (sin asignar o alta prioridad)
     const needsAttention = !ticket.assigned_user && !ticket.assignedUser;
+    const isOverdue = Boolean(ticket.is_overdue);
 
     return (
-        <TableRow className="group hover:bg-muted/40 transition-colors border-b border-border/50">
+        <TableRow className={cn(
+            "group hover:bg-muted/40 transition-colors border-b border-border/50",
+            isOverdue && "bg-destructive/5 hover:bg-destructive/10 border-l-2 border-l-destructive"
+        )}>
             <TableCell className="w-[80px]">
                 <div className="font-mono text-xs font-bold text-primary/80 bg-primary/5 py-1 px-2 rounded text-center">
                     #{String(ticket.id).padStart(5, '0')}
@@ -241,17 +246,26 @@ export default function Tickets() {
     const [perPage, setPerPage] = useState(() => Number(localStorage.getItem("tickets.perPage")) || 10);
     const [currentPage, setCurrentPage] = useState(1);
 
+    const [searchParams] = useSearchParams();
     const defaultFilters = { area: "all", sede: "all", type: "all", priority: "all", state: "all", search: "", assignment: "all", assignee: "all", sla: "all" };
     const [filters, setFilters] = useState(() => {
         const saved = localStorage.getItem("tickets.filters");
         return saved ? { ...defaultFilters, ...JSON.parse(saved) } : defaultFilters;
     });
+    useEffect(() => {
+        const assignmentFromUrl = searchParams.get("assignment");
+        if (assignmentFromUrl === "me" || assignmentFromUrl === "unassigned" || assignmentFromUrl === "user") {
+            setFilters((prev) => (prev.assignment === assignmentFromUrl ? prev : { ...prev, assignment: assignmentFromUrl }));
+        }
+    }, [searchParams]);
 
     const canManageAll = can("tickets.manage_all");
     const canCreate = can("tickets.create") || canManageAll;
     const canViewArea = can("tickets.view_area") || canManageAll;
+    const needsAreaWarning = canViewArea && !canManageAll && !user?.area_id;
     const canFilterSede = can("tickets.filter_by_sede") || canManageAll;
     const canAssign = can("tickets.assign") || canManageAll;
+    const isSolicitanteOnly = !canManageAll && !canViewArea && (can("tickets.create") || can("tickets.view_own"));
 
     const areaUsers = catalogs.area_users || [];
     const canUseAssignmentFilters = canViewArea || canAssign;
@@ -328,6 +342,9 @@ export default function Tickets() {
         }
     }, [currentPage, perPage, filters, user, canManageAll, canViewArea]);
 
+    useEffect(() => {
+        clearCatalogCache();
+    }, []);
     useEffect(() => { loadData(); }, [loadData]);
 
     useEffect(() => {
@@ -364,6 +381,7 @@ export default function Tickets() {
             };
 
             await axios.post("/api/tickets", payload);
+            clearCatalogCache();
             notify.success({ title: "Ticket Creado", description: "El ticket se ha registrado exitosamente." });
             setOpen(false);
             setCurrentPage(1);
@@ -419,8 +437,19 @@ export default function Tickets() {
         return "bg-primary/80";
     };
 
+    if (isSolicitanteOnly) return <Navigate to="/" replace />;
+
     return (
         <div className="w-full max-w-[1920px] mx-auto p-4 md:p-6 lg:p-8 space-y-6 animate-in fade-in duration-500">
+
+            {needsAreaWarning && (
+                <div className="rounded-lg border border-amber-500/50 bg-amber-500/10 text-amber-800 dark:text-amber-200 px-4 py-3 flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-sm font-medium">Tienes permiso por área pero no tienes un área asignada. Asigna tu área para ver y gestionar tickets.</span>
+                    <Link to="/profile">
+                        <Button variant="outline" size="sm" className="border-amber-600/50 hover:bg-amber-500/20">Ir a mi perfil</Button>
+                    </Link>
+                </div>
+            )}
 
             {/* 1. HEADER */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2">
@@ -645,15 +674,29 @@ export default function Tickets() {
                                     ))
                                 ) : tickets.length === 0 ? (
                                     <TableRow>
-                                        <TableCell colSpan={8} className="h-64 text-center">
-                                            <div className="flex flex-col items-center justify-center gap-3 text-muted-foreground">
-                                                <div className="p-4 bg-muted/20 rounded-full">
-                                                    <Ticket className="w-8 h-8 opacity-40" />
+                                        <TableCell colSpan={8} className="h-72 py-12 text-center">
+                                            <div className="flex flex-col items-center justify-center gap-4 text-muted-foreground">
+                                                <div className="p-5 bg-muted/30 rounded-2xl">
+                                                    <Ticket className="w-12 h-12 opacity-50" />
                                                 </div>
-                                                <p className="font-medium">No se encontraron tickets</p>
-                                                <p className="text-xs max-w-xs text-center">
-                                                    Intenta cambiar los filtros o realiza una nueva búsqueda.
-                                                </p>
+                                                <div>
+                                                    <p className="font-semibold text-foreground/90">No hay tickets</p>
+                                                    <p className="text-sm mt-1 max-w-sm text-center">
+                                                        {hasActiveFilters
+                                                            ? "Ningún ticket coincide con los filtros. Prueba a limpiar filtros o ampliar la búsqueda."
+                                                            : "Aún no hay tickets registrados. Crea el primero para comenzar."}
+                                                    </p>
+                                                </div>
+                                                {canCreate && !hasActiveFilters && (
+                                                    <Button onClick={handleCreateOpen} size="sm" className="mt-2">
+                                                        <Plus className="w-4 h-4 mr-2" /> Crear ticket
+                                                    </Button>
+                                                )}
+                                                {hasActiveFilters && (
+                                                    <Button variant="outline" size="sm" onClick={handleClearFilters} className="mt-2">
+                                                        <X className="w-4 h-4 mr-2" /> Limpiar filtros
+                                                    </Button>
+                                                )}
                                             </div>
                                         </TableCell>
                                     </TableRow>
@@ -667,7 +710,15 @@ export default function Tickets() {
                     {/* FOOTER TABLA (PAGINACION) */}
                     <div className="border-t border-border/50 px-4 py-3 bg-muted/20 flex flex-col sm:flex-row items-center justify-between gap-4">
                         <p className="text-xs text-muted-foreground">
-                            Mostrando <span className="font-medium text-foreground">{tickets.length}</span> de <span className="font-medium text-foreground">{pagination.total}</span>
+                            {pagination.total === 0 ? (
+                                "Sin resultados"
+                            ) : (
+                                <>
+                                    Mostrando <span className="font-medium text-foreground">
+                                        {(pagination.current_page - 1) * perPage + 1}–{Math.min(pagination.current_page * perPage, pagination.total)}
+                                    </span> de <span className="font-medium text-foreground">{pagination.total}</span> tickets
+                                </>
+                            )}
                         </p>
 
                         <div className="flex items-center gap-2">

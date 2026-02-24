@@ -11,6 +11,11 @@ class TicketEscalatedNotification extends BaseTicketNotification
     ) {
     }
 
+    protected function kind(): string
+    {
+        return 'ticket_escalated';
+    }
+
     public function toArray(object $notifiable): array
     {
         return $this->basePayload($this->ticketId, $this->message, $this->actorId);

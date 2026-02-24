@@ -132,7 +132,12 @@ Route::middleware(['auth:sanctum','locale','perm:tickets.manage_all|tickets.view
     Route::post('tickets/{ticket}/take', [\App\Http\Controllers\Api\TicketController::class, 'take']);
     Route::post('tickets/{ticket}/assign', [\App\Http\Controllers\Api\TicketController::class, 'assign']);
     Route::post('tickets/{ticket}/unassign', [\App\Http\Controllers\Api\TicketController::class, 'unassign']);
+    Route::post('tickets/{ticket}/alert', [\App\Http\Controllers\Api\TicketController::class, 'sendAlert']);
+    Route::post('tickets/{ticket}/cancel', [\App\Http\Controllers\Api\TicketController::class, 'cancel']);
     Route::post('tickets/{ticket}/escalate', [\App\Http\Controllers\Api\TicketController::class, 'escalate']);
+    Route::post('tickets/{ticket}/attachments', [\App\Http\Controllers\Api\TicketAttachmentController::class, 'store']);
+    Route::delete('tickets/{ticket}/attachments/{attachment}', [\App\Http\Controllers\Api\TicketAttachmentController::class, 'destroy']);
+    Route::get('tickets/{ticket}/attachments/{attachment}/download', [\App\Http\Controllers\Api\TicketAttachmentController::class, 'download']);
     Route::apiResource('tickets', \App\Http\Controllers\Api\TicketController::class)
         ->only(['index', 'store', 'update', 'show']);
 });
@@ -152,6 +157,7 @@ Route::middleware(['auth:sanctum','locale','perm:incidents.manage_all|incidents.
 Route::middleware(['auth:sanctum','locale'])->group(function () {
     Route::get('notifications', [\App\Http\Controllers\Api\NotificationController::class, 'index']);
     Route::post('notifications/read-all', [\App\Http\Controllers\Api\NotificationController::class, 'readAll']);
+    Route::post('notifications/{id}/read', [\App\Http\Controllers\Api\NotificationController::class, 'markRead']);
 });
 
 // ==========================

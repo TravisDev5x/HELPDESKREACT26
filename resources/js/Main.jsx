@@ -21,7 +21,9 @@ const Prioridades = lazy(() => import("@/Pages/Prioridades"));
 const TicketEstados = lazy(() => import("@/Pages/TicketEstados"));
 const TicketTipos = lazy(() => import("@/Pages/TicketTipos"));
 const TicketDetalle = lazy(() => import("@/Pages/TicketDetalle"));
+const TicketCreate = lazy(() => import("@/Pages/TicketCreate"));
 const Tickets = lazy(() => import("@/Pages/Tickets"));
+const Calendario = lazy(() => import("@/Pages/Calendario"));
 const Incidents = lazy(() => import("@/Pages/Incidents"));
 const IncidentDetalle = lazy(() => import("@/Pages/IncidentDetalle"));
 const IncidentTipos = lazy(() => import("@/Pages/IncidentTipos"));
@@ -124,7 +126,9 @@ export default function Main() {
                                     <Route path="/ticket-states" element={<TicketEstados />} />
                                     <Route path="/ticket-types" element={<TicketTipos />} />
                                     <Route path="/tickets" element={<Tickets />} />
+                                    <Route path="/tickets/new" element={<TicketCreate />} />
                                     <Route path="/tickets/:id" element={<TicketDetalle />} />
+                                    <Route path="/calendario" element={<Calendario />} />
                                     <Route path="/incidents" element={<Incidents />} />
                                     <Route path="/incidents/:id" element={<IncidentDetalle />} />
                                     <Route path="/incident-types" element={<IncidentTipos />} />

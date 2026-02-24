@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { useParams, Link } from "react-router-dom";
 import axios from "@/lib/axios";
-import { loadCatalogs } from "@/lib/catalogCache";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { useAuth } from "@/context/AuthContext";
+import { loadCatalogs, clearCatalogCache } from "@/lib/catalogCache";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,17 +11,28 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Checkbox } from "@/components/ui/checkbox";
 import { notify } from "@/lib/notify";
-import { Loader2 } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Loader2, MessageSquare, Lock, History, Paperclip, Trash2, ArrowLeft, ChevronDown, ChevronUp, UserCheck, AlertTriangle, XCircle } from "lucide-react";
 
 export default function TicketDetalle() {
     const { id } = useParams();
+    const { user, can } = useAuth();
+    const backToListLink = (can("tickets.manage_all") || can("tickets.view_area")) ? "/tickets" : "/";
     const [ticket, setTicket] = useState(null);
     const [catalogs, setCatalogs] = useState({ areas: [], priorities: [], ticket_states: [], area_users: [], positions: [] });
     const [note, setNote] = useState("");
     const [updating, setUpdating] = useState(false);
     const [assigneeId, setAssigneeId] = useState("none");
     const [dueAtLocal, setDueAtLocal] = useState("");
+    const [isInternalNote, setIsInternalNote] = useState(true);
+    const [attachmentFiles, setAttachmentFiles] = useState([]);
+    const [uploadingAttachments, setUploadingAttachments] = useState(false);
+    const [descExpanded, setDescExpanded] = useState(false);
+    const [alertMessage, setAlertMessage] = useState("");
+    const [sendingAlert, setSendingAlert] = useState(false);
+    const [cancelling, setCancelling] = useState(false);
 
     const load = async () => {
         try {
@@ -48,11 +60,12 @@ export default function TicketDetalle() {
     const update = async (payload) => {
         setUpdating(true);
         try {
-            const { data } = await axios.put(`/api/tickets/${id}`, { ...payload, note });
+            const { data } = await axios.put(`/api/tickets/${id}`, { ...payload, note, is_internal: isInternalNote });
             setTicket(data);
             setNote("");
             setAssigneeId("none");
             setDueAtLocal(data?.due_at ? new Date(data.due_at).toISOString().slice(0, 16) : "");
+            clearCatalogCache();
             notify.success("Ticket actualizado");
         } catch (err) {
             notify.error(err?.response?.data?.message || "No se pudo actualizar");
@@ -94,13 +107,108 @@ export default function TicketDetalle() {
         } finally { setUpdating(false); }
     };
 
-    if (!ticket) return <div className="p-6">Cargando...</div>;
+    const sendAlert = async () => {
+        setSendingAlert(true);
+        try {
+            const { data } = await axios.post(`/api/tickets/${id}/alert`, { message: alertMessage.trim() || undefined });
+            if (data.ticket) setTicket(data.ticket);
+            setAlertMessage("");
+            notify.success("Alerta enviada. Se ha notificado al responsable y a supervisores.");
+        } catch (err) {
+            notify.error(err?.response?.data?.message || "No se pudo enviar la alerta");
+        } finally { setSendingAlert(false); }
+    };
+
+    const cancelTicket = async () => {
+        if (!window.confirm("¿Estás seguro de que deseas cancelar este ticket? Esta acción no se puede deshacer.")) return;
+        setCancelling(true);
+        try {
+            const { data } = await axios.post(`/api/tickets/${id}/cancel`);
+            setTicket(data);
+            notify.success("Ticket cancelado");
+        } catch (err) {
+            notify.error(err?.response?.data?.message || "No se pudo cancelar el ticket");
+        } finally { setCancelling(false); }
+    };
+
+    const uploadAttachments = async () => {
+        if (!attachmentFiles.length) return;
+        setUploadingAttachments(true);
+        try {
+            const payload = new FormData();
+            attachmentFiles.forEach((f) => payload.append("attachments[]", f));
+            const { data } = await axios.post(`/api/tickets/${id}/attachments`, payload, {
+                headers: { "Content-Type": "multipart/form-data" },
+            });
+            setTicket((prev) => ({ ...prev, attachments: [...(prev?.attachments || []), ...(data || [])] }));
+            setAttachmentFiles([]);
+            notify.success("Adjuntos cargados");
+        } catch (err) {
+            notify.error(err?.response?.data?.message || "No se pudieron cargar los adjuntos");
+        } finally {
+            setUploadingAttachments(false);
+        }
+    };
+
+    const removeAttachment = async (att) => {
+        try {
+            await axios.delete(`/api/tickets/${id}/attachments/${att.id}`);
+            setTicket((prev) => ({ ...prev, attachments: (prev?.attachments || []).filter((a) => a.id !== att.id) }));
+            notify.success("Adjunto eliminado");
+        } catch (err) {
+            notify.error("No se pudo eliminar el adjunto");
+        }
+    };
+
+    const attendedBy = useMemo(() => {
+        if (!ticket) return [];
+        const assigned = ticket.assigned_user || ticket.assignedUser;
+        const hist = ticket.histories || [];
+        const ids = new Set();
+        const names = [];
+        if (assigned?.id) {
+            ids.add(assigned.id);
+            names.push({ id: assigned.id, name: assigned.name });
+        }
+        hist.forEach((h) => {
+            if (h.actor_id && h.actor_id !== ticket.requester_id && !ids.has(h.actor_id)) {
+                ids.add(h.actor_id);
+                names.push({ id: h.actor_id, name: h.actor?.name || "—" });
+            }
+        });
+        return names;
+    }, [ticket]);
+
+    if (!ticket) {
+        return (
+            <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto">
+                <div className="flex items-center gap-3">
+                    <Skeleton className="h-9 w-9 rounded-md" />
+                    <div className="space-y-2">
+                        <Skeleton className="h-6 w-48" />
+                        <Skeleton className="h-4 w-32" />
+                    </div>
+                </div>
+                <Card>
+                    <CardHeader><Skeleton className="h-5 w-3/4" /></CardHeader>
+                    <CardContent className="space-y-3">
+                        {[1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-4 w-full" />)}
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardContent className="p-6"><Skeleton className="h-24 w-full" /></CardContent>
+                </Card>
+            </div>
+        );
+    }
 
     const abilities = ticket.abilities || {};
     const canChangeArea = Boolean(abilities.change_area);
     const canChangeStatus = Boolean(abilities.change_status);
     const canComment = Boolean(abilities.comment);
     const canAssign = Boolean(abilities.assign);
+    const canAlert = Boolean(abilities.alert);
+    const canCancel = Boolean(abilities.cancel);
 
     const canEdit = canChangeArea || canChangeStatus || canComment;
     const hasAssignee = Boolean(ticket.assigned_user_id);
@@ -118,31 +226,136 @@ export default function TicketDetalle() {
     });
 
     const assignmentEvents = histories.filter(h => ["assigned", "reassigned", "unassigned"].includes(h.action));
+    const commentEntries = histories.filter(h => h.action === "comment" && !h.is_internal);
+    const internalNoteEntries = histories.filter(h => h.action === "comment" && h.is_internal);
+    const stateChangeEntries = histories.filter(h => h.action && h.action !== "comment" && ["escalated", "state_change", "assigned", "reassigned", "unassigned"].includes(h.action));
     const areaUsers = catalogs.area_users || [];
 
+    const descLong = (ticket.description || "").length > 280;
+
+    const isRequester = user && Number(user.id) === Number(ticket.requester_id);
+
     return (
-        <div className="space-y-6">
-            <Card>
-                <CardHeader>
-                    <CardTitle className="flex items-center justify-between">
-                        <span>Ticket #{ticket.id} — {ticket.subject}</span>
-                        <Badge>{ticket.state?.name}</Badge>
+        <div className="space-y-6 max-w-5xl mx-auto pb-8">
+            <div className="flex items-center gap-3">
+                <Button variant="ghost" size="sm" asChild className="text-muted-foreground hover:text-foreground -ml-2">
+                    <Link to={backToListLink}><ArrowLeft className="h-4 w-4 mr-1" /> Volver al listado</Link>
+                </Button>
+            </div>
+
+            {isRequester && attendedBy.length > 0 && (
+                <Card className="border-primary/20 bg-primary/5">
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-sm flex items-center gap-2">
+                            <UserCheck className="h-4 w-4" /> Quién ha atendido este ticket
+                        </CardTitle>
+                        <CardDescription className="text-xs">Personas que han intervenido en la atención de tu solicitud.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <ul className="flex flex-wrap gap-2">
+                            {attendedBy.map((p) => (
+                                <li key={p.id}>
+                                    <Badge variant="secondary" className="font-normal">{p.name}</Badge>
+                                </li>
+                            ))}
+                        </ul>
+                    </CardContent>
+                </Card>
+            )}
+
+            {(canAlert || canCancel) && (
+                <Card className="border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20">
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-sm flex items-center gap-2">
+                            <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" /> Acciones como solicitante
+                        </CardTitle>
+                        <CardDescription className="text-xs">
+                            Si tu ticket no está siendo atendido o deseas cancelarlo, puedes enviar una alerta (se notificará al responsable y supervisores) o cancelar el ticket si aún no está resuelto.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        {canAlert && (
+                            <div className="space-y-2">
+                                <Label className="text-xs">Mensaje opcional (se incluirá en la notificación)</Label>
+                                <Textarea
+                                    placeholder="Ej: Llevo varios días sin respuesta..."
+                                    value={alertMessage}
+                                    onChange={(e) => setAlertMessage(e.target.value)}
+                                    disabled={sendingAlert}
+                                    className="min-h-[80px] resize-y"
+                                    maxLength={1000}
+                                />
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={sendAlert}
+                                    disabled={sendingAlert}
+                                >
+                                    {sendingAlert ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <AlertTriangle className="h-4 w-4 mr-2" />}
+                                    Enviar alerta
+                                </Button>
+                            </div>
+                        )}
+                        {canCancel && (
+                            <div>
+                                <Button
+                                    type="button"
+                                    variant="destructive"
+                                    size="sm"
+                                    onClick={cancelTicket}
+                                    disabled={cancelling}
+                                >
+                                    {cancelling ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <XCircle className="h-4 w-4 mr-2" />}
+                                    Cancelar ticket
+                                </Button>
+                                <p className="text-xs text-muted-foreground mt-1">Solo puedes cancelar tickets que no estén resueltos o cerrados.</p>
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+            )}
+
+            <Card className={ticket.is_overdue ? "border-l-4 border-l-destructive" : ""}>
+                <CardHeader className="pb-2">
+                    <CardTitle className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="text-lg md:text-xl">Ticket #{ticket.id} — {ticket.subject}</span>
+                        <Badge variant={ticket.is_overdue ? "destructive" : "secondary"}>{ticket.state?.name}</Badge>
                     </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-2 text-sm">
-                    <div><strong>Área actual:</strong> {ticket.area_current?.name}</div>
-                    <div><strong>Área origen:</strong> {ticket.area_origin?.name}</div>
-                    <div><strong>Tipo:</strong> {ticket.ticket_type?.name}</div>
-                    <div><strong>Prioridad:</strong> {ticket.priority?.name}</div>
-                    <div><strong>Sede:</strong> {ticket.sede?.name}</div>
-                    {ticket.ubicacion && <div><strong>Ubicación:</strong> {ticket.ubicacion?.name}</div>}
-                    <div><strong>Solicitante:</strong> {ticket.requester?.name}</div>
-                    <div><strong>Responsable:</strong> {assignedUser ? `${assignedUser.name}${assignedUser.position?.name ? " - " + assignedUser.position.name : ""}` : "Sin asignar"}</div>
-                    <div><strong>Fecha límite:</strong> {ticket.due_at ? new Date(ticket.due_at).toLocaleString() : "—"}</div>
-                    {ticket.sla_status_text && (
-                        <div><strong>SLA:</strong> <span className={ticket.is_overdue ? "text-destructive font-medium" : "text-muted-foreground"}>{ticket.sla_status_text}</span></div>
-                    )}
-                    <div className="text-muted-foreground whitespace-pre-wrap">{ticket.description}</div>
+                <CardContent className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2 text-sm">
+                        <div><strong className="text-muted-foreground">Área actual:</strong> {ticket.area_current?.name}</div>
+                        <div><strong className="text-muted-foreground">Área origen:</strong> {ticket.area_origin?.name}</div>
+                        <div><strong className="text-muted-foreground">Tipo:</strong> {ticket.ticket_type?.name}</div>
+                        <div><strong className="text-muted-foreground">Prioridad:</strong> {ticket.priority?.name}</div>
+                        <div><strong className="text-muted-foreground">Sede:</strong> {ticket.sede?.name}</div>
+                        {ticket.ubicacion && <div><strong className="text-muted-foreground">Ubicación:</strong> {ticket.ubicacion?.name}</div>}
+                        <div><strong className="text-muted-foreground">Solicitante:</strong> {ticket.requester?.name}</div>
+                        <div><strong className="text-muted-foreground">Responsable:</strong> {assignedUser ? `${assignedUser.name}${assignedUser.position?.name ? " — " + assignedUser.position.name : ""}` : "Sin asignar"}</div>
+                        <div><strong className="text-muted-foreground">Fecha límite:</strong> {ticket.due_at ? new Date(ticket.due_at).toLocaleString() : "—"}</div>
+                        {ticket.sla_status_text && (
+                            <div><strong className="text-muted-foreground">SLA:</strong> <span className={ticket.is_overdue ? "text-destructive font-medium" : "text-muted-foreground"}>{ticket.sla_status_text}</span></div>
+                        )}
+                    </div>
+                    <div>
+                        <strong className="text-muted-foreground text-sm block mb-1">Descripción</strong>
+                        <div className="text-muted-foreground whitespace-pre-wrap rounded-md bg-muted/30 p-3 text-sm">
+                            {descLong && !descExpanded ? (
+                                <>
+                                    {(ticket.description || "").slice(0, 280)}…
+                                    <button type="button" onClick={() => setDescExpanded(true)} className="ml-2 text-primary hover:underline inline-flex items-center gap-0.5 text-xs font-medium">Ver más <ChevronDown className="h-3 w-3" /></button>
+                                </>
+                            ) : descLong && descExpanded ? (
+                                <>
+                                    {ticket.description}
+                                    <button type="button" onClick={() => setDescExpanded(false)} className="ml-2 text-primary hover:underline inline-flex items-center gap-0.5 text-xs font-medium">Ver menos <ChevronUp className="h-3 w-3" /></button>
+                                </>
+                            ) : (
+                                ticket.description || "—"
+                            )}
+                        </div>
+                    </div>
                 </CardContent>
             </Card>
 
@@ -187,17 +400,87 @@ export default function TicketDetalle() {
                             </Button>
                         </div>
                         <div className="md:col-span-3 space-y-2">
-                            <Textarea placeholder="Nota (opcional)" value={note} onChange={(e) => setNote(e.target.value)} disabled={!canComment || updating} />
+                            <Textarea placeholder="Nota o comentario (opcional)" value={note} onChange={(e) => setNote(e.target.value)} disabled={!canComment || updating} />
                             {canComment && (
-                                <Button onClick={() => update({})} disabled={updating}>
-                                    {updating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                    Guardar nota / cambio
-                                </Button>
+                                <div className="flex flex-wrap items-center gap-3">
+                                    <label className="flex items-center gap-2 text-sm cursor-pointer">
+                                        <Checkbox checked={isInternalNote} onCheckedChange={(v) => setIsInternalNote(!!v)} disabled={updating} />
+                                        <span className="text-muted-foreground">Nota interna (no visible para el solicitante)</span>
+                                    </label>
+                                    <Button onClick={() => update({})} disabled={updating}>
+                                        {updating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                        Guardar nota / cambio
+                                    </Button>
+                                </div>
                             )}
                         </div>
                     </CardContent>
                 </Card>
             )}
+
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-base">Adjuntos</CardTitle>
+                    <Badge variant="secondary" className="text-[10px]">{(ticket.attachments || []).length}</Badge>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                    {canEdit && (
+                        <div className="flex flex-wrap items-end gap-2">
+                            <Input
+                                type="file"
+                                multiple
+                                className="max-w-xs"
+                                onChange={(e) => setAttachmentFiles(Array.from(e.target.files || []))}
+                            />
+                            <Button
+                                size="sm"
+                                onClick={uploadAttachments}
+                                disabled={uploadingAttachments || attachmentFiles.length === 0}
+                            >
+                                {uploadingAttachments ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Paperclip className="h-4 w-4 mr-2" />}
+                                Subir
+                            </Button>
+                        </div>
+                    )}
+                    {(ticket.attachments || []).length === 0 ? (
+                        <p className="text-sm text-muted-foreground">Sin adjuntos.</p>
+                    ) : (
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead className="text-xs">Archivo</TableHead>
+                                    <TableHead className="text-xs">Tamaño</TableHead>
+                                    {canEdit && <TableHead className="text-right text-xs">Acciones</TableHead>}
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {(ticket.attachments || []).map((a) => (
+                                    <TableRow key={a.id}>
+                                        <TableCell>
+                                            <a
+                                                href={`/api/tickets/${id}/attachments/${a.id}/download`}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="text-primary hover:underline text-sm"
+                                            >
+                                                {a.original_name}
+                                            </a>
+                                        </TableCell>
+                                        <TableCell className="text-xs text-muted-foreground">{Math.round((a.size || 0) / 1024)} KB</TableCell>
+                                        {canEdit && (
+                                            <TableCell className="text-right">
+                                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => removeAttachment(a)}>
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                            </TableCell>
+                                        )}
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    )}
+                </CardContent>
+            </Card>
 
             {canAssign && (
                 <Card>
@@ -266,34 +549,75 @@ export default function TicketDetalle() {
             </Card>
 
             <Card>
-                <CardHeader><CardTitle>Historial</CardTitle></CardHeader>
-                <CardContent>
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Fecha</TableHead>
-                                <TableHead>Actor</TableHead>
-                                <TableHead>De → A</TableHead>
-                                <TableHead>Estado</TableHead>
-                                <TableHead>Nota</TableHead>
-                                <TableHead>Δ tiempo</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {withDiff.length ? withDiff.map((h) => (
-                                <TableRow key={h.id}>
-                                    <TableCell className="text-xs">{new Date(h.created_at).toLocaleString()}</TableCell>
-                                    <TableCell className="text-xs">{h.actor?.name}</TableCell>
-                                    <TableCell className="text-xs">{h.from_area?.name || '—'} → {h.to_area?.name || '—'}</TableCell>
-                                    <TableCell className="text-xs">{h.state?.name || '—'}</TableCell>
-                                    <TableCell className="text-xs">{h.note || '—'}</TableCell>
-                                    <TableCell className="text-[11px] text-muted-foreground">{h.diff ? `${h.diff} h desde el evento anterior` : '—'}</TableCell>
-                                </TableRow>
-                            )) : (
-                                <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">Sin historial</TableCell></TableRow>
+                <CardHeader><CardTitle>Historial y comentarios</CardTitle></CardHeader>
+                <CardContent className="space-y-6">
+                    <div>
+                        <h4 className="text-sm font-semibold flex items-center gap-2 mb-2">
+                            <MessageSquare className="h-4 w-4" /> Comentarios (visibles para el solicitante)
+                        </h4>
+                        {commentEntries.length ? (
+                            <div className="space-y-3">
+                                {commentEntries.map((h) => (
+                                    <div key={h.id} className="rounded-lg border bg-muted/30 p-3 text-sm">
+                                        <div className="text-muted-foreground text-xs mb-1">{h.actor?.name} · {new Date(h.created_at).toLocaleString()}</div>
+                                        <div className="whitespace-pre-wrap">{h.note || '—'}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <p className="text-sm text-muted-foreground">Sin comentarios visibles para el solicitante.</p>
+                        )}
+                    </div>
+                    {canEdit && (
+                        <div>
+                            <h4 className="text-sm font-semibold flex items-center gap-2 mb-2">
+                                <Lock className="h-4 w-4" /> Notas internas
+                            </h4>
+                            {internalNoteEntries.length ? (
+                                <div className="space-y-3">
+                                    {internalNoteEntries.map((h) => (
+                                        <div key={h.id} className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-sm">
+                                            <div className="text-muted-foreground text-xs mb-1">{h.actor?.name} · {new Date(h.created_at).toLocaleString()}</div>
+                                            <div className="whitespace-pre-wrap">{h.note || '—'}</div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <p className="text-sm text-muted-foreground">Sin notas internas.</p>
                             )}
-                        </TableBody>
-                    </Table>
+                        </div>
+                    )}
+                    <div>
+                        <h4 className="text-sm font-semibold flex items-center gap-2 mb-2">
+                            <History className="h-4 w-4" /> Cambios de estado
+                        </h4>
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Fecha</TableHead>
+                                    <TableHead>Actor</TableHead>
+                                    <TableHead>De → A</TableHead>
+                                    <TableHead>Estado</TableHead>
+                                    <TableHead>Nota</TableHead>
+                                    <TableHead>Δ tiempo</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {withDiff.length ? withDiff.map((h) => (
+                                    <TableRow key={h.id}>
+                                        <TableCell className="text-xs">{new Date(h.created_at).toLocaleString()}</TableCell>
+                                        <TableCell className="text-xs">{h.actor?.name}</TableCell>
+                                        <TableCell className="text-xs">{h.from_area?.name || '—'} → {h.to_area?.name || '—'}</TableCell>
+                                        <TableCell className="text-xs">{h.state?.name || '—'}</TableCell>
+                                        <TableCell className="text-xs">{h.note || '—'}</TableCell>
+                                        <TableCell className="text-[11px] text-muted-foreground">{h.diff ? `${h.diff} h desde el evento anterior` : '—'}</TableCell>
+                                    </TableRow>
+                                )) : (
+                                    <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">Sin cambios</TableCell></TableRow>
+                                )}
+                            </TableBody>
+                        </Table>
+                    </div>
                 </CardContent>
             </Card>
         </div>

@@ -62,6 +62,16 @@ class Ticket extends Model
         return $this->hasMany(TicketHistory::class);
     }
 
+    public function attachments(): HasMany
+    {
+        return $this->hasMany(TicketAttachment::class);
+    }
+
+    public function alerts(): HasMany
+    {
+        return $this->hasMany(TicketAlert::class);
+    }
+
     /**
      * Fecha límite para SLA: due_at si existe, si no created_at + 72h.
      */

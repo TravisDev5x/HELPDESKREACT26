@@ -18,9 +18,14 @@ class TicketHistory extends Model
         'to_area_id',
         'ticket_state_id',
         'note',
+        'is_internal',
         'from_assignee_id',
         'to_assignee_id',
         'created_at',
+    ];
+
+    protected $casts = [
+        'is_internal' => 'boolean',
     ];
 
     public function ticket(): BelongsTo { return $this->belongsTo(Ticket::class); }

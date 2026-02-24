@@ -75,6 +75,22 @@ class TicketPolicy
         return $this->canManageAction($user, $ticket, 'tickets.escalate');
     }
 
+    /** Solo el solicitante puede enviar alertas (ticket no atendido / ignorado). */
+    public function alert(User $user, Ticket $ticket): bool
+    {
+        return (int) $ticket->requester_id === (int) $user->id;
+    }
+
+    /** Solo el solicitante puede cancelar sus tickets que no estén resueltos. */
+    public function cancel(User $user, Ticket $ticket): bool
+    {
+        if ((int) $ticket->requester_id !== (int) $user->id) {
+            return false;
+        }
+        $ticket->loadMissing('state');
+        return !($ticket->state && $ticket->state->is_final);
+    }
+
     /**
      * Aplica restricciones de alcance al query, conservando la lógica existente
      */

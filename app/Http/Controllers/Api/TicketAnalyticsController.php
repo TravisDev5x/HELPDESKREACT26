@@ -8,6 +8,7 @@ use App\Models\TicketHistory;
 use App\Models\TicketState;
 use App\Models\Area;
 use App\Models\TicketType;
+use App\Models\User;
 use App\Policies\TicketPolicy;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -33,6 +34,13 @@ class TicketAnalyticsController extends Controller
             $policy = app(TicketPolicy::class);
             $base = $policy->scopeFor($user, Ticket::query());
             $this->applyFilters($request, $user, $base);
+
+            if ($request->input('assigned_to') === 'me') {
+                $base->where('assigned_user_id', $user->id);
+            }
+            if ($request->input('created_by') === 'me') {
+                $base->where('requester_id', $user->id);
+            }
 
             $ticketIds = (clone $base)->pluck('id');
 
@@ -114,6 +122,32 @@ class TicketAnalyticsController extends Controller
                 ->get()
                 ->map(fn($r) => ['label' => $typesMap[$r->ticket_type_id] ?? '-', 'value' => (int) $r->total]);
 
+            // Usuarios que más tickets reportan (top requesters) en el alcance actual
+            $topRequesters = (clone $base)
+                ->select('requester_id', DB::raw('count(*) as total'))
+                ->whereNotNull('requester_id')
+                ->groupBy('requester_id')
+                ->orderByDesc('total')
+                ->limit(5)
+                ->get();
+            $requesterIds = $topRequesters->pluck('requester_id')->unique()->filter()->values()->all();
+            $requesterNames = $requesterIds ? User::whereIn('id', $requesterIds)->pluck('name', 'id')->all() : [];
+            $topRequesters = $topRequesters->map(fn($r) => [
+                'label' => $requesterNames[$r->requester_id] ?? 'Usuario #' . $r->requester_id,
+                'value' => (int) $r->total,
+            ]);
+
+            // Tiempo promedio de resolución (horas), solo tickets ya resueltos
+            $avgResolutionHours = null;
+            if ($hasFinalStates) {
+                $avg = (clone $base)
+                    ->whereNotNull('resolved_at')
+                    ->whereIn('ticket_state_id', $finalStateIds)
+                    ->selectRaw('AVG(TIMESTAMPDIFF(SECOND, created_at, resolved_at))/3600 as avg_hours')
+                    ->value('avg_hours');
+                $avgResolutionHours = $avg !== null ? round((float) $avg, 1) : null;
+            }
+
             return [
                 'states' => $byState,
                 'burned' => $burnedCount,
@@ -122,6 +156,8 @@ class TicketAnalyticsController extends Controller
                 'top_resolvers' => $resolvers,
                 'types_frequent' => $typesFrequent,
                 'types_resolved' => $typesResolved,
+                'top_requesters' => $topRequesters,
+                'avg_resolution_hours' => $avgResolutionHours,
             ];
         });
 

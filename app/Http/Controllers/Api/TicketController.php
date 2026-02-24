@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Ticket;
+use App\Models\TicketAlert;
 use App\Models\TicketHistory;
 use App\Models\TicketAreaAccess;
 use App\Models\TicketState;
@@ -13,6 +14,7 @@ use App\Notifications\Tickets\TicketReassignedNotification;
 use App\Notifications\Tickets\TicketEscalatedNotification;
 use App\Notifications\Tickets\TicketRequesterResolvedNotification;
 use App\Notifications\Tickets\TicketRequesterCommentNotification;
+use App\Notifications\Tickets\TicketRequesterAlertNotification;
 use App\Events\TicketCreated;
 use App\Events\TicketUpdated;
 use App\Http\Requests\StoreTicketRequest;
@@ -79,10 +81,14 @@ class TicketController extends Controller
             }
         }
 
+        if ($request->input('created_by') === 'me') {
+            $query->where('requester_id', $user->id);
+        }
+
         $query->orderByDesc('id');
 
         // Paginación segura
-        $allowedPerPage = [10, 25, 50, 100];
+        $allowedPerPage = [10, 25, 50, 100, 500];
         $perPage = (int) $request->input('per_page', 10);
         if (!in_array($perPage, $allowedPerPage, true)) {
             $perPage = 10;
@@ -133,6 +139,10 @@ class TicketController extends Controller
             if ($allowed) {
                 $query->where('assigned_user_id', $assigneeId);
             }
+        }
+
+        if ($request->input('created_by') === 'me') {
+            $query->where('requester_id', $user->id);
         }
 
         $total = (clone $query)->count();
@@ -216,6 +226,10 @@ class TicketController extends Controller
             }
         }
 
+        if ($request->input('created_by') === 'me') {
+            $query->where('requester_id', $user->id);
+        }
+
         $query->orderByDesc('id');
 
         $headers = [
@@ -269,7 +283,7 @@ class TicketController extends Controller
             'assignedUser.position:id,name',
             'ticketType:id,name',
             'priority:id,name,level',
-            'state:id,name,code',
+            'state:id,name,code,is_final',
             'histories' => function ($q) {
                 $q->orderByDesc('created_at');
                 $q->with([
@@ -281,7 +295,14 @@ class TicketController extends Controller
                     'state:id,name,code',
                 ]);
             },
+            'attachments' => function ($q) {
+                $q->orderByDesc('created_at');
+                $q->with('uploader:id,name');
+            },
         ]);
+        if ($user && (int) $user->id === (int) $ticket->requester_id) {
+            $ticket->setRelation('histories', $ticket->histories->reject(fn ($h) => $h->action === 'comment' && $h->is_internal));
+        }
         return $this->withAbilities($ticket);
     }
 
@@ -432,6 +453,13 @@ class TicketController extends Controller
                 }
             }
 
+            $hasOtherChanges = (int) $beforeStateId !== (int) $ticket->ticket_state_id
+                || (int) $beforePriorityId !== (int) $ticket->priority_id
+                || (int) $beforeAreaId !== (int) $ticket->area_current_id
+                || (int) $beforeAssigneeId !== (int) $ticket->assigned_user_id;
+            $action = $didEscalate ? 'escalated' : ($noteAllowed && $noteProvided ? 'comment' : ($hasOtherChanges ? 'state_change' : null));
+            $isInternal = ($action === 'comment') ? (bool) ($data['is_internal'] ?? true) : null;
+
             TicketHistory::create([
                 'ticket_id' => $ticket->id,
                 'actor_id' => $user->id,
@@ -439,7 +467,8 @@ class TicketController extends Controller
                 'to_area_id' => $ticket->area_current_id,
                 'ticket_state_id' => $ticket->ticket_state_id,
                 'note' => $noteAllowed ? ($data['note'] ?? null) : null,
-                'action' => $didEscalate ? 'escalated' : null,
+                'is_internal' => $isInternal,
+                'action' => $action,
                 'from_assignee_id' => $didEscalate ? $fromAssignee : null,
                 'to_assignee_id' => $didEscalate ? null : null,
             ]);
@@ -484,7 +513,8 @@ class TicketController extends Controller
                 }
             }
 
-            if ($noteAllowed && $noteProvided && $ticket->requester_id && (int) $ticket->requester_id !== (int) $user->id) {
+            $isPublicComment = $noteAllowed && $noteProvided && !($data['is_internal'] ?? true);
+            if ($isPublicComment && $ticket->requester_id && (int) $ticket->requester_id !== (int) $user->id) {
                 $requester = User::find($ticket->requester_id);
                 if ($requester) {
                     $this->safeNotify(
@@ -703,6 +733,120 @@ class TicketController extends Controller
                 'histories.toArea:id,name',
                 'histories.state:id,name,code',
             );
+            return response()->json($this->withAbilities($ticket));
+        });
+    }
+
+    /**
+     * El solicitante envía una alerta (no atendido / ignorado).
+     * La notificación llega solo al responsable actual y a supervisores/admins (tickets.manage_all).
+     */
+    public function sendAlert(Request $request, Ticket $ticket)
+    {
+        $user = Auth::user();
+        if (!$user) return response()->json(['message' => 'No autorizado'], 401);
+
+        Gate::authorize('alert', $ticket);
+
+        $data = $request->validate([
+            'message' => 'nullable|string|max:1000',
+        ]);
+
+        $alert = TicketAlert::create([
+            'ticket_id' => $ticket->id,
+            'requester_id' => $user->id,
+            'message' => $data['message'] ?? null,
+        ]);
+
+        $requesterName = $user->name;
+        $message = "El solicitante ha enviado una alerta por el ticket #{$ticket->id}: no atendido o ignorado.";
+        if (!empty(trim((string) ($data['message'] ?? '')))) {
+            $message .= ' ' . trim($data['message']);
+        }
+
+        $recipientIds = collect();
+        if ($ticket->assigned_user_id && (int) $ticket->assigned_user_id !== (int) $user->id) {
+            $recipientIds->push($ticket->assigned_user_id);
+        }
+        $recipientIds = $recipientIds->merge(
+            User::permission('tickets.manage_all')->pluck('id')
+        )->unique()->filter(fn ($id) => (int) $id !== (int) $user->id)->values();
+
+        $notification = new TicketRequesterAlertNotification($ticket->id, $message, $user->id);
+        foreach (User::whereIn('id', $recipientIds)->get() as $recipient) {
+            $this->safeNotify($recipient, $notification, $ticket->id, 'requester_alert');
+        }
+
+        $ticket->load([
+            'areaOrigin:id,name',
+            'areaCurrent:id,name',
+            'sede:id,name',
+            'ubicacion:id,name',
+            'requester:id,name,email',
+            'assignedUser:id,name,position_id',
+            'ticketType:id,name',
+            'priority:id,name,level',
+            'state:id,name,code',
+        ]);
+        return response()->json([
+            'alert' => $alert,
+            'ticket' => $this->withAbilities($ticket),
+        ], 201);
+    }
+
+    /**
+     * El solicitante cancela su ticket (solo si no está resuelto).
+     */
+    public function cancel(Ticket $ticket)
+    {
+        $user = Auth::user();
+        if (!$user) return response()->json(['message' => 'No autorizado'], 401);
+
+        Gate::authorize('cancel', $ticket);
+
+        $cancelStateId = TicketState::where('code', 'cancelado')->value('id');
+        if (!$cancelStateId) {
+            $cancelStateId = TicketState::where('name', 'Cancelado')->value('id');
+        }
+        if (!$cancelStateId) {
+            return response()->json(['message' => 'No existe el estado Cancelado en el sistema'], 422);
+        }
+
+        return DB::transaction(function () use ($ticket, $user, $cancelStateId) {
+            $beforeStateId = $ticket->ticket_state_id;
+            $ticket->ticket_state_id = $cancelStateId;
+            $ticket->resolved_at = now();
+            $ticket->save();
+
+            TicketHistory::create([
+                'ticket_id' => $ticket->id,
+                'actor_id' => $user->id,
+                'from_area_id' => $ticket->area_current_id,
+                'to_area_id' => $ticket->area_current_id,
+                'ticket_state_id' => $cancelStateId,
+                'note' => 'Ticket cancelado por el solicitante',
+                'action' => 'state_change',
+            ]);
+
+            $this->auditTicketChange($user, $ticket, 'cancel', [
+                'ticket_state_id' => ['from' => $beforeStateId, 'to' => $cancelStateId],
+            ]);
+
+            $ticket->load([
+                'areaOrigin:id,name',
+                'areaCurrent:id,name',
+                'sede:id,name',
+                'ubicacion:id,name',
+                'requester:id,name,email',
+                'assignedUser:id,name,position_id',
+                'ticketType:id,name',
+                'priority:id,name,level',
+                'state:id,name,code',
+                'histories' => function ($q) {
+                    $q->orderByDesc('created_at');
+                    $q->with(['actor:id,name,email', 'state:id,name,code']);
+                },
+            ]);
             return response()->json($this->withAbilities($ticket));
         });
     }
@@ -958,6 +1102,8 @@ class TicketController extends Controller
             'comment' => Gate::allows('comment', $ticket),
             'change_status' => Gate::allows('changeStatus', $ticket),
             'change_area' => Gate::allows('changeArea', $ticket),
+            'alert' => Gate::allows('alert', $ticket),
+            'cancel' => Gate::allows('cancel', $ticket),
         ]);
 
         return $ticket;
