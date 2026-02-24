@@ -21,6 +21,7 @@ class UpdateTicketRequest extends FormRequest
             'priority_id' => 'nullable|exists:priorities,id',
             'area_current_id' => 'nullable|exists:areas,id',
             'note' => 'nullable|string|max:1000',
+            'due_at' => 'nullable|date',
         ];
     }
 

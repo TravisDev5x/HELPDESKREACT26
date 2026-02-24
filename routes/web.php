@@ -19,17 +19,20 @@ Route::get('/test-disco', function () {
     return 'OK';
 });
 
+// Cabeceras para la SPA: no almacenar en caché (evita versión antigua en Brave/Chromium)
+$spaHeaders = [
+    'Cache-Control' => 'no-store, no-cache, must-revalidate',
+    'Pragma' => 'no-cache',
+    'Expires' => '0',
+];
+
 // ==========================
 // LOGIN VISUAL (SPA)
 // ==========================
-Route::get('/login', function () {
-    return view('app'); // React maneja el login
-})->name('login');
+Route::get('/login', fn () => response()->view('app')->withHeaders($spaHeaders))->name('login');
 
 // ==========================
 // SPA (React)
 // ==========================
 // SIEMPRE AL FINAL
-Route::get('/{any}', function () {
-    return view('app');
-})->where('any', '^(?!api).*');
+Route::get('/{any}', fn () => response()->view('app')->withHeaders($spaHeaders))->where('any', '^(?!api).*');

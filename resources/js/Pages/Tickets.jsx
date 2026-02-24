@@ -81,6 +81,15 @@ const TicketRow = memo(function TicketRow({ ticket }) {
                     )}
                 </div>
             </TableCell>
+            <TableCell className="text-xs">
+                {ticket.sla_status_text ? (
+                    <span className={ticket.is_overdue ? "text-destructive font-medium" : "text-muted-foreground"}>
+                        {ticket.sla_status_text}
+                    </span>
+                ) : (
+                    <span className="text-muted-foreground">—</span>
+                )}
+            </TableCell>
             <TableCell>
                 <div className="flex flex-col text-xs gap-1">
                     <span className="font-medium flex items-center gap-1.5 text-foreground/80">
@@ -232,7 +241,7 @@ export default function Tickets() {
     const [perPage, setPerPage] = useState(() => Number(localStorage.getItem("tickets.perPage")) || 10);
     const [currentPage, setCurrentPage] = useState(1);
 
-    const defaultFilters = { area: "all", sede: "all", type: "all", priority: "all", state: "all", search: "", assignment: "all", assignee: "all" };
+    const defaultFilters = { area: "all", sede: "all", type: "all", priority: "all", state: "all", search: "", assignment: "all", assignee: "all", sla: "all" };
     const [filters, setFilters] = useState(() => {
         const saved = localStorage.getItem("tickets.filters");
         return saved ? { ...defaultFilters, ...JSON.parse(saved) } : defaultFilters;
@@ -266,6 +275,7 @@ export default function Tickets() {
                 ...(filters.type !== "all" && { ticket_type_id: filters.type }),
                 ...(filters.priority !== "all" && { priority_id: filters.priority }),
                 ...(filters.state !== "all" && { ticket_state_id: filters.state }),
+                ...(filters.sla !== "all" && filters.sla && { sla: filters.sla }),
             };
 
             if (filters.assignment === "me") params.assigned_to = "me";
@@ -368,8 +378,37 @@ export default function Tickets() {
     const handleClearFilters = () => setFilters({ ...defaultFilters });
 
     // --- UTILIDADES ---
-    const hasActiveFilters = filters.search !== "" || filters.area !== "all" || filters.sede !== "all" || filters.type !== "all" || filters.state !== "all" || filters.priority !== "all" || filters.assignment !== "all" || (filters.assignment === "user" && filters.assignee !== "all");
-    const activeFilterCount = [filters.search, filters.area !== "all", filters.sede !== "all", filters.type !== "all", filters.priority !== "all", filters.state !== "all", filters.assignment !== "all", filters.assignment === "user" && filters.assignee !== "all"].filter(Boolean).length;
+    const hasActiveFilters = filters.search !== "" || filters.area !== "all" || filters.sede !== "all" || filters.type !== "all" || filters.state !== "all" || filters.priority !== "all" || filters.assignment !== "all" || (filters.assignment === "user" && filters.assignee !== "all") || filters.sla !== "all";
+    const activeFilterCount = [filters.search, filters.area !== "all", filters.sede !== "all", filters.type !== "all", filters.priority !== "all", filters.state !== "all", filters.assignment !== "all", filters.assignment === "user" && filters.assignee !== "all", filters.sla !== "all"].filter(Boolean).length;
+
+    const [exporting, setExporting] = useState(false);
+    const handleExport = useCallback(async () => {
+        const params = {};
+        if (filters.search) params.search = filters.search;
+        if (filters.area !== "all") params.area_current_id = filters.area;
+        if (filters.sede !== "all") params.sede_id = filters.sede;
+        if (filters.type !== "all") params.ticket_type_id = filters.type;
+        if (filters.priority !== "all") params.priority_id = filters.priority;
+        if (filters.state !== "all") params.ticket_state_id = filters.state;
+        if (filters.sla !== "all") params.sla = filters.sla;
+        if (filters.assignment === "me") params.assigned_to = "me";
+        if (filters.assignment === "unassigned") params.assigned_status = "unassigned";
+        if (filters.assignment === "user" && filters.assignee !== "all") params.assigned_user_id = filters.assignee;
+        setExporting(true);
+        try {
+            const { data } = await axios.get("/api/tickets/export", { params, responseType: "blob" });
+            const url = URL.createObjectURL(data);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "tickets.csv";
+            a.click();
+            URL.revokeObjectURL(url);
+        } catch (err) {
+            notify.error("No se pudo exportar");
+        } finally {
+            setExporting(false);
+        }
+    }, [filters]);
 
     const summaryStates = (summary?.by_state || []).slice().sort((a, b) => Number(b.value || 0) - Number(a.value || 0));
     const summaryMax = summaryStates.length ? Math.max(...summaryStates.map((s) => Number(s.value || 0))) : 0;
@@ -395,6 +434,10 @@ export default function Tickets() {
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={handleExport} disabled={loading || exporting} title="Exportar CSV con filtros actuales">
+                        {exporting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                        Exportar CSV
+                    </Button>
                     <Button variant="outline" size="icon" className="h-9 w-9" onClick={loadData} disabled={loading} title="Actualizar">
                         <Loader2 className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                     </Button>
@@ -555,6 +598,15 @@ export default function Tickets() {
                                         </SelectContent>
                                     </Select>
                                 )}
+
+                                <Select value={filters.sla} onValueChange={(v) => setFilters(f => ({ ...f, sla: v }))}>
+                                    <SelectTrigger className="h-8 text-xs bg-background"><SelectValue placeholder="SLA" /></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">Cualquier SLA</SelectItem>
+                                        <SelectItem value="within">Dentro de plazo</SelectItem>
+                                        <SelectItem value="overdue">Vencidos</SelectItem>
+                                    </SelectContent>
+                                </Select>
                             </div>
                         </div>
                     </CardContent>
@@ -571,8 +623,8 @@ export default function Tickets() {
                                     <TableHead className="w-[140px] font-bold text-[11px] uppercase tracking-wider text-muted-foreground">Estado</TableHead>
                                     <TableHead className="w-[100px] font-bold text-[11px] uppercase tracking-wider text-muted-foreground text-center">Prioridad</TableHead>
                                     <TableHead className="min-w-[150px] font-bold text-[11px] uppercase tracking-wider text-muted-foreground">Asignado a</TableHead>
+                                    <TableHead className="min-w-[120px] font-bold text-[11px] uppercase tracking-wider text-muted-foreground">SLA</TableHead>
                                     <TableHead className="min-w-[180px] font-bold text-[11px] uppercase tracking-wider text-muted-foreground">Ubicación</TableHead>
-                                    {/* Cabecera para Acciones ajustada */}
                                     <TableHead className="w-[120px] text-right font-bold text-[11px] uppercase tracking-wider text-muted-foreground pr-6">Acciones</TableHead>
                                 </TableRow>
                             </TableHeader>
@@ -580,7 +632,7 @@ export default function Tickets() {
                                 {loading ? (
                                     Array.from({ length: 5 }).map((_, i) => (
                                         <TableRow key={i}>
-                                            <TableCell colSpan={7} className="h-16 px-4">
+                                            <TableCell colSpan={8} className="h-16 px-4">
                                                 <div className="flex items-center gap-4">
                                                     <Skeleton className="h-8 w-12" />
                                                     <div className="flex-1 space-y-2">
@@ -593,7 +645,7 @@ export default function Tickets() {
                                     ))
                                 ) : tickets.length === 0 ? (
                                     <TableRow>
-                                        <TableCell colSpan={7} className="h-64 text-center">
+                                        <TableCell colSpan={8} className="h-64 text-center">
                                             <div className="flex flex-col items-center justify-center gap-3 text-muted-foreground">
                                                 <div className="p-4 bg-muted/20 rounded-full">
                                                     <Ticket className="w-8 h-8 opacity-40" />

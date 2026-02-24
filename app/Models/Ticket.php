@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -10,6 +11,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Ticket extends Model
 {
     use HasFactory;
+
+    /** Límite máximo de tiempo para SLA (horas). */
+    public const SLA_LIMIT_HOURS = 72;
 
     protected $fillable = [
         'subject',
@@ -26,10 +30,20 @@ class Ticket extends Model
         'priority_id',
         'ticket_state_id',
         'resolved_at',
+        'due_at',
+    ];
+
+    protected $casts = [
+        'resolved_at' => 'datetime',
+        'due_at' => 'datetime',
+        'assigned_at' => 'datetime',
     ];
 
     protected $appends = [
         'is_burned',
+        'is_overdue',
+        'sla_due_at',
+        'sla_status_text',
     ];
 
     public function areaOrigin(): BelongsTo { return $this->belongsTo(\App\Models\Area::class, 'area_origin_id'); }
@@ -49,16 +63,60 @@ class Ticket extends Model
     }
 
     /**
-     * Deriva si el ticket está "quemado": >72h desde creación y no está Cerrado.
+     * Fecha límite para SLA: due_at si existe, si no created_at + 72h.
+     */
+    public function getSlaDueAtAttribute(): ?Carbon
+    {
+        if ($this->due_at) {
+            return $this->due_at;
+        }
+        if ($this->created_at) {
+            return $this->created_at->copy()->addHours(self::SLA_LIMIT_HOURS);
+        }
+        return null;
+    }
+
+    /**
+     * True si el ticket no está resuelto y ya pasó la fecha límite SLA.
+     */
+    public function getIsOverdueAttribute(): bool
+    {
+        $isFinal = (bool) ($this->state?->is_final ?? false);
+        if ($isFinal) {
+            return false;
+        }
+        $due = $this->sla_due_at;
+        return $due ? now()->isAfter($due) : false;
+    }
+
+    /**
+     * Texto corto para UI: "Vence en X h" / "Vencido hace X h" / "Cerrado".
+     */
+    public function getSlaStatusTextAttribute(): ?string
+    {
+        $isFinal = (bool) ($this->state?->is_final ?? false);
+        if ($isFinal) {
+            return null;
+        }
+        $due = $this->sla_due_at;
+        if (!$due) {
+            return null;
+        }
+        $now = now();
+        if ($now->isAfter($due)) {
+            $hours = (int) $now->diffInHours($due);
+            return $hours <= 0 ? 'Vencido' : "Vencido hace {$hours} h";
+        }
+        $hours = (int) $now->diffInHours($due, false);
+        return $hours <= 0 ? 'Vence pronto' : "Vence en {$hours} h";
+    }
+
+    /**
+     * Deriva si el ticket está "quemado": pasó el límite SLA y no está cerrado.
+     * Usa due_at si existe, si no 72h desde creación.
      */
     public function getIsBurnedAttribute(): bool
     {
-        if (!$this->created_at) return false;
-
-        $ageHours = now()->diffInHours($this->created_at);
-        if ($ageHours <= 72) return false;
-
-        $isFinal = (bool) ($this->state?->is_final ?? false);
-        return !$isFinal;
+        return $this->is_overdue;
     }
 }

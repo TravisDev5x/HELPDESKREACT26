@@ -6,15 +6,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { notify } from "@/lib/notify";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Loader2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export default function Login() {
     const { login } = useAuth();
     const { isDark, toggleTheme } = useTheme();
     const { t } = useI18n();
-    const navigate = useNavigate();
     const [form, setForm] = useState({ identifier: "", password: "" });
     const [remember, setRemember] = useState(() => {
         if (typeof localStorage === "undefined") return false;
@@ -82,17 +83,25 @@ export default function Login() {
     };
 
     return (
-        <div className="flex h-screen flex-col items-center justify-center bg-background text-foreground relative px-4 py-6">
+        <div className="flex h-screen flex-col items-center justify-center text-foreground relative px-4 py-6 bg-background">
+            <div
+                className={cn(
+                    "absolute inset-0 z-0 pointer-events-none overflow-hidden",
+                    "bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,hsl(var(--muted)_/_0.15),transparent),radial-gradient(ellipse_60%_40%_at_100%_100%,hsl(var(--muted)_/_0.08),transparent)]",
+                    "before:content-[''] before:absolute before:inset-0 before:opacity-70 before:bg-[length:24px_24px] before:bg-[radial-gradient(circle_at_1px_1px,hsl(var(--foreground)_/_0.07)_1px,transparent_0)]"
+                )}
+                aria-hidden
+            />
             <Button
                 type="button"
                 variant="ghost"
                 onClick={toggleTheme}
-                className="absolute top-4 right-4 h-auto text-xs font-semibold text-muted-foreground hover:text-foreground border border-border px-3 py-1 rounded-full bg-background/80 backdrop-blur hover:bg-transparent"
+                className="absolute top-4 right-4 z-10 h-auto text-xs font-semibold text-muted-foreground hover:text-foreground border border-border px-3 py-1 rounded-full bg-background/80 backdrop-blur hover:bg-transparent"
                 aria-label={t("login.toggleTheme")}
             >
                 {isDark ? t("login.themeLight") : t("login.themeDark")}
             </Button>
-            <Card className="w-full max-w-[400px]">
+            <Card className="relative z-10 w-full max-w-[400px] shadow-xl border-border/80 bg-card/95 backdrop-blur-sm">
                 <CardHeader className="text-center space-y-1">
                     <CardTitle className="text-xl">{t("brand.title")}</CardTitle>
                     <p className="text-sm text-muted-foreground font-medium">{t("brand.subtitle")}</p>
@@ -142,6 +151,14 @@ export default function Login() {
                                     {showPassword ? t("login.hidePassword") : t("login.showPassword")}
                                 </Button>
                             </div>
+                            <p className="text-right">
+                                <Link
+                                    to="/forgot-password"
+                                    className="text-xs text-primary hover:underline font-medium"
+                                >
+                                    {t("login.forgotPassword")}
+                                </Link>
+                            </p>
                         </div>
 
                         <div className="flex items-center gap-2">
@@ -162,8 +179,11 @@ export default function Login() {
                             </p>
                         )}
 
-                        <Button type="submit" className="w-full" disabled={loading}>
-                            {loading ? t("login.submitting") : t("login.submit")}
+                        <Button type="submit" className="w-full gap-2" disabled={loading}>
+                            {loading && (
+                                <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden />
+                            )}
+                            <span>{loading ? t("login.submitting") : t("login.submit")}</span>
                         </Button>
 
                         <p className="text-center text-xs text-muted-foreground">
@@ -172,21 +192,10 @@ export default function Login() {
                                 {t("login.register")}
                             </Link>
                         </p>
-                        <p className="text-center text-xs text-muted-foreground">
-                            <Button
-                                type="button"
-                                variant="link"
-                                onClick={() => navigate("/forgot-password")}
-                                className="h-auto p-0 text-primary hover:underline font-normal"
-                                disabled={loading}
-                            >
-                                {t("login.forgotPassword")}
-                            </Button>
-                        </p>
                     </form>
                 </CardContent>
             </Card>
-            <div className="mt-6 text-center text-xs text-muted-foreground space-y-1">
+            <div className="relative z-10 mt-6 text-center text-xs text-muted-foreground space-y-1">
                 <p>{t("login.help")}</p>
                 <Button
                     type="button"

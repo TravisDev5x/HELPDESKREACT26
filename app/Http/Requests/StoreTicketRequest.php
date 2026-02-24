@@ -27,6 +27,7 @@ class StoreTicketRequest extends FormRequest
             'priority_id' => 'required|exists:priorities,id',
             'ticket_state_id' => 'required|exists:ticket_states,id',
             'created_at' => 'required|date|before_or_equal:now',
+            'due_at' => 'nullable|date|after_or_equal:created_at',
         ];
     }
 

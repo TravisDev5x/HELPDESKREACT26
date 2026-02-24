@@ -13,6 +13,9 @@ export default defineConfig({
     ],
     server: {
         cors: true,
+        headers: {
+            "Cache-Control": "no-store",
+        },
     },
     resolve: {
         alias: {

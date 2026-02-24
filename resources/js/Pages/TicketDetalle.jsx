@@ -5,8 +5,10 @@ import { loadCatalogs } from "@/lib/catalogCache";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { notify } from "@/lib/notify";
 import { Loader2 } from "lucide-react";
@@ -18,6 +20,7 @@ export default function TicketDetalle() {
     const [note, setNote] = useState("");
     const [updating, setUpdating] = useState(false);
     const [assigneeId, setAssigneeId] = useState("none");
+    const [dueAtLocal, setDueAtLocal] = useState("");
 
     const load = async () => {
         try {
@@ -33,6 +36,8 @@ export default function TicketDetalle() {
                 positions: catalogData.positions || [],
             });
             setTicket(ticketRes.data);
+            const t = ticketRes.data;
+            setDueAtLocal(t?.due_at ? new Date(t.due_at).toISOString().slice(0, 16) : "");
         } catch (err) {
             notify.error("No se pudo cargar el ticket");
         }
@@ -47,6 +52,7 @@ export default function TicketDetalle() {
             setTicket(data);
             setNote("");
             setAssigneeId("none");
+            setDueAtLocal(data?.due_at ? new Date(data.due_at).toISOString().slice(0, 16) : "");
             notify.success("Ticket actualizado");
         } catch (err) {
             notify.error(err?.response?.data?.message || "No se pudo actualizar");
@@ -132,6 +138,10 @@ export default function TicketDetalle() {
                     {ticket.ubicacion && <div><strong>Ubicación:</strong> {ticket.ubicacion?.name}</div>}
                     <div><strong>Solicitante:</strong> {ticket.requester?.name}</div>
                     <div><strong>Responsable:</strong> {assignedUser ? `${assignedUser.name}${assignedUser.position?.name ? " - " + assignedUser.position.name : ""}` : "Sin asignar"}</div>
+                    <div><strong>Fecha límite:</strong> {ticket.due_at ? new Date(ticket.due_at).toLocaleString() : "—"}</div>
+                    {ticket.sla_status_text && (
+                        <div><strong>SLA:</strong> <span className={ticket.is_overdue ? "text-destructive font-medium" : "text-muted-foreground"}>{ticket.sla_status_text}</span></div>
+                    )}
                     <div className="text-muted-foreground whitespace-pre-wrap">{ticket.description}</div>
                 </CardContent>
             </Card>
@@ -155,6 +165,27 @@ export default function TicketDetalle() {
                             <SelectTrigger><SelectValue placeholder="Estado" /></SelectTrigger>
                             <SelectContent>{catalogs.ticket_states.map((s) => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}</SelectContent>
                         </Select>
+                        <div className="md:col-span-3 flex flex-wrap items-end gap-2">
+                            <div className="flex-1 min-w-[200px] space-y-1">
+                                <Label className="text-xs">Fecha límite (opcional)</Label>
+                                <Input
+                                    type="datetime-local"
+                                    value={dueAtLocal}
+                                    onChange={(e) => setDueAtLocal(e.target.value)}
+                                    disabled={!canChangeStatus || updating}
+                                    className="h-9"
+                                />
+                            </div>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                disabled={!canChangeStatus || updating}
+                                onClick={() => update({ due_at: dueAtLocal ? new Date(dueAtLocal).toISOString() : null })}
+                            >
+                                Actualizar fecha
+                            </Button>
+                        </div>
                         <div className="md:col-span-3 space-y-2">
                             <Textarea placeholder="Nota (opcional)" value={note} onChange={(e) => setNote(e.target.value)} disabled={!canComment || updating} />
                             {canComment && (

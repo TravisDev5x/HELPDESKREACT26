@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+  <!-- build: {{ config('app.env') }}-{{ now()->format('YmdHis') }} -->
   <script>
     (function () {
       try {
@@ -21,6 +22,9 @@
 
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <title>HelpDesk Enterprise</title>
 
   @viteReactRefresh

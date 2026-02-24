@@ -11,6 +11,8 @@ use App\Models\User;
 use App\Notifications\Tickets\TicketAssignedNotification;
 use App\Notifications\Tickets\TicketReassignedNotification;
 use App\Notifications\Tickets\TicketEscalatedNotification;
+use App\Notifications\Tickets\TicketRequesterResolvedNotification;
+use App\Notifications\Tickets\TicketRequesterCommentNotification;
 use App\Events\TicketCreated;
 use App\Events\TicketUpdated;
 use App\Http\Requests\StoreTicketRequest;
@@ -192,6 +194,7 @@ class TicketController extends Controller
             'ticketType:id,name',
             'priority:id,name',
             'state:id,name',
+            'assignedUser:id,name',
         ]);
 
         $policy = app(\App\Policies\TicketPolicy::class);
@@ -199,25 +202,45 @@ class TicketController extends Controller
 
         $this->applyCatalogFilters($request, $user, $query);
 
+        $assignedTo = $request->input('assigned_to');
+        $assignedStatus = $request->input('assigned_status');
+        if ($assignedTo === 'me') {
+            $query->where('assigned_user_id', $user->id);
+        } elseif ($assignedStatus === 'unassigned') {
+            $query->whereNull('assigned_user_id');
+        } elseif ($request->filled('assigned_user_id')) {
+            $assigneeId = (int) $request->input('assigned_user_id');
+            $allowed = $user->can('tickets.manage_all') || DB::table('users')->where('id', $assigneeId)->where('area_id', $user->area_id)->exists();
+            if ($allowed) {
+                $query->where('assigned_user_id', $assigneeId);
+            }
+        }
+
+        $query->orderByDesc('id');
+
         $headers = [
-            'Content-Type' => 'text/csv',
+            'Content-Type' => 'text/csv; charset=UTF-8',
             'Content-Disposition' => 'attachment; filename="tickets.csv"',
         ];
 
         $callback = function () use ($query) {
             $out = fopen('php://output', 'w');
-            fputcsv($out, ['id', 'created_at', 'area_origen', 'area_actual', 'sede', 'tipo', 'prioridad', 'estado']);
+            fputcsv($out, ['id', 'asunto', 'created_at', 'due_at', 'resolved_at', 'area_origen', 'area_actual', 'sede', 'tipo', 'prioridad', 'estado', 'asignado']);
             $query->chunk(500, function ($tickets) use ($out) {
                 foreach ($tickets as $t) {
                     fputcsv($out, [
                         $t->id,
-                        $t->created_at,
+                        $t->subject ?? '',
+                        $t->created_at?->toIso8601String() ?? '',
+                        $t->due_at?->toIso8601String() ?? '',
+                        $t->resolved_at?->toIso8601String() ?? '',
                         $t->areaOrigin->name ?? '',
                         $t->areaCurrent->name ?? '',
                         $t->sede->name ?? '',
                         $t->ticketType->name ?? '',
                         $t->priority->name ?? '',
                         $t->state->name ?? '',
+                        $t->assignedUser->name ?? '',
                     ]);
                 }
             });
@@ -281,6 +304,11 @@ class TicketController extends Controller
         return DB::transaction(function () use ($data, $user, $clientCreatedAt) {
             $ticket = new Ticket($data);
             $ticket->created_at = $clientCreatedAt;
+            if (!empty($data['due_at'])) {
+                $ticket->due_at = Carbon::parse($data['due_at'])->timezone(config('app.timezone'));
+            } else {
+                $ticket->due_at = $clientCreatedAt->copy()->addHours(Ticket::SLA_LIMIT_HOURS);
+            }
             $ticket->save();
 
             foreach ([$ticket->area_origin_id, $ticket->area_current_id] as $areaId) {
@@ -371,6 +399,26 @@ class TicketController extends Controller
                 $noteAllowed = true;
             }
 
+            if (array_key_exists('due_at', $data)) {
+                $ticket->due_at = $data['due_at'] ? Carbon::parse($data['due_at']) : null;
+            }
+
+            if (isset($data['ticket_state_id'])) {
+                $newState = TicketState::find($ticket->ticket_state_id);
+                $oldState = $beforeStateId ? TicketState::find($beforeStateId) : null;
+                if ($newState && $newState->is_final) {
+                    $ticket->resolved_at = now();
+                } elseif ($oldState && $oldState->is_final && (!$newState || !$newState->is_final)) {
+                    $ticket->resolved_at = null;
+                }
+            }
+
+            $didResolve = false;
+            if (isset($data['ticket_state_id']) && (int) $beforeStateId !== (int) $ticket->ticket_state_id) {
+                $newState = TicketState::find($ticket->ticket_state_id);
+                $didResolve = $newState && $newState->is_final;
+            }
+
             $ticket->save();
 
             if ($toArea) {
@@ -418,6 +466,38 @@ class TicketController extends Controller
 
             if ($didEscalate && $toArea) {
                 $this->notifyEscalated($ticket, $user, (int) $toArea);
+            }
+
+            if ($didResolve && $ticket->requester_id && (int) $ticket->requester_id !== (int) $user->id) {
+                $requester = User::find($ticket->requester_id);
+                if ($requester) {
+                    $this->safeNotify(
+                        $requester,
+                        new TicketRequesterResolvedNotification(
+                            $ticket->id,
+                            "Tu ticket #{$ticket->id} fue marcado como resuelto/cerrado.",
+                            $user->id
+                        ),
+                        $ticket->id,
+                        'requester_resolved'
+                    );
+                }
+            }
+
+            if ($noteAllowed && $noteProvided && $ticket->requester_id && (int) $ticket->requester_id !== (int) $user->id) {
+                $requester = User::find($ticket->requester_id);
+                if ($requester) {
+                    $this->safeNotify(
+                        $requester,
+                        new TicketRequesterCommentNotification(
+                            $ticket->id,
+                            "Se agregó un comentario al ticket #{$ticket->id}.",
+                            $user->id
+                        ),
+                        $ticket->id,
+                        'requester_comment'
+                    );
+                }
             }
 
             TicketUpdated::dispatch($ticket);
@@ -763,6 +843,34 @@ class TicketController extends Controller
             } catch (\Throwable $e) {
                 // ignore invalid date_to
             }
+        }
+
+        $search = $request->input('search') ?? $request->input('q');
+        if (is_string($search) && trim($search) !== '') {
+            $term = '%' . preg_replace('/%/', '\\%', trim(mb_substr($search, 0, 200))) . '%';
+            $query->where(function ($q) use ($term) {
+                $q->where('subject', 'like', $term)->orWhere('description', 'like', $term);
+            });
+        }
+
+        $slaFilter = $request->input('sla');
+        $slaDeadline = now()->subHours(Ticket::SLA_LIMIT_HOURS);
+        if ($slaFilter === 'overdue') {
+            $query->whereNull('resolved_at')->where(function ($q) use ($slaDeadline) {
+                $q->where(function ($q2) {
+                    $q2->whereNotNull('due_at')->where('due_at', '<', now());
+                })->orWhere(function ($q2) use ($slaDeadline) {
+                    $q2->whereNull('due_at')->where('created_at', '<', $slaDeadline);
+                });
+            });
+        } elseif ($slaFilter === 'within') {
+            $query->whereNull('resolved_at')->where(function ($q) use ($slaDeadline) {
+                $q->where(function ($q2) {
+                    $q2->whereNotNull('due_at')->where('due_at', '>=', now());
+                })->orWhere(function ($q2) use ($slaDeadline) {
+                    $q2->whereNull('due_at')->where('created_at', '>=', $slaDeadline);
+                });
+            });
         }
     }
 
