@@ -224,6 +224,51 @@ const DashboardSkeleton = () => (
     </div>
 );
 
+/**
+ * Bloque de bienvenida común a todos los dashboards: avatar + Hola + saludo por hora + reloj + día actual.
+ * Opcional: children (subtítulo/acciones bajo el reloj), actions (nodo a la derecha, ej. botones).
+ */
+function DashboardWelcome({ user, children, actions }) {
+    const [currentTime, setCurrentTime] = useState(() => new Date());
+    useEffect(() => {
+        const interval = setInterval(() => setCurrentTime(new Date()), 1000);
+        return () => clearInterval(interval);
+    }, []);
+    const greeting = useMemo(() => {
+        const h = currentTime.getHours();
+        if (h >= 5 && h < 12) return "Buenos días";
+        if (h >= 12 && h < 19) return "Buenas tardes";
+        return "Buenas noches";
+    }, [currentTime]);
+    const clock = currentTime.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    const dayLabel = currentTime.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+
+    return (
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex flex-wrap items-center gap-4">
+                <UserAvatar
+                    name={user?.name}
+                    avatarPath={user?.avatar_path}
+                    size={48}
+                    className="shrink-0"
+                />
+                <div className="min-w-0">
+                    <h1 className="text-2xl font-bold text-foreground">
+                        Hola, {user?.name ?? "Usuario"}. {greeting}.
+                    </h1>
+                    <p className="text-sm text-muted-foreground mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0">
+                        <span className="font-mono tabular-nums" aria-label="Hora actual">{clock}</span>
+                        <span className="text-foreground/80">·</span>
+                        <span>{dayLabel}</span>
+                    </p>
+                    {children}
+                </div>
+            </div>
+            {actions && <div className="flex flex-wrap items-center gap-2 shrink-0">{actions}</div>}
+        </div>
+    );
+}
+
 // --- COMPONENTE PRINCIPAL ---
 
 /** Formatea una fecha a YYYY-MM-DD para comparar días. */
@@ -268,7 +313,6 @@ function DashboardSolicitante() {
     const { user } = useAuth();
     const [tickets, setTickets] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [currentTime, setCurrentTime] = useState(() => new Date());
     const [createModalOpen, setCreateModalOpen] = useState(false);
     const [createForm, setCreateForm] = useState(CREATE_FORM_INITIAL);
     const [createSaving, setCreateSaving] = useState(false);
@@ -319,11 +363,6 @@ function DashboardSolicitante() {
         if (!n?.created_at) return "";
         return relativeTime(n.created_at);
     };
-
-    useEffect(() => {
-        const interval = setInterval(() => setCurrentTime(new Date()), 1000);
-        return () => clearInterval(interval);
-    }, []);
 
     const openCreateModal = useCallback(() => {
         setCreateModalOpen(true);
@@ -425,13 +464,6 @@ function DashboardSolicitante() {
 
     const openCount = useMemo(() => tickets.filter((t) => !isResolved(t) && !isCancelled(t)).length, [tickets]);
 
-    const greeting = useMemo(() => {
-        const h = currentTime.getHours();
-        if (h >= 5 && h < 12) return "Buenos días";
-        if (h >= 12 && h < 19) return "Buenas tardes";
-        return "Buenas noches";
-    }, [currentTime]);
-
     const scrollToMisTickets = useCallback(() => {
         refMisTickets.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     }, []);
@@ -466,27 +498,14 @@ function DashboardSolicitante() {
 
     return (
         <div className="w-full max-w-4xl mx-auto p-4 md:p-6 space-y-6">
-            {/* Saludo según hora + avatar + nombre + hora + resumen + Ir a mis tickets */}
-            <div className="flex flex-wrap items-center gap-4">
-                <UserAvatar
-                    name={user?.name}
-                    avatarPath={user?.avatar_path}
-                    size={48}
-                    className="shrink-0"
-                />
-                <div className="min-w-0 flex-1">
-                    <h1 className="text-2xl font-bold text-foreground">{greeting}, {user?.name ?? "Usuario"}</h1>
-                    <p className="text-sm text-muted-foreground mt-0.5">
-                        {currentTime.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
-                        <span className="ml-2 text-foreground/90">
-                            · Tienes <strong>{openCount}</strong> {openCount === 1 ? "solicitud abierta" : "solicitudes abiertas"}
-                        </span>
-                    </p>
-                </div>
-                <Button type="button" variant="outline" size="sm" onClick={scrollToMisTickets} className="shrink-0 inline-flex items-center gap-2">
+            <DashboardWelcome user={user}>
+                <p className="text-sm text-foreground/90 mt-2">
+                    Tienes <strong>{openCount}</strong> {openCount === 1 ? "solicitud abierta" : "solicitudes abiertas"}
+                </p>
+                <Button type="button" variant="outline" size="sm" onClick={scrollToMisTickets} className="mt-2 inline-flex items-center gap-2">
                     <ListChecks className="h-4 w-4" /> Ir a mis tickets
                 </Button>
-            </div>
+            </DashboardWelcome>
 
             {/* Acción principal: Crear ticket (modal sin salir del dashboard) */}
             <div className="flex flex-wrap items-center gap-2">
@@ -954,21 +973,15 @@ function DashboardIntermedio() {
 
     return (
         <div className="w-full max-w-[1920px] mx-auto p-4 md:p-6 lg:p-8 space-y-8 animate-in fade-in duration-500">
-            <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
-                <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center shadow-sm">
-                        <LayoutDashboard className="h-5 w-5" />
-                    </div>
-                    <div className="space-y-0.5">
-                        <h1 className="text-2xl font-bold tracking-tight text-foreground">Mi trabajo</h1>
-                        <p className="text-sm text-muted-foreground">Tickets asignados a ti y patrones recientes.</p>
-                    </div>
-                </div>
-                <Button variant="outline" size="sm" onClick={load} disabled={loading} className="h-9">
-                    <RefreshCw className={`h-3.5 w-3.5 mr-2 ${loading ? "animate-spin" : ""}`} />
-                    Refrescar
-                </Button>
-            </div>
+            <DashboardWelcome
+                user={user}
+                actions={
+                    <Button variant="outline" size="sm" onClick={load} disabled={loading} className="h-9">
+                        <RefreshCw className={`h-3.5 w-3.5 mr-2 ${loading ? "animate-spin" : ""}`} />
+                        Refrescar
+                    </Button>
+                }
+            />
 
             {error && (
                 <div className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive flex items-center gap-2">
@@ -1192,37 +1205,29 @@ export default function Dashboard() {
     return (
         <div className="w-full max-w-[1920px] mx-auto p-4 md:p-6 lg:p-8 space-y-8 animate-in fade-in duration-500">
 
-            {/* HEADER */}
-            <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
-                <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center shadow-sm">
-                        <LayoutDashboard className="h-5 w-5" />
-                    </div>
-                    <div className="space-y-0.5">
-                        <h1 className="text-2xl font-bold tracking-tight text-foreground">Dashboard Operativo</h1>
-                        <p className="text-sm text-muted-foreground">Monitoreo de incidencias y rendimiento del equipo.</p>
-                    </div>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2">
-                    {lastUpdated && (
-                        <span className="text-[10px] text-muted-foreground hidden lg:inline-block mr-2 bg-muted/30 px-2 py-1 rounded">
-                            Actualizado: {lastUpdated.toLocaleTimeString()}
-                        </span>
-                    )}
-                    <Button variant="outline" size="sm" onClick={() => loadAnalytics(appliedFilters)} disabled={loading} className="h-9">
-                        <RefreshCw className={`h-3.5 w-3.5 mr-2 ${loading ? "animate-spin" : ""}`} />
-                        Refrescar
-                    </Button>
-                    <Separator orientation="vertical" className="h-6 mx-1 hidden sm:block" />
-                    <Button asChild variant="secondary" size="sm" className="h-9 shadow-sm">
-                        <a href={exportUrl}>
-                            <Download className="h-3.5 w-3.5 mr-2" />
-                            Exportar CSV
-                        </a>
-                    </Button>
-                </div>
-            </div>
+            <DashboardWelcome
+                user={user}
+                actions={
+                    <>
+                        {lastUpdated && (
+                            <span className="text-[10px] text-muted-foreground hidden lg:inline-block mr-2 bg-muted/30 px-2 py-1 rounded">
+                                Actualizado: {lastUpdated.toLocaleTimeString()}
+                            </span>
+                        )}
+                        <Button variant="outline" size="sm" onClick={() => loadAnalytics(appliedFilters)} disabled={loading} className="h-9">
+                            <RefreshCw className={`h-3.5 w-3.5 mr-2 ${loading ? "animate-spin" : ""}`} />
+                            Refrescar
+                        </Button>
+                        <Separator orientation="vertical" className="h-6 mx-1 hidden sm:block" />
+                        <Button asChild variant="secondary" size="sm" className="h-9 shadow-sm">
+                            <a href={exportUrl}>
+                                <Download className="h-3.5 w-3.5 mr-2" />
+                                Exportar CSV
+                            </a>
+                        </Button>
+                    </>
+                }
+            />
 
             {/* BARRA DE FILTROS */}
             <Card className="border border-border/60 shadow-sm bg-card/40 backdrop-blur-sm">
