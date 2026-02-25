@@ -20,7 +20,7 @@ import { notify } from "@/lib/notify";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card } from "@/components/ui/card";
-import { loadCatalogs as fetchCatalogs } from "@/lib/catalogCache";
+import { loadCatalogs as fetchCatalogs, clearCatalogCache } from "@/lib/catalogCache";
 
 // --- ICONOS ---
 import {
@@ -193,9 +193,14 @@ function UserForm({ defaultValues, onSubmit, onCancel, catalogs, isEdit = false 
                                 <Select onValueChange={field.onChange} value={field.value || ""}>
                                     <FormControl><SelectTrigger className="h-9"><SelectValue placeholder="(Opcional)" /></SelectTrigger></FormControl>
                                     <SelectContent>
-                                        {(field.value ? catalogs.ubicaciones : catalogs.ubicaciones).filter(u => !form.getValues("sede") || u.sede_name === form.getValues("sede")).map(u =>
-                                            <SelectItem key={u.id} value={u.name}>{u.name} {u.sede_name ? `(${u.sede_name})` : ""}</SelectItem>
-                                        )}
+                                        {(() => {
+                                            const sede = form.getValues("sede");
+                                            const filtradas = catalogs.ubicaciones.filter(u => !sede || u.sede_name === sede);
+                                            const list = filtradas.length > 0 ? filtradas : catalogs.ubicaciones;
+                                            return list.map(u => (
+                                                <SelectItem key={u.id} value={u.name}>{u.name} {u.sede_name ? `(${u.sede_name})` : ""}</SelectItem>
+                                            ));
+                                        })()}
                                     </SelectContent>
                                 </Select>
                                 <FormMessage />
@@ -283,8 +288,34 @@ export default function Users() {
     useEffect(() => {
         const loadCatalogsFromCache = async () => {
             try {
-                const data = await fetchCatalogs();
-                setCatalogs(data);
+                let data = await fetchCatalogs();
+                // Si roles o ubicaciones vienen vacíos: limpiar caché y/o cargar desde endpoints específicos
+                if (!data.roles?.length) {
+                    clearCatalogCache();
+                    data = await fetchCatalogs();
+                }
+                const roles = Array.isArray(data.roles) ? data.roles : [];
+                let rolesToSet = roles;
+                if (roles.length === 0) {
+                    try {
+                        const { data: rolesData } = await axios.get("/api/roles");
+                        rolesToSet = Array.isArray(rolesData) ? rolesData.map((r) => ({ id: r.id, name: r.name })) : [];
+                    } catch (_) {}
+                }
+                // Ubicaciones: cargar siempre desde GET /api/ubicaciones (accesible con users.manage) para que el dropdown tenga datos
+                let ubicacionesToSet = Array.isArray(data.ubicaciones) ? data.ubicaciones : [];
+                try {
+                    const { data: ubiData } = await axios.get("/api/ubicaciones");
+                    const fromApi = Array.isArray(ubiData)
+                        ? ubiData.map((u) => ({ id: u.id, name: u.name, sede_id: u.sede_id, sede_name: u.sede?.name ?? "" }))
+                        : [];
+                    if (fromApi.length > 0) ubicacionesToSet = fromApi;
+                } catch (_) {}
+                setCatalogs({
+                    ...data,
+                    roles: rolesToSet,
+                    ubicaciones: ubicacionesToSet,
+                });
                 if (data.sedes?.length) {
                     setFilters((prev) => ({ ...prev, sede: prev.sede === 'all' ? 'all' : data.sedes[0].name }));
                 }

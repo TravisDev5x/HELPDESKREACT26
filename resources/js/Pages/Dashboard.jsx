@@ -308,9 +308,10 @@ const CREATE_FORM_INITIAL = {
     ticket_state_id: "",
 };
 
-/** Dashboard para usuario solicitante: Hola + avatar + nombre + hora + resumen + Mis tickets (calendario único en /calendario). */
+/** Dashboard para usuario solicitante (o visitante en solo lectura). Visitante tiene view_own pero no create. */
 function DashboardSolicitante() {
-    const { user } = useAuth();
+    const { user, can } = useAuth();
+    const canCreateTicket = can("tickets.create");
     const [tickets, setTickets] = useState([]);
     const [loading, setLoading] = useState(true);
     const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -427,7 +428,6 @@ function DashboardSolicitante() {
     };
 
     const ticketsToShow = tickets;
-
     const ticketsFilteredByState = useMemo(() => {
         if (stateFilter === "all") return ticketsToShow;
         return ticketsToShow.filter((t) => {
@@ -438,7 +438,6 @@ function DashboardSolicitante() {
             return true;
         });
     }, [ticketsToShow, stateFilter]);
-
     const sortedTicketsToShow = useMemo(() => {
         const list = [...ticketsFilteredByState];
         list.sort((a, b) => {
@@ -507,13 +506,18 @@ function DashboardSolicitante() {
                 </Button>
             </DashboardWelcome>
 
-            {/* Acción principal: Crear ticket (modal sin salir del dashboard) */}
-            <div className="flex flex-wrap items-center gap-2">
-                <Button type="button" onClick={openCreateModal} className="inline-flex items-center gap-2">
-                    <Plus className="h-4 w-4" /> Crear ticket
-                </Button>
-                <p className="text-sm text-muted-foreground">Crea una nueva solicitud o revisa las que ya enviaste.</p>
-            </div>
+            {/* Acción principal: Crear ticket (oculto para visitante: solo lectura) */}
+            {canCreateTicket && (
+                <div className="flex flex-wrap items-center gap-2">
+                    <Button type="button" onClick={openCreateModal} className="inline-flex items-center gap-2">
+                        <Plus className="h-4 w-4" /> Crear ticket
+                    </Button>
+                    <p className="text-sm text-muted-foreground">Crea una nueva solicitud o revisa las que ya enviaste.</p>
+                </div>
+            )}
+            {!canCreateTicket && (
+                <p className="text-sm text-muted-foreground">Modo solo lectura. Un administrador te asignará un rol para crear y gestionar solicitudes.</p>
+            )}
 
             {/* Actividad reciente: últimas notificaciones (solicitante) */}
             <Card className="border-border/60">
@@ -639,7 +643,7 @@ function DashboardSolicitante() {
                 </Card>
             )}
 
-            {/* Mis tickets: listado y filtros. Calendario único en /calendario (sidebar). */}
+            {/* Mis tickets: listado completo en Inicio. Calendario en /calendario. */}
             <Card ref={refMisTickets}>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <div>
@@ -647,26 +651,23 @@ function DashboardSolicitante() {
                             <Ticket className="h-4 w-4" /> Mis tickets
                         </CardTitle>
                         <CardDescription>
-                            Listado de incidencias que has reportado. Para ver el historial por fechas, usa{" "}
+                            Listado de incidencias que has reportado. Por fechas:{" "}
                             <Link to="/calendario" className="text-primary underline underline-offset-2 hover:no-underline">
                                 Calendario
-                            </Link>{" "}
-                            en el menú.
+                            </Link>.
                         </CardDescription>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                         {ticketsToShow.length > 0 && (
-                            <>
-                                <Select value={sortOrder} onValueChange={setSortOrder}>
-                                    <SelectTrigger className="w-[180px] h-8 text-xs">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="recent">Más recientes primero</SelectItem>
-                                        <SelectItem value="oldest">Más antiguos primero</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </>
+                            <Select value={sortOrder} onValueChange={setSortOrder}>
+                                <SelectTrigger className="w-[180px] h-8 text-xs">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="recent">Más recientes primero</SelectItem>
+                                    <SelectItem value="oldest">Más antiguos primero</SelectItem>
+                                </SelectContent>
+                            </Select>
                         )}
                     </div>
                 </CardHeader>
@@ -699,11 +700,15 @@ function DashboardSolicitante() {
                     ) : tickets.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-8 text-center px-4">
                             <p className="text-sm text-muted-foreground max-w-sm">
-                                Aún no has creado ninguna solicitud. Cuando lo hagas, aparecerán aquí y en el calendario.
+                                {canCreateTicket
+                                    ? "Aún no has creado ninguna solicitud. Cuando lo hagas, aparecerán aquí y en el calendario."
+                                    : "Aún no tienes solicitudes. Cuando un administrador te asigne un rol, podrás crear solicitudes."}
                             </p>
-                            <Button type="button" variant="default" size="sm" className="mt-3" onClick={openCreateModal}>
-                                Crear mi primer ticket
-                            </Button>
+                            {canCreateTicket && (
+                                <Button type="button" variant="default" size="sm" className="mt-3" onClick={openCreateModal}>
+                                    Crear mi primer ticket
+                                </Button>
+                            )}
                         </div>
                     ) : sortedTicketsToShow.length === 0 ? (
                         <p className="text-sm text-muted-foreground py-6 text-center">
@@ -793,29 +798,30 @@ function DashboardSolicitante() {
                         </>
                     ) : (
                         <>
-                            <DialogHeader className="p-5 pb-2 bg-primary/10 border-b">
-                                <DialogTitle className="text-lg flex items-center gap-2">
+                            <DialogHeader className="p-5 pb-2 bg-primary text-primary-foreground border-b border-primary-foreground/10">
+                                <DialogTitle className="text-lg flex items-center gap-2 text-primary-foreground">
                                     <Plus className="h-5 w-5" /> Nuevo ticket
                                 </DialogTitle>
-                                <DialogDescription>Completa los datos para registrar tu solicitud. No sales del inicio.</DialogDescription>
+                                <DialogDescription className="text-primary-foreground/85">Completa los datos para registrar tu solicitud. No sales del inicio.</DialogDescription>
                             </DialogHeader>
                             <form onSubmit={handleCreateSubmit} className="flex flex-col">
                                 <div className="p-5 space-y-4 max-h-[60vh] overflow-y-auto">
                                     <div className="space-y-2">
-                                        <Label>Asunto <span className="text-destructive">*</span></Label>
+                                        <Label className="text-xs">Asunto <span className="text-destructive">*</span></Label>
                                         <Input
                                             required
                                             placeholder="Ej: Fallo en impresora de recepción"
                                             value={createForm.subject}
                                             onChange={(e) => setCreateForm((f) => ({ ...f, subject: e.target.value }))}
                                             disabled={createCatalogsLoading}
+                                            className="bg-muted/40 border-border/60"
                                         />
                                     </div>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                         <div className="space-y-2">
-                                            <Label>Tipo</Label>
+                                            <Label className="flex items-center gap-1 text-xs">Tipo <span className="text-destructive">*</span></Label>
                                             <Select value={createForm.ticket_type_id} onValueChange={(v) => setCreateForm((f) => ({ ...f, ticket_type_id: v }))} disabled={createCatalogsLoading}>
-                                                <SelectTrigger><SelectValue placeholder="Seleccionar" /></SelectTrigger>
+                                                <SelectTrigger className="bg-muted/40 border-border/60"><SelectValue placeholder="Seleccionar" /></SelectTrigger>
                                                 <SelectContent>
                                                     {(createCatalogs.ticket_types || []).map((t) => (
                                                         <SelectItem key={t.id} value={String(t.id)}>{t.name}</SelectItem>
@@ -824,9 +830,9 @@ function DashboardSolicitante() {
                                             </Select>
                                         </div>
                                         <div className="space-y-2">
-                                            <Label>Prioridad</Label>
+                                            <Label className="flex items-center gap-1 text-xs">Prioridad <span className="text-destructive">*</span></Label>
                                             <Select value={createForm.priority_id} onValueChange={(v) => setCreateForm((f) => ({ ...f, priority_id: v }))} disabled={createCatalogsLoading}>
-                                                <SelectTrigger><SelectValue placeholder="Seleccionar" /></SelectTrigger>
+                                                <SelectTrigger className="bg-muted/40 border-border/60"><SelectValue placeholder="Seleccionar" /></SelectTrigger>
                                                 <SelectContent>
                                                     {(createCatalogs.priorities || []).map((p) => (
                                                         <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
@@ -838,9 +844,9 @@ function DashboardSolicitante() {
                                     <Separator />
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-muted/20 p-3 rounded-lg border border-border/50">
                                         <div className="space-y-2">
-                                            <Label className="flex items-center gap-1 text-xs"><MapPin className="w-3 h-3" /> Sede</Label>
+                                            <Label className="flex items-center gap-1 text-xs"><MapPin className="w-3 h-3" /> Sede <span className="text-destructive">*</span></Label>
                                             <Select value={createForm.sede_id} onValueChange={(v) => setCreateForm((f) => ({ ...f, sede_id: v }))} disabled={createCatalogsLoading}>
-                                                <SelectTrigger className="bg-background"><SelectValue placeholder="Sede" /></SelectTrigger>
+                                                <SelectTrigger className="bg-muted/40 border-border/60"><SelectValue placeholder="Sede" /></SelectTrigger>
                                                 <SelectContent>
                                                     {(createCatalogs.sedes || []).map((s) => (
                                                         <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
@@ -852,7 +858,7 @@ function DashboardSolicitante() {
                                         <div className="space-y-2">
                                             <Label className="flex items-center gap-1 text-xs"><User className="w-3 h-3" /> Área responsable <span className="text-destructive">*</span></Label>
                                             <Select value={createForm.area_current_id} onValueChange={(v) => setCreateForm((f) => ({ ...f, area_current_id: v }))} disabled={createCatalogsLoading}>
-                                                <SelectTrigger className="bg-background"><SelectValue placeholder="Área que atenderá" /></SelectTrigger>
+                                                <SelectTrigger className="bg-muted/40 border-border/60"><SelectValue placeholder="Área que atenderá" /></SelectTrigger>
                                                 <SelectContent>
                                                     {(createCatalogs.areas || []).map((a) => (
                                                         <SelectItem key={a.id} value={String(a.id)}>{a.name}</SelectItem>
@@ -862,9 +868,9 @@ function DashboardSolicitante() {
                                             <p className="text-[11px] text-muted-foreground">Elige el área que debe atender tu solicitud.</p>
                                         </div>
                                         <div className="space-y-2 sm:col-span-2">
-                                            <Label className="text-xs">Área de origen (tu área)</Label>
+                                            <Label className="flex items-center gap-1 text-xs"><Network className="w-3 h-3" /> Área de origen (tu área) <span className="text-destructive">*</span></Label>
                                             <Select value={createForm.area_origin_id} onValueChange={(v) => setCreateForm((f) => ({ ...f, area_origin_id: v }))} disabled={createCatalogsLoading}>
-                                                <SelectTrigger className="bg-background"><SelectValue placeholder="Tu área" /></SelectTrigger>
+                                                <SelectTrigger className="bg-muted/40 border-border/60"><SelectValue placeholder="Tu área" /></SelectTrigger>
                                                 <SelectContent>
                                                     {(createCatalogs.areas || []).map((a) => (
                                                         <SelectItem key={a.id} value={String(a.id)}>{a.name}</SelectItem>
@@ -875,10 +881,10 @@ function DashboardSolicitante() {
                                         </div>
                                     </div>
                                     <div className="space-y-2">
-                                        <Label>Descripción del problema</Label>
+                                        <Label className="text-xs">Descripción del problema <span className="text-muted-foreground font-normal">(opcional)</span></Label>
                                         <Textarea
                                             placeholder="Describe qué ocurrió, cuándo y si hay mensajes de error..."
-                                            className="min-h-[100px] resize-y"
+                                            className="min-h-[100px] resize-y bg-muted/40 border-border/60"
                                             value={createForm.description}
                                             onChange={(e) => setCreateForm((f) => ({ ...f, description: e.target.value }))}
                                             disabled={createCatalogsLoading}
@@ -886,8 +892,8 @@ function DashboardSolicitante() {
                                         <p className="text-[11px] text-muted-foreground/90">No incluyas contraseñas ni datos sensibles en la descripción.</p>
                                     </div>
                                 </div>
-                                <DialogFooter className="p-4 border-t bg-muted/10 flex-shrink-0">
-                                    <Button type="button" variant="ghost" onClick={() => setCreateModalOpen(false)} disabled={createSaving}>
+                                <DialogFooter className="p-4 border-t bg-muted/10 flex-shrink-0 gap-2">
+                                    <Button type="button" variant="outline" onClick={() => setCreateModalOpen(false)} disabled={createSaving}>
                                         Cancelar
                                     </Button>
                                     <Button type="submit" disabled={createSaving || createCatalogsLoading}>
@@ -1350,6 +1356,17 @@ export default function Dashboard() {
                     <span className="flex-1 font-medium">{error}</span>
                     <Button variant="outline" size="sm" className="h-7 bg-background" onClick={() => loadAnalytics(appliedFilters)}>
                         Reintentar
+                    </Button>
+                </div>
+            )}
+
+            {/* Aviso cuando todo está en 0 y hay filtros activos (p. ej. rango de fechas sin datos) */}
+            {data && totalTickets === 0 && activeFilterCount > 0 && (
+                <div className="rounded-lg border border-amber-200 dark:border-amber-900/50 bg-amber-50/50 dark:bg-amber-900/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-200 flex flex-wrap items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 shrink-0" />
+                    <span className="flex-1 font-medium">Los filtros actuales no devuelven ningún ticket.</span>
+                    <Button variant="outline" size="sm" className="h-7" onClick={clearFilters}>
+                        Limpiar filtros
                     </Button>
                 </div>
             )}

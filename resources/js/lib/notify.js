@@ -12,12 +12,12 @@ import { sileo } from "sileo";
 
 const DEFAULT_DURATION = { success: 4000, info: 4000, warning: 6000, error: 8000 };
 
-/* Toques de color por tipo para que no se pierdan en la interfaz */
+/* Usan variables CSS del tema para que toasts coincidan con LiquidGlass Rosa y demás temas */
 const FILL_BY_TYPE = {
-    success: "hsl(142 76% 96%)",   /* verde muy suave */
-    error: "hsl(0 86% 97%)",       /* rojo muy suave */
-    warning: "hsl(38 92% 96%)",   /* ámbar muy suave */
-    info: "hsl(214 95% 96%)",     /* azul muy suave */
+    success: "hsl(var(--toast-success, 142 76% 96%))",
+    error: "hsl(var(--toast-error, 0 86% 97%))",
+    warning: "hsl(var(--toast-warning, 38 92% 96%))",
+    info: "hsl(var(--toast-info, 214 95% 96%))",
 };
 
 function normalizePayload(msgOrPayload, defaultTitle) {

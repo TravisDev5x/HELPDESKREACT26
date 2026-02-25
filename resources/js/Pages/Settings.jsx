@@ -34,6 +34,8 @@ const OPTIONS_THEME = [
     { value: "dark-deep", label: "Oscuro profundo", description: "Más contraste", color: "bg-black" },
     { value: "aeroglass", label: "AeroGlass", description: "Transparencia con brillo sutil", color: "bg-blue-100/50" },
     { value: "aeroglass-dark", label: "AeroGlass Oscuro", description: "Vidrio ahumado", color: "bg-blue-950/50" },
+    { value: "liquidglass-rose", label: "LiquidGlass Rosa", description: "Cristal líquido en tonos rosa", color: "bg-rose-200/70" },
+    { value: "liquidglass-rose-dark", label: "LiquidGlass Rosa Oscuro", description: "Rosa ahumado", color: "bg-rose-950/60" },
 ];
 
 const OPTIONS_LOCALE = [

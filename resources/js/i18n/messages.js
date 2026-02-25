@@ -12,6 +12,7 @@ const messages = {
         'nav.permissions': 'Permisos',
         'nav.settings': 'Configuración',
         'nav.tickets': 'Tickets',
+        'nav.myTickets': 'Mis tickets',
         'nav.calendar': 'Calendario',
         'nav.incidents': 'Incidencias',
         'nav.sedes': 'Sedes',
@@ -30,6 +31,7 @@ const messages = {
         'nav.incidentStates': 'Estados de Incidencia',
 
         'section.tickets': 'Gestión de Tickets',
+        'section.myTickets': 'Mis tickets',
         'section.incidents': 'Gestión de Incidencias',
 
         'brand.title': 'HelpDesk',
@@ -111,6 +113,7 @@ const messages = {
         'nav.permissions': 'Permissions',
         'nav.settings': 'Settings',
         'nav.tickets': 'Tickets',
+        'nav.myTickets': 'My tickets',
         'nav.calendar': 'Calendar',
         'nav.incidents': 'Incidents',
         'nav.sedes': 'Sites',
@@ -129,6 +132,7 @@ const messages = {
         'nav.incidentStates': 'Incident states',
 
         'section.tickets': 'Ticket management',
+        'section.myTickets': 'My tickets',
         'section.incidents': 'Incident management',
 
         'brand.title': 'HelpDesk',

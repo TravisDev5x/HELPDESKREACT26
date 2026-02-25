@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\AdminNotificationController;
 use App\Http\Controllers\Api\PermissionController;
 use App\Http\Controllers\Api\RolePermissionController;
 use App\Http\Controllers\Api\SessionMonitorController;
+use App\Http\Controllers\Api\UbicacionController;
 
 /*
 |--------------------------------------------------------------------------
@@ -96,6 +97,12 @@ Route::middleware(['auth:sanctum','locale','perm:permissions.manage|roles.manage
 });
 
 // ==========================
+// UBICACIONES (lectura para usuarios y catálogos)
+// ==========================
+// Listar ubicaciones: quien gestiona usuarios o catálogos puede ver el listado
+Route::middleware(['auth:sanctum','locale','perm:users.manage|catalogs.manage'])->get('ubicaciones', [UbicacionController::class, 'index']);
+
+// ==========================
 // CAMPAÑAS
 // ==========================
 
@@ -120,8 +127,8 @@ Route::middleware(['auth:sanctum','locale','perm:catalogs.manage'])->group(funct
         ->only(['index', 'store', 'update', 'destroy']);
 });
 
-// Tickets: acceso con auth + permisos especÃ­ficos (Policies refuerzan alcance)
-Route::middleware(['auth:sanctum','locale','perm:tickets.manage_all|tickets.view_area|tickets.view_own|tickets.create'])->group(function () {
+// Tickets: acceso con auth + permisos específicos (Policies refuerzan alcance) + rate limit
+Route::middleware(['auth:sanctum','locale','throttle:tickets','perm:tickets.manage_all|tickets.view_area|tickets.view_own|tickets.create'])->group(function () {
     // Analytics debe declararse antes de los params {ticket} para evitar binding
     Route::get('tickets/analytics', \App\Http\Controllers\Api\TicketAnalyticsController::class)
         ->middleware('report.audit');

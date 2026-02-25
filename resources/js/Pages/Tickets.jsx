@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, memo } from "react";
-import { Link, Navigate, useSearchParams } from "react-router-dom";
+import { Link, Navigate, useSearchParams, useLocation } from "react-router-dom";
 import axios from "@/lib/axios";
 import { useAuth } from "@/context/AuthContext";
 
@@ -259,6 +259,9 @@ export default function Tickets() {
         }
     }, [searchParams]);
 
+    const { pathname } = useLocation();
+    const isMyTicketsPage = pathname === "/mis-tickets";
+
     const canManageAll = can("tickets.manage_all");
     const canCreate = can("tickets.create") || canManageAll;
     const canViewArea = can("tickets.view_area") || canManageAll;
@@ -284,22 +287,25 @@ export default function Tickets() {
                 page: currentPage,
                 per_page: perPage,
                 search: filters.search,
-                ...(filters.area !== "all" && { area_current_id: filters.area }),
-                ...(filters.sede !== "all" && { sede_id: filters.sede }),
-                ...(filters.type !== "all" && { ticket_type_id: filters.type }),
-                ...(filters.priority !== "all" && { priority_id: filters.priority }),
-                ...(filters.state !== "all" && { ticket_state_id: filters.state }),
-                ...(filters.sla !== "all" && filters.sla && { sla: filters.sla }),
             };
-
-            if (filters.assignment === "me") params.assigned_to = "me";
-            if (filters.assignment === "unassigned") params.assigned_status = "unassigned";
-            if (filters.assignment === "user" && filters.assignee !== "all") {
-                params.assigned_user_id = filters.assignee;
+            if (canManageAll) {
+                if (filters.area !== "all") params.area_current_id = filters.area;
+                if (filters.sede !== "all") params.sede_id = filters.sede;
+                if (filters.type !== "all") params.ticket_type_id = filters.type;
+                if (filters.priority !== "all") params.priority_id = filters.priority;
+                if (filters.state !== "all") params.ticket_state_id = filters.state;
+                if (filters.sla !== "all" && filters.sla) params.sla = filters.sla;
+                if (filters.assignment === "me") params.assigned_to = "me";
+                if (filters.assignment === "unassigned") params.assigned_status = "unassigned";
+                if (filters.assignment === "user" && filters.assignee !== "all") params.assigned_user_id = filters.assignee;
+            } else {
+                if (filters.sede !== "all") params.sede_id = filters.sede;
+                if (filters.type !== "all") params.ticket_type_id = filters.type;
             }
 
             if (canViewArea && !canManageAll && user?.area_id) params.area_current_id = user.area_id;
-            if (!canViewArea && !canManageAll) params.requester = "me";
+            if (!canViewArea && !canManageAll) params.created_by = "me";
+            if (isMyTicketsPage) params.created_by = "me";
 
             const summaryParams = { ...params };
             delete summaryParams.page;
@@ -339,12 +345,10 @@ export default function Tickets() {
         } finally {
             setLoading(false);
             setSummaryLoading(false);
+            setLastUpdated(new Date());
         }
-    }, [currentPage, perPage, filters, user, canManageAll, canViewArea]);
+    }, [currentPage, perPage, filters, user, canManageAll, canViewArea, isMyTicketsPage]);
 
-    useEffect(() => {
-        clearCatalogCache();
-    }, []);
     useEffect(() => { loadData(); }, [loadData]);
 
     useEffect(() => {
@@ -369,25 +373,29 @@ export default function Tickets() {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setSaving(true);
+        const payload = {
+            ...form,
+            sede_id: Number(form.sede_id),
+            area_origin_id: Number(form.area_origin_id),
+            area_current_id: Number(form.area_current_id),
+            priority_id: Number(form.priority_id),
+            ticket_type_id: Number(form.ticket_type_id),
+            ubicacion_id: form.ubicacion_id === "none" ? null : Number(form.ubicacion_id)
+        };
+        const promise = axios.post("/api/tickets", payload);
+        notify.promise(promise, {
+            loading: "Creando ticket…",
+            success: "Ticket creado correctamente",
+            error: "Error al crear el ticket",
+        });
         try {
-            const payload = {
-                ...form,
-                sede_id: Number(form.sede_id),
-                area_origin_id: Number(form.area_origin_id),
-                area_current_id: Number(form.area_current_id),
-                priority_id: Number(form.priority_id),
-                ticket_type_id: Number(form.ticket_type_id),
-                ubicacion_id: form.ubicacion_id === "none" ? null : Number(form.ubicacion_id)
-            };
-
-            await axios.post("/api/tickets", payload);
+            await promise;
             clearCatalogCache();
-            notify.success({ title: "Ticket Creado", description: "El ticket se ha registrado exitosamente." });
             setOpen(false);
             setCurrentPage(1);
             loadData();
-        } catch (err) {
-            notify.error({ title: "Error", description: err.response?.data?.message || "Error al crear ticket" });
+        } catch (_) {
+            // Error ya mostrado por notify.promise
         } finally {
             setSaving(false);
         }
@@ -396,9 +404,14 @@ export default function Tickets() {
     const handleClearFilters = () => setFilters({ ...defaultFilters });
 
     // --- UTILIDADES ---
-    const hasActiveFilters = filters.search !== "" || filters.area !== "all" || filters.sede !== "all" || filters.type !== "all" || filters.state !== "all" || filters.priority !== "all" || filters.assignment !== "all" || (filters.assignment === "user" && filters.assignee !== "all") || filters.sla !== "all";
-    const activeFilterCount = [filters.search, filters.area !== "all", filters.sede !== "all", filters.type !== "all", filters.priority !== "all", filters.state !== "all", filters.assignment !== "all", filters.assignment === "user" && filters.assignee !== "all", filters.sla !== "all"].filter(Boolean).length;
+    const hasActiveFilters = canManageAll
+        ? (filters.search !== "" || filters.area !== "all" || filters.sede !== "all" || filters.type !== "all" || filters.state !== "all" || filters.priority !== "all" || filters.assignment !== "all" || (filters.assignment === "user" && filters.assignee !== "all") || filters.sla !== "all")
+        : (filters.search !== "" || filters.sede !== "all" || filters.type !== "all");
+    const activeFilterCount = canManageAll
+        ? [filters.search, filters.area !== "all", filters.sede !== "all", filters.type !== "all", filters.priority !== "all", filters.state !== "all", filters.assignment !== "all", filters.assignment === "user" && filters.assignee !== "all", filters.sla !== "all"].filter(Boolean).length
+        : [filters.search, filters.sede !== "all", filters.type !== "all"].filter(Boolean).length;
 
+    const [lastUpdated, setLastUpdated] = useState(null);
     const [exporting, setExporting] = useState(false);
     const handleExport = useCallback(async () => {
         const params = {};
@@ -458,18 +471,31 @@ export default function Tickets() {
                         <Ticket className="h-5 w-5" />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-bold tracking-tight text-foreground">Gestión de Tickets</h1>
-                        <p className="text-sm text-muted-foreground">Sistema centralizado de incidencias.</p>
+                        <h1 className="text-2xl font-bold tracking-tight text-foreground">
+                            {isMyTicketsPage ? "Mis tickets" : "Gestión de Tickets"}
+                        </h1>
+                        <p className="text-sm text-muted-foreground">
+                            {isMyTicketsPage ? "Tus tickets como solicitante. Da seguimiento y agrega comentarios." : "Sistema centralizado de incidencias."}
+                        </p>
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={handleExport} disabled={loading || exporting} title="Exportar CSV con filtros actuales">
-                        {exporting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                        Exportar CSV
-                    </Button>
-                    <Button variant="outline" size="icon" className="h-9 w-9" onClick={loadData} disabled={loading} title="Actualizar">
-                        <Loader2 className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-                    </Button>
+                    {canManageAll && (
+                        <Button variant="outline" size="sm" onClick={handleExport} disabled={loading || exporting} title="Exportar CSV con filtros actuales">
+                            {exporting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                            Exportar CSV
+                        </Button>
+                    )}
+                    <div className="flex items-center gap-2">
+                        <Button variant="outline" size="icon" className="h-9 w-9 shrink-0" onClick={loadData} disabled={loading} title="Actualizar">
+                            <Loader2 className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                        </Button>
+                        {lastUpdated && !loading && (
+                            <span className="text-xs text-muted-foreground whitespace-nowrap" title={lastUpdated.toLocaleString()}>
+                                Actualizado {lastUpdated.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                            </span>
+                        )}
+                    </div>
                     {canCreate && (
                         <Button onClick={handleCreateOpen} className="shadow-sm">
                             <Plus className="mr-2 h-4 w-4" /> Nuevo Ticket
@@ -482,8 +508,7 @@ export default function Tickets() {
                 {summaryLoading ? (
                     <SummarySkeleton />
                 ) : summary ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-
+                    <div className={cn("grid grid-cols-1 gap-4", canManageAll ? "sm:grid-cols-2 lg:grid-cols-4" : "sm:grid-cols-3")}>
                         {/* Card 1: Total - Azul (Información) */}
                         <SummaryCard
                             title="Total Tickets"
@@ -509,35 +534,36 @@ export default function Tickets() {
                             variant="slate"
                         />
 
-                        {/* Card 4: Top Estados (Mini Chart) - Violeta (Analítica) */}
-                        <Card className="border border-violet-100 bg-violet-50/30 dark:bg-violet-900/10 dark:border-violet-900/50 shadow-sm sm:col-span-2 lg:col-span-1 flex flex-col justify-center">
-                            <CardContent className="p-4 py-3">
-                                <div className="flex items-center justify-between mb-2">
-                                    <span className="text-[10px] uppercase font-bold text-violet-900 dark:text-violet-100 flex items-center gap-1">
-                                        <BarChart3 className="w-3 h-3" /> Top Estados
-                                    </span>
-                                </div>
-                                <div className="space-y-2">
-                                    {summaryStates.slice(0, 3).map((state) => {
-                                        const value = Number(state.value || 0);
-                                        const pct = summaryMax ? Math.round((value / summaryMax) * 100) : 0;
-                                        // Barra de progreso personalizada al tono violeta
-                                        return (
-                                            <div key={state.id} className="space-y-1">
-                                                <div className="flex justify-between text-[10px]">
-                                                    <span className="truncate max-w-[100px] text-foreground/80 font-medium">{state.label}</span>
-                                                    <span className="font-mono text-muted-foreground">{value}</span>
+                        {/* Card 4: Top Estados — solo para administradores */}
+                        {canManageAll && (
+                            <Card className="border border-violet-100 bg-violet-50/30 dark:bg-violet-900/10 dark:border-violet-900/50 shadow-sm sm:col-span-2 lg:col-span-1 flex flex-col justify-center">
+                                <CardContent className="p-4 py-3">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className="text-[10px] uppercase font-bold text-violet-900 dark:text-violet-100 flex items-center gap-1">
+                                            <BarChart3 className="w-3 h-3" /> Top Estados
+                                        </span>
+                                    </div>
+                                    <div className="space-y-2">
+                                        {summaryStates.slice(0, 3).map((state) => {
+                                            const value = Number(state.value || 0);
+                                            const pct = summaryMax ? Math.round((value / summaryMax) * 100) : 0;
+                                            return (
+                                                <div key={state.id} className="space-y-1">
+                                                    <div className="flex justify-between text-[10px]">
+                                                        <span className="truncate max-w-[100px] text-foreground/80 font-medium">{state.label}</span>
+                                                        <span className="font-mono text-muted-foreground">{value}</span>
+                                                    </div>
+                                                    <div className="h-1.5 bg-violet-200/50 dark:bg-violet-900/30 rounded-full overflow-hidden">
+                                                        <div className="h-full bg-violet-500 dark:bg-violet-400" style={{ width: `${pct}%` }} />
+                                                    </div>
                                                 </div>
-                                                <div className="h-1.5 bg-violet-200/50 dark:bg-violet-900/30 rounded-full overflow-hidden">
-                                                    <div className="h-full bg-violet-500 dark:bg-violet-400" style={{ width: `${pct}%` }} />
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                    {summaryStates.length === 0 && <span className="text-[10px] text-muted-foreground">Sin datos</span>}
-                                </div>
-                            </CardContent>
-                        </Card>
+                                            );
+                                        })}
+                                        {summaryStates.length === 0 && <span className="text-[10px] text-muted-foreground">Sin datos</span>}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        )}
                     </div>
                 ) : (
                     <div className="p-4 border border-dashed rounded-lg text-center text-sm text-muted-foreground">No hay métricas disponibles</div>
@@ -577,23 +603,27 @@ export default function Tickets() {
 
                             <Separator className="bg-border/40" />
 
-                            {/* Selects Grid */}
-                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-                                <Select value={filters.state} onValueChange={(v) => setFilters(f => ({ ...f, state: v }))}>
-                                    <SelectTrigger className="h-8 text-xs bg-background"><SelectValue placeholder="Estado" /></SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">Todos los estados</SelectItem>
-                                        {catalogs.ticket_states.map(s => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}
-                                    </SelectContent>
-                                </Select>
+                            {/* Selects: admin ve todos; no admin solo sede y tipo */}
+                            <div className={cn("grid gap-3", canManageAll ? "grid-cols-2 md:grid-cols-3 lg:grid-cols-5" : "grid-cols-2 md:grid-cols-2")}>
+                                {canManageAll && (
+                                    <>
+                                        <Select value={filters.state} onValueChange={(v) => setFilters(f => ({ ...f, state: v }))}>
+                                            <SelectTrigger className="h-8 text-xs bg-background"><SelectValue placeholder="Estado" /></SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="all">Todos los estados</SelectItem>
+                                                {catalogs.ticket_states.map(s => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}
+                                            </SelectContent>
+                                        </Select>
 
-                                <Select value={filters.priority} onValueChange={(v) => setFilters(f => ({ ...f, priority: v }))}>
-                                    <SelectTrigger className="h-8 text-xs bg-background"><SelectValue placeholder="Prioridad" /></SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">Todas las prioridades</SelectItem>
-                                        {catalogs.priorities.map(p => <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>)}
-                                    </SelectContent>
-                                </Select>
+                                        <Select value={filters.priority} onValueChange={(v) => setFilters(f => ({ ...f, priority: v }))}>
+                                            <SelectTrigger className="h-8 text-xs bg-background"><SelectValue placeholder="Prioridad" /></SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="all">Todas las prioridades</SelectItem>
+                                                {catalogs.priorities.map(p => <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>)}
+                                            </SelectContent>
+                                        </Select>
+                                    </>
+                                )}
 
                                 <Select value={filters.type} onValueChange={(v) => setFilters(f => ({ ...f, type: v }))}>
                                     <SelectTrigger className="h-8 text-xs bg-background"><SelectValue placeholder="Tipo" /></SelectTrigger>
@@ -603,39 +633,51 @@ export default function Tickets() {
                                     </SelectContent>
                                 </Select>
 
-                                {canViewArea && (
-                                    <Select value={filters.area} onValueChange={(v) => setFilters(f => ({ ...f, area: v }))}>
-                                        <SelectTrigger className="h-8 text-xs bg-background"><SelectValue placeholder="Área" /></SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="all">Todas las áreas</SelectItem>
-                                            {catalogs.areas.map(a => <SelectItem key={a.id} value={String(a.id)}>{a.name}</SelectItem>)}
-                                        </SelectContent>
-                                    </Select>
-                                )}
-
-                                {canUseAssignmentFilters && (
-                                    <Select
-                                        value={filters.assignment}
-                                        onValueChange={(v) => setFilters(f => ({ ...f, assignment: v, assignee: v === "user" ? f.assignee : "all" }))}
-                                    >
-                                        <SelectTrigger className="h-8 text-xs bg-background"><SelectValue placeholder="Asignación" /></SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="all">Todos</SelectItem>
-                                            <SelectItem value="me">Mis tickets</SelectItem>
-                                            <SelectItem value="unassigned">Sin asignar</SelectItem>
-                                            <SelectItem value="user">Por usuario...</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                )}
-
-                                <Select value={filters.sla} onValueChange={(v) => setFilters(f => ({ ...f, sla: v }))}>
-                                    <SelectTrigger className="h-8 text-xs bg-background"><SelectValue placeholder="SLA" /></SelectTrigger>
+                                <Select value={filters.sede} onValueChange={(v) => setFilters(f => ({ ...f, sede: v }))}>
+                                    <SelectTrigger className="h-8 text-xs bg-background"><SelectValue placeholder="Sede" /></SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="all">Cualquier SLA</SelectItem>
-                                        <SelectItem value="within">Dentro de plazo</SelectItem>
-                                        <SelectItem value="overdue">Vencidos</SelectItem>
+                                        <SelectItem value="all">Todas las sedes</SelectItem>
+                                        {catalogs.sedes.map(s => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}
                                     </SelectContent>
                                 </Select>
+
+                                {canManageAll && (
+                                    <>
+                                        {canViewArea && (
+                                            <Select value={filters.area} onValueChange={(v) => setFilters(f => ({ ...f, area: v }))}>
+                                                <SelectTrigger className="h-8 text-xs bg-background"><SelectValue placeholder="Área" /></SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="all">Todas las áreas</SelectItem>
+                                                    {catalogs.areas.map(a => <SelectItem key={a.id} value={String(a.id)}>{a.name}</SelectItem>)}
+                                                </SelectContent>
+                                            </Select>
+                                        )}
+
+                                        {canUseAssignmentFilters && (
+                                            <Select
+                                                value={filters.assignment}
+                                                onValueChange={(v) => setFilters(f => ({ ...f, assignment: v, assignee: v === "user" ? f.assignee : "all" }))}
+                                            >
+                                                <SelectTrigger className="h-8 text-xs bg-background"><SelectValue placeholder="Asignación" /></SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="all">Todos</SelectItem>
+                                                    <SelectItem value="me">Mis tickets</SelectItem>
+                                                    <SelectItem value="unassigned">Sin asignar</SelectItem>
+                                                    <SelectItem value="user">Por usuario...</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        )}
+
+                                        <Select value={filters.sla} onValueChange={(v) => setFilters(f => ({ ...f, sla: v }))}>
+                                            <SelectTrigger className="h-8 text-xs bg-background"><SelectValue placeholder="SLA" /></SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="all">Cualquier SLA</SelectItem>
+                                                <SelectItem value="within">Dentro de plazo</SelectItem>
+                                                <SelectItem value="overdue">Vencidos</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </>
+                                )}
                             </div>
                         </div>
                     </CardContent>

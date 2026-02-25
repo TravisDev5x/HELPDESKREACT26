@@ -1,7 +1,7 @@
 import axios from "@/lib/axios";
 
 const CACHE_KEY = "catalogs.cache.v2";
-const TTL_MS = 5 * 60 * 1000; // 5 minutos
+const TTL_MS = 15 * 60 * 1000; // 15 minutos: menos peticiones a /api/catalogs
 
 function getCached() {
     if (typeof sessionStorage === "undefined") return null;

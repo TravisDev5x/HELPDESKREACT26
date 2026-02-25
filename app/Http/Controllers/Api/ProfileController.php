@@ -25,7 +25,7 @@ class ProfileController extends Controller
             'email'  => 'required|email|unique:users,email,' . $user->id,
             'phone'  => 'nullable|string|max:20',
             'avatar' => 'nullable|image|max:5120',
-            'theme'  => 'nullable|in:light,light-dim,adminlte-legacy,dark,dark-deep,aeroglass,aeroglass-dark',
+            'theme'  => 'nullable|in:light,light-dim,adminlte-legacy,dark,dark-deep,aeroglass,aeroglass-dark,liquidglass-rose,liquidglass-rose-dark',
             'ui_density' => 'nullable|in:normal,compact',
             'sidebar_state' => 'nullable|in:expanded,collapsed',
             'sidebar_hover_preview' => 'nullable|boolean',
@@ -109,7 +109,7 @@ class ProfileController extends Controller
     public function updateTheme(Request $request)
     {
         $data = $request->validate([
-            'theme' => ['required', 'in:light,light-dim,adminlte-legacy,dark,dark-deep,aeroglass,aeroglass-dark'],
+            'theme' => ['required', 'in:light,light-dim,adminlte-legacy,dark,dark-deep,aeroglass,aeroglass-dark,liquidglass-rose,liquidglass-rose-dark'],
         ]);
 
         $user = Auth::user();
@@ -160,7 +160,7 @@ class ProfileController extends Controller
     public function updatePreferences(Request $request)
     {
         $data = $request->validate([
-            'theme' => 'nullable|in:light,light-dim,adminlte-legacy,dark,dark-deep,aeroglass,aeroglass-dark',
+            'theme' => 'nullable|in:light,light-dim,adminlte-legacy,dark,dark-deep,aeroglass,aeroglass-dark,liquidglass-rose,liquidglass-rose-dark',
             'ui_density' => 'nullable|in:normal,compact',
             'sidebar_state' => 'nullable|in:expanded,collapsed',
             'sidebar_hover_preview' => 'nullable|boolean',

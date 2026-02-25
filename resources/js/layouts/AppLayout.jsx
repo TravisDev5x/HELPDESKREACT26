@@ -481,11 +481,14 @@ export default function AppLayout() {
     const canSeeUsers = can('users.manage')
     const canSeeIncidents = can('incidents.view_own') || can('incidents.view_area') || can('incidents.manage_all')
     const canSeeTicketsModule = can('tickets.manage_all') || can('tickets.view_area')
+    /* Mis tickets en sidebar solo para agentes/admins (quienes ven cola); el solicitante solo usa Inicio con todo completo */
+    const canSeeMyTickets = (can('tickets.create') || can('tickets.view_own')) && (can('tickets.manage_all') || can('tickets.view_area'))
 
     const NAV = React.useMemo(() => {
         const generalItems = [
             { to: '/', label: t('nav.home'), icon: LayoutDashboard, emphasis: true },
             { to: '/calendario', label: t('nav.calendar'), icon: CalendarDays, emphasis: true },
+            ...(canSeeMyTickets ? [{ to: '/mis-tickets', label: t('nav.myTickets'), icon: Ticket, emphasis: true }] : []),
             ...(canSeeTicketsModule ? [{ to: '/tickets', label: t('nav.tickets'), icon: Ticket, emphasis: true }] : []),
         ]
         if (canSeeIncidents) generalItems.push({ to: '/incidents', label: t('nav.incidents'), icon: AlertTriangle, emphasis: true })
@@ -544,7 +547,7 @@ export default function AppLayout() {
             ],
         })
         return sections
-    }, [t, can, canSeeCatalogs, canSeeUsers, canSeeIncidents, canSeeTicketsModule])
+    }, [t, can, canSeeCatalogs, canSeeUsers, canSeeIncidents, canSeeTicketsModule, canSeeMyTickets])
 
     const titleMap = {
         '/': t('nav.home'),
@@ -559,6 +562,7 @@ export default function AppLayout() {
         '/sessions': t('nav.sessions'),
         '/sedes': t('nav.sedes'),
         '/ubicaciones': t('nav.ubicaciones'),
+        '/mis-tickets': t('section.myTickets'),
         '/tickets': t('section.tickets'),
         '/tickets/new': t('section.tickets'),
         '/incidents': t('section.incidents'),
@@ -566,7 +570,8 @@ export default function AppLayout() {
     }
     const title = titleMap[pathname] ?? t('layout.section.default')
 
-    const pendingAdmin = user?.status === 'pending_admin'
+    // Overlay solo si está pendiente de rol y NO es visitante (visitante puede entrar y ver dash en solo lectura)
+    const pendingAdmin = user?.status === 'pending_admin' && !(user?.roles?.length === 1 && user?.roles?.[0] === 'visitante')
 
     // Cuando está pendiente de rol, refrescar usuario cada 25s para quitar overlay al asignar rol
     useEffect(() => {
@@ -872,7 +877,9 @@ export default function AppLayout() {
                             "mx-auto p-4 md:p-8 transition-all duration-300 ease-out",
                             focused ? "max-w-[1920px]" : "max-w-7xl"
                         )}>
-                            <Outlet />
+                            <div key={pathname} className="page-transition">
+                                <Outlet />
+                            </div>
                         </div>
                     </main>
                 </div>

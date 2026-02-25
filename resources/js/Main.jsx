@@ -125,6 +125,7 @@ export default function Main() {
                                     <Route path="/priorities" element={<Prioridades />} />
                                     <Route path="/ticket-states" element={<TicketEstados />} />
                                     <Route path="/ticket-types" element={<TicketTipos />} />
+                                    <Route path="/mis-tickets" element={<Tickets />} />
                                     <Route path="/tickets" element={<Tickets />} />
                                     <Route path="/tickets/new" element={<TicketCreate />} />
                                     <Route path="/tickets/:id" element={<TicketDetalle />} />

@@ -18,7 +18,7 @@ class StoreTicketRequest extends FormRequest
     {
         return [
             'subject' => 'required|string|max:255',
-            'description' => 'nullable|string',
+            'description' => 'nullable|string|max:10000',
             'area_origin_id' => 'required|exists:areas,id',
             'area_current_id' => 'required|exists:areas,id',
             'sede_id' => 'required|exists:sites,id',
@@ -49,6 +49,7 @@ class StoreTicketRequest extends FormRequest
             'ticket_state_id.exists' => 'El estado no es válido.',
             'created_at.required' => 'La fecha de creación es obligatoria.',
             'created_at.before_or_equal' => 'La fecha no puede ser futura.',
+            'description.max' => 'La descripción no puede superar 10000 caracteres.',
         ];
     }
 }

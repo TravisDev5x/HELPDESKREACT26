@@ -7,8 +7,10 @@
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { es as dateFnsEs, enUS as dateFnsEn } from "date-fns/locale";
 import axios from "@/lib/axios";
 import { useAuth } from "@/context/AuthContext";
+import { useTheme } from "@/hooks/useTheme";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,6 +36,8 @@ function getCalendarDate(ticket) {
 
 export default function Calendario() {
     const { user, can } = useAuth();
+    const { locale: appLocale } = useTheme();
+    const calendarLocale = appLocale === "en" ? dateFnsEn : dateFnsEs;
     const [tickets, setTickets] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -217,6 +221,7 @@ export default function Calendario() {
                             onSelect={setSelectedDate}
                             modifiers={modifiers}
                             modifiersClassNames={modifiersClassNames}
+                            locale={calendarLocale}
                             className="rounded-lg border border-border/50 p-3 bg-muted/20"
                         />
                     )}

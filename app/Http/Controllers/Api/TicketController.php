@@ -197,6 +197,10 @@ class TicketController extends Controller
         }
         Gate::authorize('viewAny', Ticket::class);
 
+        if (!$user->can('tickets.manage_all')) {
+            return response()->json(['message' => 'Solo administradores pueden exportar CSV'], 403);
+        }
+
         $query = Ticket::with([
             'areaOrigin:id,name',
             'areaCurrent:id,name',
@@ -301,7 +305,7 @@ class TicketController extends Controller
             },
         ]);
         if ($user && (int) $user->id === (int) $ticket->requester_id) {
-            $ticket->setRelation('histories', $ticket->histories->reject(fn ($h) => $h->action === 'comment' && $h->is_internal));
+            $ticket->setRelation('histories', $ticket->histories->reject(fn ($h) => $h->action === 'comment' && $h->is_internal)->values());
         }
         return $this->withAbilities($ticket);
     }
@@ -350,6 +354,7 @@ class TicketController extends Controller
                 'to_area_id' => $ticket->area_current_id,
                 'ticket_state_id' => $ticket->ticket_state_id,
                 'note' => 'Creación de ticket',
+                'is_internal' => false,
                 'created_at' => $ticket->created_at,
             ]);
 
@@ -458,7 +463,7 @@ class TicketController extends Controller
                 || (int) $beforeAreaId !== (int) $ticket->area_current_id
                 || (int) $beforeAssigneeId !== (int) $ticket->assigned_user_id;
             $action = $didEscalate ? 'escalated' : ($noteAllowed && $noteProvided ? 'comment' : ($hasOtherChanges ? 'state_change' : null));
-            $isInternal = ($action === 'comment') ? (bool) ($data['is_internal'] ?? true) : null;
+            $isInternal = ($action === 'comment') ? (bool) ($data['is_internal'] ?? true) : false;
 
             TicketHistory::create([
                 'ticket_id' => $ticket->id,
@@ -584,6 +589,7 @@ class TicketController extends Controller
                 'actor_id' => $user->id,
                 'ticket_state_id' => $ticket->ticket_state_id,
                 'action' => 'assigned',
+                'is_internal' => false,
                 'from_assignee_id' => null,
                 'to_assignee_id' => $user->id,
             ]);
@@ -626,6 +632,10 @@ class TicketController extends Controller
 
         Gate::authorize('assign', $ticket);
 
+        if ($ticket->assigned_user_id && (int) $ticket->assigned_user_id !== (int) $user->id && !$user->can('tickets.manage_all')) {
+            return response()->json(['message' => 'Solo el responsable actual puede reasignar este ticket'], 403);
+        }
+
         $data = $request->validate([
             'assigned_user_id' => 'required|exists:users,id',
         ]);
@@ -654,6 +664,7 @@ class TicketController extends Controller
                 'actor_id' => $user->id,
                 'ticket_state_id' => $ticket->ticket_state_id,
                 'action' => 'reassigned',
+                'is_internal' => false,
                 'from_assignee_id' => $prevAssignee,
                 'to_assignee_id' => $newUser->id,
             ]);
@@ -690,7 +701,7 @@ class TicketController extends Controller
         $user = Auth::user();
         if (!$user) return response()->json(['message' => 'No autorizado'], 401);
 
-        Gate::authorize('assign', $ticket);
+        Gate::authorize('release', $ticket);
 
         if (!$ticket->assigned_user_id) {
             return response()->json(['message' => 'Ticket sin responsable'], 409);
@@ -708,8 +719,10 @@ class TicketController extends Controller
                 'actor_id' => $user->id,
                 'ticket_state_id' => $ticket->ticket_state_id,
                 'action' => 'unassigned',
+                'is_internal' => false,
                 'from_assignee_id' => $prevAssignee,
                 'to_assignee_id' => null,
+                'note' => 'Liberado para otros agentes',
             ]);
 
             $this->auditTicketChange($user, $ticket, 'unassign', [
@@ -756,6 +769,25 @@ class TicketController extends Controller
             'ticket_id' => $ticket->id,
             'requester_id' => $user->id,
             'message' => $data['message'] ?? null,
+        ]);
+
+        $noteText = trim((string) ($data['message'] ?? ''));
+        if ($noteText === '') {
+            $noteText = 'Alerta del solicitante (sin mensaje adicional).';
+        } else {
+            $noteText = 'Observación / alerta del solicitante: ' . $noteText;
+        }
+        TicketHistory::create([
+            'ticket_id' => $ticket->id,
+            'actor_id' => $user->id,
+            'from_area_id' => $ticket->area_current_id,
+            'to_area_id' => $ticket->area_current_id,
+            'ticket_state_id' => $ticket->ticket_state_id,
+            'note' => $noteText,
+            'is_internal' => false,
+            'action' => 'requester_alert',
+            'from_assignee_id' => null,
+            'to_assignee_id' => null,
         ]);
 
         $requesterName = $user->name;
@@ -825,6 +857,7 @@ class TicketController extends Controller
                 'to_area_id' => $ticket->area_current_id,
                 'ticket_state_id' => $cancelStateId,
                 'note' => 'Ticket cancelado por el solicitante',
+                'is_internal' => false,
                 'action' => 'state_change',
             ]);
 
@@ -899,6 +932,7 @@ class TicketController extends Controller
                 'to_area_id' => $newArea,
                 'ticket_state_id' => $ticket->ticket_state_id,
                 'note' => $data['note'] ?? null,
+                'is_internal' => false,
                 'action' => 'escalated',
                 'from_assignee_id' => $fromAssignee,
                 'to_assignee_id' => null,
@@ -964,7 +998,7 @@ class TicketController extends Controller
 
         foreach ($filters as $param => $column) {
             if ($request->filled($param)) {
-                if ($param === 'sede_id' && !$user->can('tickets.filter_by_sede') && !$user->can('tickets.manage_all')) {
+                if ($param === 'sede_id' && !$user->can('tickets.filter_by_sede') && !$user->can('tickets.manage_all') && !$user->can('tickets.view_area')) {
                     continue;
                 }
                 $query->where($column, $request->input($param));
@@ -1098,6 +1132,7 @@ class TicketController extends Controller
     {
         $ticket->setAttribute('abilities', [
             'assign' => Gate::allows('assign', $ticket),
+            'release' => Gate::allows('release', $ticket),
             'escalate' => Gate::allows('escalate', $ticket),
             'comment' => Gate::allows('comment', $ticket),
             'change_status' => Gate::allows('changeStatus', $ticket),

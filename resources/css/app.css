@@ -37,6 +37,12 @@
     /* Sidebar (comportamiento por defecto = izquierda) */
     --sidebar-width: 16rem;
     --sidebar-width-collapsed: 72px;
+
+    /* Toasts: fondos por tipo (HSL sin hsl()) para que sigan el tema) */
+    --toast-success: 142 76% 96%;
+    --toast-error: 0 86% 97%;
+    --toast-warning: 38 92% 96%;
+    --toast-info: 214 95% 96%;
 }
 
 .light {
@@ -403,6 +409,161 @@ html.aeroglass-dark body {
     backdrop-filter: blur(10px);
 }
 
+/* ===== LiquidGlass Rosa (glass rosa compatible con shadcn) ===== */
+.liquidglass-rose {
+    --background: 350 40% 98%;
+    --foreground: 340 28% 14%;
+
+    --card: 350 38% 99%;
+    --card-foreground: 340 28% 14%;
+
+    --popover: 350 38% 99%;
+    --popover-foreground: 340 28% 14%;
+
+    --primary: 340 82% 52%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 350 35% 92%;
+    --secondary-foreground: 340 30% 18%;
+
+    --muted: 350 32% 92%;
+    --muted-foreground: 340 18% 40%;
+
+    --accent: 340 65% 92%;
+    --accent-foreground: 340 50% 22%;
+
+    --destructive: 0 72% 55%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 350 30% 88%;
+    --input: 350 30% 88%;
+    --ring: 340 82% 52%;
+
+    --glass: 350 28% 94%;
+
+    --toast-success: 142 60% 95%;
+    --toast-error: 350 70% 96%;
+    --toast-warning: 35 80% 95%;
+    --toast-info: 340 50% 95%;
+}
+
+html.liquidglass-rose body {
+    background:
+        linear-gradient(135deg, rgba(255, 250, 252, 0.88), rgba(254, 228, 235, 0.72)),
+        radial-gradient(circle at 20% 20%, rgba(251, 182, 206, 0.25), transparent 40%),
+        radial-gradient(circle at 80% 80%, rgba(252, 196, 216, 0.2), transparent 38%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.7), rgba(253, 242, 248, 0.65)),
+        hsl(var(--background));
+    backdrop-filter: blur(8px);
+}
+
+.liquidglass-rose .glass-card {
+    background-color: rgba(255, 250, 252, 0.72);
+    backdrop-filter: blur(14px) saturate(120%);
+    box-shadow: 0 18px 48px rgba(190, 100, 140, 0.14);
+    border: 1px solid rgba(244, 180, 200, 0.35);
+}
+
+.liquidglass-rose .glass-chip {
+    background-color: rgba(255, 250, 252, 0.65);
+    border: 1px solid rgba(244, 180, 200, 0.4);
+    backdrop-filter: blur(10px) saturate(115%);
+}
+
+.liquidglass-rose .glass-nav {
+    background-color: rgba(255, 250, 252, 0.72);
+    backdrop-filter: blur(16px) saturate(122%);
+    border-right: 1px solid rgba(244, 180, 200, 0.3);
+    box-shadow: 2px 0 24px rgba(200, 120, 160, 0.1);
+}
+
+.liquidglass-rose .bg-card,
+.liquidglass-rose .bg-background {
+    background-color: rgba(255, 250, 252, 0.78) !important;
+    backdrop-filter: blur(12px) saturate(118%);
+}
+
+.liquidglass-rose .bg-muted {
+    background-color: rgba(253, 242, 248, 0.72) !important;
+    backdrop-filter: blur(8px);
+}
+
+.liquidglass-rose-dark {
+    --background: 340 22% 8%;
+    --foreground: 350 28% 94%;
+
+    --card: 340 20% 12%;
+    --card-foreground: 350 28% 94%;
+
+    --popover: 340 20% 10%;
+    --popover-foreground: 350 28% 94%;
+
+    --primary: 340 75% 68%;
+    --primary-foreground: 340 35% 10%;
+
+    --secondary: 340 18% 16%;
+    --secondary-foreground: 350 28% 92%;
+
+    --muted: 340 18% 18%;
+    --muted-foreground: 350 22% 72%;
+
+    --accent: 340 25% 20%;
+    --accent-foreground: 350 28% 92%;
+
+    --destructive: 0 70% 58%;
+    --destructive-foreground: 210 35% 94%;
+
+    --border: 340 20% 24%;
+    --input: 340 20% 24%;
+    --ring: 340 75% 68%;
+
+    --glass: 340 20% 14%;
+
+    --toast-success: 142 40% 18%;
+    --toast-error: 350 45% 20%;
+    --toast-warning: 35 50% 18%;
+    --toast-info: 340 35% 18%;
+}
+
+html.liquidglass-rose-dark body {
+    background:
+        linear-gradient(150deg, rgba(28, 18, 24, 0.96), rgba(20, 12, 18, 0.95)),
+        radial-gradient(circle at 20% 20%, rgba(180, 80, 120, 0.18), transparent 35%),
+        radial-gradient(circle at 85% 15%, rgba(200, 100, 140, 0.12), transparent 32%),
+        hsl(var(--background));
+    backdrop-filter: blur(10px);
+}
+
+.liquidglass-rose-dark .glass-card {
+    background-color: rgba(38, 26, 34, 0.78);
+    backdrop-filter: blur(16px) saturate(130%);
+    box-shadow: 0 22px 58px rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(200, 120, 160, 0.22);
+}
+
+.liquidglass-rose-dark .glass-chip {
+    background-color: rgba(44, 32, 40, 0.76);
+    border: 1px solid rgba(200, 120, 160, 0.2);
+    backdrop-filter: blur(10px);
+}
+
+.liquidglass-rose-dark .glass-nav {
+    background-color: rgba(28, 20, 26, 0.74);
+    backdrop-filter: blur(16px);
+    border-right: 1px solid rgba(200, 120, 160, 0.18);
+}
+
+.liquidglass-rose-dark .bg-card,
+.liquidglass-rose-dark .bg-background {
+    background-color: rgba(34, 24, 30, 0.78) !important;
+    backdrop-filter: blur(12px) saturate(122%);
+}
+
+.liquidglass-rose-dark .bg-muted {
+    background-color: rgba(42, 30, 38, 0.72) !important;
+    backdrop-filter: blur(10px);
+}
+
 /* ===== base styles sin @apply (v4-friendly) ===== */
 html,
 body {
@@ -544,6 +705,67 @@ html[data-theme-switching="1"] *::after {
     -webkit-backdrop-filter: blur(calc(var(--glass-blur, 13px) * 0.6));
 }
 
+/* Tokens glass LiquidGlass Rosa */
+.liquidglass-rose {
+    --glass-blur-high: 16px;
+    --glass-blur-med: 12px;
+    --glass-blur-low: 8px;
+    --glass-opacity-high: 0.75;
+    --glass-opacity-med: 0.82;
+    --glass-opacity-low: 0.9;
+    --glass-shadow-high: 0 18px 42px -18px rgba(180, 80, 120, 0.22);
+    --glass-shadow-med: 0 12px 28px -16px rgba(180, 80, 120, 0.18);
+    --glass-shadow-low: 0 8px 18px -12px rgba(140, 60, 100, 0.14);
+    --glass-sat: 122%;
+}
+.liquidglass-rose .glass-card,
+.liquidglass-rose .glass-nav,
+.liquidglass-rose .bg-card,
+.liquidglass-rose .bg-background,
+.liquidglass-rose .bg-muted {
+    background-color: rgba(255, 250, 252, var(--glass-opacity, 0.82)) !important;
+    backdrop-filter: blur(var(--glass-blur, 12px)) saturate(var(--glass-sat, 120%));
+    -webkit-backdrop-filter: blur(var(--glass-blur, 12px)) saturate(var(--glass-sat, 120%));
+    box-shadow: var(--glass-shadow, 0 12px 28px -16px rgba(180, 80, 120, 0.18));
+}
+.liquidglass-rose .glass-chip {
+    background-color: rgba(255, 250, 252, calc(var(--glass-opacity, 0.82) + 0.05));
+}
+.liquidglass-rose .bg-muted {
+    backdrop-filter: blur(calc(var(--glass-blur, 12px) * 0.5));
+    -webkit-backdrop-filter: blur(calc(var(--glass-blur, 12px) * 0.5));
+}
+
+.liquidglass-rose-dark {
+    --glass-blur-high: 18px;
+    --glass-blur-med: 13px;
+    --glass-blur-low: 9px;
+    --glass-opacity-high: 0.78;
+    --glass-opacity-med: 0.84;
+    --glass-opacity-low: 0.9;
+    --glass-shadow-high: 0 20px 50px -22px rgba(0, 0, 0, 0.55);
+    --glass-shadow-med: 0 14px 32px -18px rgba(0, 0, 0, 0.42);
+    --glass-shadow-low: 0 10px 22px -14px rgba(0, 0, 0, 0.3);
+    --glass-sat: 132%;
+}
+.liquidglass-rose-dark .glass-card,
+.liquidglass-rose-dark .glass-nav,
+.liquidglass-rose-dark .bg-card,
+.liquidglass-rose-dark .bg-background,
+.liquidglass-rose-dark .bg-muted {
+    background-color: rgba(34, 24, 30, var(--glass-opacity, 0.84)) !important;
+    backdrop-filter: blur(var(--glass-blur, 13px)) saturate(var(--glass-sat, 130%));
+    -webkit-backdrop-filter: blur(var(--glass-blur, 13px)) saturate(var(--glass-sat, 130%));
+    box-shadow: var(--glass-shadow, 0 14px 32px -18px rgba(0, 0, 0, 0.42));
+}
+.liquidglass-rose-dark .glass-chip {
+    background-color: rgba(42, 30, 38, calc(var(--glass-opacity, 0.84) + 0.05));
+}
+.liquidglass-rose-dark .bg-muted {
+    backdrop-filter: blur(calc(var(--glass-blur, 13px) * 0.6));
+    -webkit-backdrop-filter: blur(calc(var(--glass-blur, 13px) * 0.6));
+}
+
 /* Fallback sin soporte de backdrop-filter */
 @supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
     .aeroglass .glass-card,
@@ -555,10 +777,38 @@ html[data-theme-switching="1"] *::after {
     .aeroglass-dark .glass-nav,
     .aeroglass-dark .bg-card,
     .aeroglass-dark .bg-background,
-    .aeroglass-dark .bg-muted {
+    .aeroglass-dark .bg-muted,
+    .liquidglass-rose .glass-card,
+    .liquidglass-rose .glass-nav,
+    .liquidglass-rose .bg-card,
+    .liquidglass-rose .bg-background,
+    .liquidglass-rose .bg-muted,
+    .liquidglass-rose-dark .glass-card,
+    .liquidglass-rose-dark .glass-nav,
+    .liquidglass-rose-dark .bg-card,
+    .liquidglass-rose-dark .bg-background,
+    .liquidglass-rose-dark .bg-muted {
         backdrop-filter: none;
         -webkit-backdrop-filter: none;
         --glass-opacity: var(--glass-opacity-low, 0.9);
         box-shadow: var(--glass-shadow-low, 0 8px 18px -12px rgba(0, 0, 0, 0.22));
+    }
+}
+
+/* Transición suave al cambiar de página (respetar preferencia de movimiento reducido) */
+.page-transition {
+    animation: page-fade-in 0.25s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+    .page-transition {
+        animation: none;
+    }
+}
+@keyframes page-fade-in {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
     }
 }

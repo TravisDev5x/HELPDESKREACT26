@@ -115,8 +115,7 @@ class UserController extends Controller
 
         $role = null;
         if (!empty($validated['role_id'])) {
-            $expectedGuard = config('auth.defaults.guard', 'web');
-            $role = $this->resolveRoleForGuard((int) $validated['role_id'], $expectedGuard);
+            $role = $this->resolveRoleForGuard((int) $validated['role_id']);
             if (!$role) {
                 return response()->json([
                     'message' => 'Rol incompatible con el guard actual',
@@ -201,8 +200,7 @@ class UserController extends Controller
 
         $role = null;
         if ($request->filled('role_id')) {
-            $expectedGuard = config('auth.defaults.guard', 'web');
-            $role = $this->resolveRoleForGuard((int) $request->role_id, $expectedGuard);
+            $role = $this->resolveRoleForGuard((int) $request->role_id);
             if (!$role) {
                 return response()->json([
                     'message' => 'Rol incompatible con el guard actual',
@@ -216,7 +214,8 @@ class UserController extends Controller
             $user->syncRoles($role ? [$role] : []);
         }
 
-        if ($user->status === 'pending_admin' && $user->roles()->count() > 0) {
+        // Activar solo si tiene un rol distinto de visitante (visitante es solo lectura hasta que admin asigne rol)
+        if ($user->status === 'pending_admin' && $user->roles()->count() > 0 && !($user->roles()->count() === 1 && $user->hasRole('visitante'))) {
             $user->update(['status' => 'active']);
         }
 
@@ -234,7 +233,7 @@ class UserController extends Controller
                 'updated_at' => now(),
             ]);
 
-            $url = url("/api/register/verify?token={$token}");
+            $url = url("/verify-email?token={$token}");
             try {
                 Mail::to($user->email)->send(new VerifyEmail($url));
             } catch (\Throwable $e) {
@@ -245,20 +244,26 @@ class UserController extends Controller
         return response()->json(['message' => 'Usuario actualizado', 'user' => $user]);
     }
 
-    protected function resolveRoleForGuard(int $roleId, string $expectedGuard): ?Role
+    /**
+     * Resuelve el rol por ID aceptando guards web y sanctum; devuelve la versión con guard 'web' si existe.
+     */
+    protected function resolveRoleForGuard(int $roleId): ?Role
     {
         $role = Role::find($roleId);
         if (!$role) {
             return null;
         }
 
-        if ($role->guard_name === $expectedGuard) {
+        $allowedGuards = ['web', 'sanctum'];
+        if (!in_array($role->guard_name, $allowedGuards, true)) {
+            return null;
+        }
+
+        if ($role->guard_name === 'web') {
             return $role;
         }
 
-        return Role::where('name', $role->name)
-            ->where('guard_name', $expectedGuard)
-            ->first();
+        return Role::where('name', $role->name)->where('guard_name', 'web')->first() ?? $role;
     }
 
     public function destroy(User $user)

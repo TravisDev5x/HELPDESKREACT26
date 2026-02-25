@@ -29,7 +29,8 @@ class TicketAnalyticsController extends Controller
         Gate::authorize('viewAny', Ticket::class);
 
         $cacheKey = 'tickets.analytics.' . $user->id . '.' . md5($request->fullUrl());
-        $payload = Cache::remember($cacheKey, now()->addSeconds(60), function () use ($request, $user) {
+
+        $payload = function () use ($request, $user) {
             /** @var TicketPolicy $policy */
             $policy = app(TicketPolicy::class);
             $base = $policy->scopeFor($user, Ticket::query());
@@ -159,7 +160,14 @@ class TicketAnalyticsController extends Controller
                 'top_requesters' => $topRequesters,
                 'avg_resolution_hours' => $avgResolutionHours,
             ];
-        });
+        };
+
+        $payload = $payload();
+        $totalTickets = collect($payload['states'])->sum('value');
+        // No cachear resultados vacíos: así al cambiar/limpiar filtros se recalculan las métricas
+        if ($totalTickets > 0) {
+            Cache::put($cacheKey, $payload, now()->addSeconds(60));
+        }
 
         return response()->json($payload);
     }

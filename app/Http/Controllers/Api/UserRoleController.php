@@ -22,15 +22,17 @@ class UserRoleController extends Controller
 
         $roleIds = $data['roles'] ?? [];
         $roles = $roleIds ? Role::whereIn('id', $roleIds)->get() : collect();
-        $expectedGuard = config('auth.defaults.guard', 'web');
+        $allowedGuards = ['web', 'sanctum'];
 
-        $normalized = $roles->map(function ($role) use ($expectedGuard) {
-            if ($role->guard_name === $expectedGuard) {
+        // Normalizar a roles con guard 'web' (los asignamos siempre con web para consistencia)
+        $normalized = $roles->map(function ($role) use ($allowedGuards) {
+            if (!in_array($role->guard_name, $allowedGuards, true)) {
+                return null;
+            }
+            if ($role->guard_name === 'web') {
                 return $role;
             }
-            return Role::where('name', $role->name)
-                ->where('guard_name', $expectedGuard)
-                ->first();
+            return Role::where('name', $role->name)->where('guard_name', 'web')->first() ?? $role;
         })->filter();
 
         if ($roles->count() !== $normalized->count()) {
@@ -41,7 +43,8 @@ class UserRoleController extends Controller
 
         $user->syncRoles($normalized->unique('id'));
 
-        if ($user->status === 'pending_admin' && $user->roles()->count() > 0) {
+        // Activar solo si tiene un rol distinto de visitante (visitante es solo lectura hasta que admin asigne rol)
+        if ($user->status === 'pending_admin' && $user->roles()->count() > 0 && !($user->roles()->count() === 1 && $user->hasRole('visitante'))) {
             $user->update(['status' => 'active']);
         }
 

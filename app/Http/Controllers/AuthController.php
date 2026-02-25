@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Log;
 use App\Models\User;
+use App\Models\Role;
 use App\Mail\VerifyEmail;
 
 class AuthController extends Controller
@@ -126,6 +127,11 @@ class AuthController extends Controller
                 Mail::to($user->email)->send(new VerifyEmail($url));
                 $mailSent = true;
             } catch (\Throwable $e) {
+                Log::channel('single')->warning('Envío de correo de verificación fallido', [
+                    'user_id' => $user->id,
+                    'email' => $user->email,
+                    'error' => $e->getMessage(),
+                ]);
                 $mailSent = false;
             }
         }
@@ -167,12 +173,25 @@ class AuthController extends Controller
 
         DB::transaction(function () use ($user, $token) {
             $user->email_verified_at = now();
-            $user->status = 'active';
+            // Tras verificar: pendiente de que admin asigne rol; entra como visitante (solo leer, dash solicitante)
+            $user->status = 'pending_admin';
             $user->save();
+
+            $visitanteRole = Role::firstOrCreate(
+                ['name' => 'visitante', 'guard_name' => 'web'],
+                ['name' => 'visitante', 'slug' => 'visitante', 'guard_name' => 'web']
+            );
+            if (!$visitanteRole->hasPermissionTo('tickets.view_own')) {
+                $visitanteRole->syncPermissions(['tickets.view_own']);
+            }
+            $user->syncRoles([$visitanteRole]);
+
             DB::table('email_verification_tokens')->where('token', $token)->delete();
         });
 
-        return response()->json(['message' => 'Correo verificado. Ya puedes iniciar sesion.']);
+        return response()->json([
+            'message' => 'Correo verificado. Ya puedes iniciar sesión y ver el panel como visitante. Un administrador te asignará un rol para interactuar.',
+        ]);
     }
 
     public function logout(Request $request)

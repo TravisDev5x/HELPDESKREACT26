@@ -5,7 +5,6 @@ namespace App\Policies;
 use App\Models\Ticket;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Facades\DB;
 
 class TicketPolicy
 {
@@ -19,28 +18,24 @@ class TicketPolicy
         return $user->can('tickets.create') || $user->can('tickets.manage_all');
     }
 
+    /**
+     * Vista: manage_all ve todo; por área solo tickets con area_current_id = su área (al escalar deja de verse en el área anterior).
+     * area+own: además ve sus propios tickets como solicitante.
+     */
     public function view(User $user, Ticket $ticket): bool
     {
         $scope = $this->scopeType($user);
         if ($scope === 'all') return true;
         $areaId = $user->area_id;
-        $own = $ticket->requester_id === $user->id;
-        $inArea = false;
-        if ($areaId) {
-            $inArea = $ticket->area_current_id === $areaId;
-            if (!$inArea) {
-                $inArea = DB::table('ticket_area_access')
-                    ->where('ticket_id', $ticket->id)
-                    ->where('area_id', $areaId)
-                    ->exists();
-            }
-        }
-        if ($scope === 'area+own') return $inArea || $own;
-        if ($scope === 'area') return $inArea;
+        $own = (int) $ticket->requester_id === (int) $user->id;
+        $inCurrentArea = $areaId && (int) $ticket->area_current_id === (int) $areaId;
+        if ($scope === 'area+own') return $inCurrentArea || $own;
+        if ($scope === 'area') return $inCurrentArea;
         if ($scope === 'own') return $own;
         return false;
     }
 
+    /** Solo agentes con área/asignación pueden modificar. El solicitante no actualiza ni comenta; usa alertas como observaciones. */
     public function update(User $user, Ticket $ticket): bool
     {
         if ($user->can('tickets.manage_all')) return true;
@@ -60,18 +55,38 @@ class TicketPolicy
         return $this->canManageAction($user, $ticket, 'tickets.escalate');
     }
 
+    /** Solo agentes con permiso comentan. El solicitante añade observaciones mediante alertas. */
     public function comment(User $user, Ticket $ticket): bool
     {
         return $this->canManageAction($user, $ticket, 'tickets.comment');
     }
 
+    /** Solo el responsable actual (o admin) puede reasignar; si no hay responsable, cualquiera con permiso en el área puede tomar/reasignar. */
     public function assign(User $user, Ticket $ticket): bool
     {
-        return $this->canManageAction($user, $ticket, 'tickets.assign');
+        if ($user->can('tickets.manage_all')) return true;
+        if (!$user->can('tickets.assign')) return false;
+        if ($ticket->assigned_user_id) {
+            return $this->isAssignee($user, $ticket);
+        }
+        return $this->isCurrentArea($user, $ticket) || $this->isAssignee($user, $ticket);
     }
 
+    /** Solo el responsable actual (o admin) puede liberar el ticket para otros agentes. */
+    public function release(User $user, Ticket $ticket): bool
+    {
+        if ($user->can('tickets.manage_all')) return true;
+        if (!$ticket->assigned_user_id) return false;
+        return $this->isAssignee($user, $ticket);
+    }
+
+    /** Solo el responsable actual (o admin) puede escalar cuando el ticket está asignado; evita conflictos. */
     public function escalate(User $user, Ticket $ticket): bool
     {
+        if ($user->can('tickets.manage_all')) return true;
+        if ($ticket->assigned_user_id && !$this->isAssignee($user, $ticket)) {
+            return false;
+        }
         return $this->canManageAction($user, $ticket, 'tickets.escalate');
     }
 
@@ -92,7 +107,9 @@ class TicketPolicy
     }
 
     /**
-     * Aplica restricciones de alcance al query, conservando la lógica existente
+     * Alcance por área: solo tickets cuyo area_current_id es la del usuario.
+     * Soporte ve solo tickets en área Soporte, Infra solo en Infra; al escalar el ticket pasa al área destino y deja de verse en la origen.
+     * area+own: además incluye tickets donde el usuario es el solicitante (requester_id).
      */
     public function scopeFor(User $user, Builder $query): Builder
     {
@@ -102,18 +119,9 @@ class TicketPolicy
         }
 
         $areaId = $user->area_id;
-        $table = $query->getModel()->getTable();
-        return $query->where(function ($q) use ($scope, $user, $areaId, $table) {
+        return $query->where(function ($q) use ($scope, $user, $areaId) {
             if (in_array($scope, ['area', 'area+own']) && $areaId) {
-                $q->where(function ($areaQ) use ($areaId, $table) {
-                    $areaQ->where('area_current_id', $areaId)
-                        ->orWhereExists(function ($sub) use ($areaId, $table) {
-                            $sub->select(DB::raw(1))
-                                ->from('ticket_area_access')
-                                ->whereColumn('ticket_area_access.ticket_id', $table . '.id')
-                                ->where('ticket_area_access.area_id', $areaId);
-                        });
-                });
+                $q->where('area_current_id', $areaId);
                 if ($scope === 'area+own') {
                     $q->orWhere('requester_id', $user->id);
                 }

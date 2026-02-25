@@ -163,7 +163,8 @@ export default function TicketDetalle() {
     const attendedBy = useMemo(() => {
         if (!ticket) return [];
         const assigned = ticket.assigned_user || ticket.assignedUser;
-        const hist = ticket.histories || [];
+        const raw = ticket.histories ?? ticket.histories_list ?? [];
+        const hist = Array.isArray(raw) ? raw : (Array.isArray(raw?.data) ? raw.data : (raw && typeof raw === 'object' && !Array.isArray(raw) ? Object.values(raw) : []));
         const ids = new Set();
         const names = [];
         if (assigned?.id) {
@@ -207,6 +208,7 @@ export default function TicketDetalle() {
     const canChangeStatus = Boolean(abilities.change_status);
     const canComment = Boolean(abilities.comment);
     const canAssign = Boolean(abilities.assign);
+    const canRelease = Boolean(abilities.release);
     const canAlert = Boolean(abilities.alert);
     const canCancel = Boolean(abilities.cancel);
 
@@ -214,21 +216,21 @@ export default function TicketDetalle() {
     const hasAssignee = Boolean(ticket.assigned_user_id);
     const assignedUser = ticket.assigned_user || ticket.assignedUser;
 
-    const histories = ticket.histories || [];
-    const withDiff = histories.map((h, idx) => {
-        const next = histories[idx + 1];
-        if (!next) return { ...h, diff: null };
-        const current = new Date(h.created_at);
-        const nextDate = new Date(next.created_at);
-        const diffMs = current - nextDate;
-        const diffHours = Math.round((diffMs / 3600000) * 10) / 10;
-        return { ...h, diff: diffHours };
-    });
-
+    const rawHist = ticket.histories ?? [];
+    const histories = Array.isArray(rawHist) ? rawHist : (Array.isArray(rawHist?.data) ? rawHist.data : (rawHist && typeof rawHist === 'object' && !Array.isArray(rawHist) ? Object.values(rawHist) : []));
     const assignmentEvents = histories.filter(h => ["assigned", "reassigned", "unassigned"].includes(h.action));
     const commentEntries = histories.filter(h => h.action === "comment" && !h.is_internal);
     const internalNoteEntries = histories.filter(h => h.action === "comment" && h.is_internal);
     const stateChangeEntries = histories.filter(h => h.action && h.action !== "comment" && ["escalated", "state_change", "assigned", "reassigned", "unassigned"].includes(h.action));
+    const alertEntries = histories.filter(h => h.action === "requester_alert");
+    const stateChangeWithDiff = stateChangeEntries.map((h, idx) => {
+        const next = stateChangeEntries[idx + 1];
+        if (!next) return { ...h, diff: null };
+        const current = new Date(h.created_at);
+        const nextDate = new Date(next.created_at);
+        const diffHours = Math.round((current - nextDate) / 3600000 * 10) / 10;
+        return { ...h, diff: diffHours };
+    });
     const areaUsers = catalogs.area_users || [];
 
     const descLong = (ticket.description || "").length > 280;
@@ -270,13 +272,13 @@ export default function TicketDetalle() {
                             <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" /> Acciones como solicitante
                         </CardTitle>
                         <CardDescription className="text-xs">
-                            Si tu ticket no está siendo atendido o deseas cancelarlo, puedes enviar una alerta (se notificará al responsable y supervisores) o cancelar el ticket si aún no está resuelto.
+                            No puedes editar ni añadir notas al ticket. Para añadir observaciones o avisar de falta de atención, usa <strong>Enviar alerta</strong>: se notifica al responsable y supervisores y el mensaje queda registrado como observación en el historial del ticket.
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
                         {canAlert && (
                             <div className="space-y-2">
-                                <Label className="text-xs">Mensaje opcional (se incluirá en la notificación)</Label>
+                                <Label className="text-xs">Mensaje (observación que quedará en el ticket y en la notificación)</Label>
                                 <Textarea
                                     placeholder="Ej: Llevo varios días sin respuesta..."
                                     value={alertMessage}
@@ -503,14 +505,14 @@ export default function TicketDetalle() {
                                     ))}
                                 </SelectContent>
                             </Select>
-                            <Button onClick={assignTicket} disabled={updating || assigneeId === "none"}>
+                            <Button onClick={assignTicket} disabled={updating || assigneeId === "none" || (hasAssignee && !canAssign)}>
                                 Reasignar
                             </Button>
                             <div className="flex gap-2">
-                                <Button onClick={takeTicket} disabled={updating || hasAssignee}>
+                                <Button onClick={takeTicket} disabled={updating || hasAssignee || !canAssign}>
                                     Tomar
                                 </Button>
-                                <Button variant="outline" onClick={unassignTicket} disabled={updating || !hasAssignee}>
+                                <Button variant="outline" onClick={unassignTicket} disabled={updating || !hasAssignee || !canRelease} title={hasAssignee && !canRelease ? "Solo el responsable actual puede liberar el ticket" : ""}>
                                     Liberar
                                 </Button>
                             </div>
@@ -530,7 +532,7 @@ export default function TicketDetalle() {
                                 let text = "Movimiento de asignación";
                                 if (h.action === "assigned") text = `Asignado a ${toName}`;
                                 if (h.action === "reassigned") text = `Reasignado de ${fromName} a ${toName}`;
-                                if (h.action === "unassigned") text = `Liberado (antes ${fromName})`;
+                                if (h.action === "unassigned") text = h.note ? `${h.note} (antes ${fromName})` : `Liberado (antes ${fromName})`;
 
                                 return (
                                     <div key={h.id} className="text-sm">
@@ -587,6 +589,21 @@ export default function TicketDetalle() {
                             )}
                         </div>
                     )}
+                    {alertEntries.length > 0 && (
+                        <div>
+                            <h4 className="text-sm font-semibold flex items-center gap-2 mb-2">
+                                <AlertTriangle className="h-4 w-4 text-amber-600" /> Alertas y observaciones del solicitante
+                            </h4>
+                            <div className="space-y-3">
+                                {alertEntries.map((h) => (
+                                    <div key={h.id} className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20 p-3 text-sm">
+                                        <div className="text-muted-foreground text-xs mb-1">{h.actor?.name} · {new Date(h.created_at).toLocaleString()}</div>
+                                        <div className="whitespace-pre-wrap">{h.note || '—'}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                     <div>
                         <h4 className="text-sm font-semibold flex items-center gap-2 mb-2">
                             <History className="h-4 w-4" /> Cambios de estado
@@ -603,7 +620,7 @@ export default function TicketDetalle() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {withDiff.length ? withDiff.map((h) => (
+                                {stateChangeWithDiff.length ? stateChangeWithDiff.map((h) => (
                                     <TableRow key={h.id}>
                                         <TableCell className="text-xs">{new Date(h.created_at).toLocaleString()}</TableCell>
                                         <TableCell className="text-xs">{h.actor?.name}</TableCell>
@@ -613,7 +630,7 @@ export default function TicketDetalle() {
                                         <TableCell className="text-[11px] text-muted-foreground">{h.diff ? `${h.diff} h desde el evento anterior` : '—'}</TableCell>
                                     </TableRow>
                                 )) : (
-                                    <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">Sin cambios</TableCell></TableRow>
+                                    <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-4">Sin cambios de estado</TableCell></TableRow>
                                 )}
                             </TableBody>
                         </Table>

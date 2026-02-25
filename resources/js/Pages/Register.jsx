@@ -35,7 +35,6 @@ export default function Register() {
             const msg = typeof first?.message === 'string' ? first.message : null;
             return msg ?? "Revisa contraseña y confirmación.";
         }
-        if (form.email && !form.email.endsWith("@ecd.mx")) return "El correo debe ser @ecd.mx.";
         if (form.phone && form.phone.length !== 10) return "El teléfono debe tener 10 dígitos.";
         return "";
     };
@@ -128,7 +127,7 @@ export default function Register() {
                         </div>
 
                         <div className="space-y-2">
-                            <Label>Correo empresarial (@ecd.mx) (opcional)</Label>
+                            <Label>Correo electrónico (opcional)</Label>
                             <Input
                                 type="email"
                                 value={form.email}
