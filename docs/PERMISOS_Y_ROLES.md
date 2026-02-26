@@ -8,7 +8,7 @@
 
 ## 2. Qué recibe el frontend al autenticarse
 
-En **login** y en **check-auth** el backend devuelve:
+En **login** (API) y en **check-auth** (ruta web, sesión) el backend devuelve:
 
 ```json
 {

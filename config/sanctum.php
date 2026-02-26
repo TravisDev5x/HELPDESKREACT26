@@ -15,10 +15,11 @@ return [
     |
     */
 
-    'stateful' => explode(',', env(
+    // Incluye host con puerto (ej. 127.0.0.1:8000) si usas php artisan serve
+'stateful' => array_values(array_filter(array_map('trim', explode(',', env(
     'SANCTUM_STATEFUL_DOMAINS',
-    'helpdeskreact.test,localhost,127.0.0.1'
-)),
+    'helpdeskreact.test,helpdeskreact26.test,localhost,127.0.0.1,127.0.0.1:8000,localhost:8000'
+))))),
 
     /*
     |--------------------------------------------------------------------------

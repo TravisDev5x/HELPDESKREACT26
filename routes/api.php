@@ -21,10 +21,15 @@ use App\Http\Controllers\Api\UbicacionController;
 |--------------------------------------------------------------------------
 | API Routes
 |--------------------------------------------------------------------------
+| AQUÍ NO SE VALIDAN SESIONES.
+| Las rutas API usan autenticación por token (auth:sanctum / auth:api).
+| La verificación de sesión (cookies) vive en rutas web: GET /check-auth.
+| Si un endpoint intenta usar sesión para "verificar login", migrarlo a web.
+| Principio: "Sesión y API no se cruzan. Si lo hacen, el 401 es el síntoma."
 */
 
 // ==========================
-// AUTH
+// AUTH (login/logout por token o estado stateful; verificación de sesión → web /check-auth)
 // ==========================
 
 Route::post('login', [AuthController::class, 'login'])
@@ -33,8 +38,6 @@ Route::post('register', [AuthController::class, 'register'])
     ->middleware(['throttle:register','locale']);
 Route::get('register/verify', [AuthController::class, 'verifyEmail']);
 Route::post('logout', [AuthController::class, 'logout'])
-    ->middleware(['auth:sanctum','locale']);
-Route::get('check-auth', [AuthController::class, 'checkAuth'])
     ->middleware(['auth:sanctum','locale']);
 Route::get('ping', [AuthController::class, 'ping'])
     ->middleware(['auth:sanctum','locale']);
@@ -125,6 +128,18 @@ Route::middleware(['auth:sanctum','locale','perm:catalogs.manage'])->group(funct
         ->only(['index', 'store', 'update', 'destroy']);
     Route::apiResource('incident-statuses', \App\Http\Controllers\Api\IncidentStatusController::class)
         ->only(['index', 'store', 'update', 'destroy']);
+});
+
+// Mis Tickets: solo solicitante (requester_id = user). Sin permisos operativos. Desacoplado del módulo Tickets.
+Route::middleware(['auth:sanctum', 'locale'])->prefix('my-tickets')->group(function () {
+    Route::get('/', [\App\Http\Controllers\Api\MyTicketsController::class, 'index']);
+    Route::post('/', [\App\Http\Controllers\Api\MyTicketsController::class, 'store']);
+    Route::get('{ticket}/attachments/{attachment}/download', [\App\Http\Controllers\Api\MyTicketsController::class, 'downloadAttachment']);
+    Route::post('{ticket}/attachments', [\App\Http\Controllers\Api\MyTicketsController::class, 'storeAttachment']);
+    Route::post('{ticket}/comments', [\App\Http\Controllers\Api\MyTicketsController::class, 'addComment']);
+    Route::get('{ticket}', [\App\Http\Controllers\Api\MyTicketsController::class, 'show']);
+    Route::post('{ticket}/alert', [\App\Http\Controllers\Api\MyTicketsController::class, 'sendAlert']);
+    Route::post('{ticket}/cancel', [\App\Http\Controllers\Api\MyTicketsController::class, 'cancel']);
 });
 
 // Tickets: acceso con auth + permisos específicos (Policies refuerzan alcance) + rate limit

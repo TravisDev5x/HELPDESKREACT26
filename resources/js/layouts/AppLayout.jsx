@@ -31,7 +31,7 @@ import {
     LogOut, Sun, Moon, ChevronsLeft, ChevronsRight, ChevronDown,
     ChevronRight, Bell, BellOff, Layers, Shield, Maximize2,
     Minimize2, Square, SquareDashed, MoreHorizontal, Monitor, Check, CircleDot,
-    CalendarDays
+    CalendarDays, BookOpen, UserCheck, Upload, GitMerge, FileSpreadsheet, FileCheck
 } from 'lucide-react'
 
 // ----------------------------------------------------------------------
@@ -215,6 +215,25 @@ function Sidebar({ collapsed, onToggle, nav, sidebarPosition = 'left' }) {
         })
     }
 
+    const [siguaOpen, setSiguaOpen] = useState(() => {
+        if (typeof window === 'undefined') return true
+        try {
+            const v = localStorage.getItem('sidebar-sigua-open')
+            return v !== '0'
+        } catch {
+            return true
+        }
+    })
+    const toggleSiguaOpen = () => {
+        setSiguaOpen(prev => {
+            const next = !prev
+            try {
+                localStorage.setItem('sidebar-sigua-open', next ? '1' : '0')
+            } catch { /* ignore */ }
+            return next
+        })
+    }
+
     const [toggleBtnTooltipOpen, setToggleBtnTooltipOpen] = useState(false)
 
     return (
@@ -268,7 +287,8 @@ function Sidebar({ collapsed, onToggle, nav, sidebarPosition = 'left' }) {
                 <nav className={cn("grid gap-4 py-4 transition-[padding] duration-300 ease-out", collapsed ? "px-2" : "px-3")}>
                     {nav.map((section, index) => {
                         const isCatalogs = section.label === t('nav.catalogs')
-                        const showSection = !isCatalogs || catalogsOpen
+                        const isSigua = section.label === 'SIGUA'
+                        const showSection = (!isCatalogs || catalogsOpen) && (!isSigua || siguaOpen)
 
                         return (
                             <div key={index} className="space-y-1">
@@ -283,6 +303,14 @@ function Sidebar({ collapsed, onToggle, nav, sidebarPosition = 'left' }) {
                                                 {section.label}
                                                 <ChevronDown className={cn("h-3 w-3 transition-transform opacity-0 group-hover:opacity-100", !catalogsOpen && "-rotate-90")} />
                                             </button>
+                                        ) : isSigua ? (
+                                            <button
+                                                onClick={toggleSiguaOpen}
+                                                className="flex w-full items-center justify-between text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50 hover:text-foreground transition-colors"
+                                            >
+                                                {section.label}
+                                                <ChevronDown className={cn("h-3 w-3 transition-transform opacity-0 group-hover:opacity-100", !siguaOpen && "-rotate-90")} />
+                                            </button>
                                         ) : (
                                             <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">
                                                 {section.label}
@@ -292,6 +320,11 @@ function Sidebar({ collapsed, onToggle, nav, sidebarPosition = 'left' }) {
                                 )}
 
                                 {collapsed && isCatalogs && (
+                                    <div className="flex justify-center py-2">
+                                        <MoreHorizontal className="h-4 w-4 text-muted-foreground/30" />
+                                    </div>
+                                )}
+                                {collapsed && isSigua && (
                                     <div className="flex justify-center py-2">
                                         <MoreHorizontal className="h-4 w-4 text-muted-foreground/30" />
                                     </div>
@@ -479,6 +512,7 @@ export default function AppLayout() {
     // --- CONFIGURACIÓN DE NAVEGACIÓN ---
     const canSeeCatalogs = can('catalogs.manage') || can('tickets.view_area') || can('tickets.manage_all')
     const canSeeUsers = can('users.manage')
+    const canSeeSigua = can('sigua.dashboard')
     const canSeeIncidents = can('incidents.view_own') || can('incidents.view_area') || can('incidents.manage_all')
     const canSeeTicketsModule = can('tickets.manage_all') || can('tickets.view_area')
     /* Mis tickets en sidebar solo para agentes/admins (quienes ven cola); el solicitante solo usa Inicio con todo completo */
@@ -494,9 +528,27 @@ export default function AppLayout() {
         if (canSeeIncidents) generalItems.push({ to: '/incidents', label: t('nav.incidents'), icon: AlertTriangle, emphasis: true })
         if (canSeeUsers) generalItems.push({ to: '/users', label: t('nav.users'), icon: Users, emphasis: true })
 
+        const siguaChildren = []
+        if (can('sigua.dashboard')) siguaChildren.push({ to: '/sigua', label: 'Dashboard', icon: LayoutDashboard })
+        if (can('sigua.cuentas.view')) siguaChildren.push({ to: '/sigua/cuentas', label: 'Cuentas Genéricas', icon: Users })
+        if (can('sigua.ca01.view')) siguaChildren.push({ to: '/sigua/ca01', label: 'Formatos CA-01', icon: FileCheck })
+        if (can('sigua.bitacora.view') || can('sigua.bitacora.registrar') || can('sigua.bitacora.sede')) siguaChildren.push({ to: '/sigua/bitacora', label: 'Bitácora CA-02', icon: BookOpen })
+        if (can('sigua.incidentes.view')) siguaChildren.push({ to: '/sigua/incidentes', label: 'Incidentes', icon: AlertTriangle })
+        if (can('sigua.importar.upload')) siguaChildren.push({ to: '/sigua/importar', label: 'Importar Datos', icon: Upload })
+        if (can('sigua.cruces.view') || can('sigua.cruces.ejecutar')) siguaChildren.push({ to: '/sigua/cruces', label: 'Cruces RH/AD', icon: GitMerge })
+        if (can('sigua.reportes')) siguaChildren.push({ to: '/sigua/reportes', label: 'Reportes', icon: FileSpreadsheet })
+
         const sections = [
             { label: t('nav.general'), items: generalItems },
         ]
+        if (canSeeSigua && siguaChildren.length > 0) {
+            sections.push({
+                label: 'SIGUA',
+                items: [
+                    { label: 'SIGUA', icon: UserCheck, emphasis: false, children: siguaChildren },
+                ],
+            })
+        }
         if (canSeeCatalogs) sections.push({
             label: t('nav.catalogs'),
             items: [
@@ -547,7 +599,7 @@ export default function AppLayout() {
             ],
         })
         return sections
-    }, [t, can, canSeeCatalogs, canSeeUsers, canSeeIncidents, canSeeTicketsModule, canSeeMyTickets])
+    }, [t, can, canSeeCatalogs, canSeeUsers, canSeeSigua, canSeeIncidents, canSeeTicketsModule, canSeeMyTickets])
 
     const titleMap = {
         '/': t('nav.home'),
@@ -567,8 +619,23 @@ export default function AppLayout() {
         '/tickets/new': t('section.tickets'),
         '/incidents': t('section.incidents'),
         '/profile': t('layout.profile'),
+        '/sigua': 'SIGUA',
+        '/sigua/cuentas': 'SIGUA · Cuentas',
+        '/sigua/ca01': 'SIGUA · CA-01',
+        '/sigua/bitacora': 'SIGUA · Bitácora',
+        '/sigua/bitacora-sede': 'SIGUA · Bitácora Sede',
+        '/sigua/bitacora/sede': 'SIGUA · Bitácora Sede',
+        '/sigua/ca01/nuevo': 'SIGUA · CA-01 Nuevo',
+        '/sigua/incidentes': 'SIGUA · Incidentes',
+        '/sigua/importar': 'SIGUA · Importar',
+        '/sigua/cruces': 'SIGUA · Cruces',
+        '/sigua/reportes': 'SIGUA · Reportes',
     }
-    const title = titleMap[pathname] ?? t('layout.section.default')
+    const title = titleMap[pathname] ?? (
+        pathname?.match(/^\/sigua\/ca01\/\d+$/) ? 'SIGUA · CA-01 Detalle' :
+        pathname?.match(/^\/sigua\/incidentes\/\d+$/) ? 'SIGUA · Incidente' :
+        t('layout.section.default')
+    )
 
     // Overlay solo si está pendiente de rol y NO es visitante (visitante puede entrar y ver dash en solo lectura)
     const pendingAdmin = user?.status === 'pending_admin' && !(user?.roles?.length === 1 && user?.roles?.[0] === 'visitante')

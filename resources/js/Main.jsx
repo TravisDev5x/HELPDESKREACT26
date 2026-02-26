@@ -33,6 +33,19 @@ const Settings = lazy(() => import("@/Pages/Settings"));
 const Sessions = lazy(() => import("@/Pages/Sessions"));
 const Permissions = lazy(() => import("@/Pages/Permissions"));
 const Profile = lazy(() => import("@/Pages/Profile"));
+const SiguaDashboard = lazy(() => import("@/Pages/Sigua/SiguaDashboard"));
+const SiguaCuentas = lazy(() => import("@/Pages/Sigua/SiguaCuentas"));
+const SiguaCuentaDetalle = lazy(() => import("@/Pages/Sigua/SiguaCuentaDetalle"));
+const SiguaCA01 = lazy(() => import("@/Pages/Sigua/SiguaCA01"));
+const SiguaCA01Nuevo = lazy(() => import("@/Pages/Sigua/SiguaCA01Nuevo"));
+const SiguaCA01Detalle = lazy(() => import("@/Pages/Sigua/SiguaCA01Detalle"));
+const SiguaBitacora = lazy(() => import("@/Pages/Sigua/SiguaBitacora"));
+const SiguaBitacoraSede = lazy(() => import("@/Pages/Sigua/SiguaBitacoraSede"));
+const SiguaIncidenteDetalle = lazy(() => import("@/Pages/Sigua/SiguaIncidenteDetalle"));
+const SiguaIncidentes = lazy(() => import("@/Pages/Sigua/SiguaIncidentes"));
+const SiguaImportar = lazy(() => import("@/Pages/Sigua/SiguaImportar"));
+const SiguaCruces = lazy(() => import("@/Pages/Sigua/SiguaCruces"));
+const SiguaReportes = lazy(() => import("@/Pages/Sigua/SiguaReportes"));
 
 // Público / auth (lazy)
 const Login = lazy(() => import("@/Pages/Login"));
@@ -140,6 +153,20 @@ export default function Main() {
                                     <Route path="/sessions" element={<Sessions />} />
                                     <Route path="/permissions" element={<Permissions />} />
                                     <Route path="/profile" element={<Profile />} />
+                                    <Route path="/sigua" element={<SiguaDashboard />} />
+                                    <Route path="/sigua/cuentas" element={<SiguaCuentas />} />
+                                    <Route path="/sigua/cuentas/:id" element={<SiguaCuentaDetalle />} />
+                                    <Route path="/sigua/ca01" element={<SiguaCA01 />} />
+                                    <Route path="/sigua/ca01/nuevo" element={<SiguaCA01Nuevo />} />
+                                    <Route path="/sigua/ca01/:id" element={<SiguaCA01Detalle />} />
+                                    <Route path="/sigua/bitacora" element={<SiguaBitacora />} />
+                                    <Route path="/sigua/bitacora/sede" element={<SiguaBitacoraSede />} />
+                                    <Route path="/sigua/bitacora-sede" element={<SiguaBitacoraSede />} />
+                                    <Route path="/sigua/incidentes" element={<SiguaIncidentes />} />
+                                    <Route path="/sigua/incidentes/:id" element={<SiguaIncidenteDetalle />} />
+                                    <Route path="/sigua/importar" element={<SiguaImportar />} />
+                                    <Route path="/sigua/cruces" element={<SiguaCruces />} />
+                                    <Route path="/sigua/reportes" element={<SiguaReportes />} />
                                     <Route path="*" element={<NotFound />} />
                                 </Route>
                             </Route>

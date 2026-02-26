@@ -9,7 +9,7 @@ class EnforcePasswordChange
 {
     /**
      * Block business endpoints when force_password_change is active.
-     * Allow only: check-auth (me), profile show, password change, logout.
+     * Allow only: check-auth (web), profile show, password change, logout.
      */
     public function handle(Request $request, Closure $next)
     {
@@ -18,11 +18,11 @@ class EnforcePasswordChange
             return $next($request);
         }
 
-        $path = $request->path(); // e.g. api/check-auth
+        $path = $request->path();
         $method = strtoupper($request->method());
 
         $allowed = [
-            'GET' => ['api/check-auth', 'api/profile'],
+            'GET' => ['check-auth', 'api/profile'],
             'PUT' => ['api/profile/password'],
             'POST' => ['api/logout'],
         ];

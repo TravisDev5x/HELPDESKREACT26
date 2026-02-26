@@ -4,6 +4,7 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
+use App\Http\Middleware\EnsureSessionForAuth;
 use App\Http\Middleware\EnforcePasswordChange;
 use App\Http\Middleware\AuditReportAccess;
 use App\Http\Middleware\SecurityHeaders;
@@ -16,6 +17,11 @@ return Application::configure(basePath: dirname(__DIR__))
         api: __DIR__.'/../routes/api.php',
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
+        then: function () {
+            \Illuminate\Support\Facades\Route::middleware('api')
+                ->prefix('api')
+                ->group(base_path('routes/sigua.php'));
+        },
     )
     ->withMiddleware(function (Middleware $middleware): void {
 
@@ -28,6 +34,7 @@ return Application::configure(basePath: dirname(__DIR__))
         */
 
         $middleware->api(prepend: [
+            EnsureSessionForAuth::class,  // Sesión siempre en login/logout/register (evita 401 por falta de cookie)
             EnsureFrontendRequestsAreStateful::class,
         ]);
 
@@ -52,7 +59,17 @@ return Application::configure(basePath: dirname(__DIR__))
 
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        /*
+         * Requests AJAX (expectsJson) nunca reciben redirect HTML en auth fallida.
+         * Siempre JSON 401 con { authenticated: false }. Evita confusión en el frontend.
+         */
+        $exceptions->renderable(function (\Illuminate\Auth\AuthenticationException $e, \Illuminate\Http\Request $request) {
+            if ($request->expectsJson()) {
+                return response()->json(['authenticated' => false], 401);
+            }
+
+            return null;
+        });
     })
     ->create();
 

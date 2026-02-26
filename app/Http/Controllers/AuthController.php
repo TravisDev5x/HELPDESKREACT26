@@ -66,7 +66,9 @@ class AuthController extends Controller
         }
 
         Auth::login($user);
-        $request->session()->regenerate();
+        if ($request->hasSession()) {
+            $request->session()->regenerate();
+        }
 
         $authUser = Auth::user()->load('roles:id,name,guard_name');
         $permissions = $authUser->getAllPermissions()->pluck('name')->values();
@@ -198,29 +200,13 @@ class AuthController extends Controller
     {
         // Cierre de sesión explícito con el guard de sesión (web)
         Auth::guard('web')->logout();
-        $request->session()->invalidate();
-        $request->session()->regenerateToken();
-
-        return response()->json([
-            'message' => 'Sesion cerrada'
-        ]);
-    }
-
-    public function checkAuth()
-    {
-        $user = Auth::user();
-        if ($user) {
-            $user->load('roles:id,name,guard_name');
-            $permissions = $user->getAllPermissions()->pluck('name')->values();
-            return response()->json([
-                'user' => $user,
-                'roles' => $user->roles->pluck('name'),
-                'permissions' => $permissions,
-            ]);
+        if ($request->hasSession()) {
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
         }
 
         return response()->json([
-            'user' => null
+            'message' => 'Sesion cerrada'
         ]);
     }
 

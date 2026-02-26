@@ -12,13 +12,12 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { DataTable } from "@/components/ui/data-table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { notify } from "@/lib/notify";
 import { Separator } from "@/components/ui/separator";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Card } from "@/components/ui/card";
 import { loadCatalogs as fetchCatalogs, clearCatalogCache } from "@/lib/catalogCache";
 
@@ -76,6 +75,152 @@ const StatusBadge = ({ status, isBlacklisted }) => {
         </Badge>
     );
 };
+
+// --- COLUMNAS Y TABLA USUARIOS (TanStack Table) ---
+function useUsersTableColumns({ selectedIds, setSelectedIds, renderRowActions, data }) {
+    return useMemo(
+        () => [
+            {
+                id: "select",
+                header: () => (
+                    <Checkbox
+                        checked={data.length > 0 && selectedIds.length === data.length}
+                        onCheckedChange={(c) =>
+                            setSelectedIds(c ? data.map((u) => u.id) : [])
+                        }
+                    />
+                ),
+                cell: ({ row }) => (
+                    <Checkbox
+                        checked={selectedIds.includes(row.original.id)}
+                        onCheckedChange={() =>
+                            setSelectedIds((prev) =>
+                                prev.includes(row.original.id)
+                                    ? prev.filter((i) => i !== row.original.id)
+                                    : [...prev, row.original.id]
+                            )
+                        }
+                    />
+                ),
+                meta: {
+                    headerClassName: "w-[40px] text-center",
+                    className: "w-[40px] text-center",
+                },
+            },
+            {
+                id: "identidad",
+                header: "Identidad",
+                cell: ({ row }) => {
+                    const user = row.original;
+                    return (
+                        <div className="flex flex-col">
+                            <span className="font-bold text-sm text-foreground">
+                                {user.name}
+                            </span>
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                <span className="font-mono bg-muted px-1 rounded text-[10px]">
+                                    #{user.employee_number}
+                                </span>
+                                <span className="flex items-center gap-1">
+                                    <Mail className="h-3 w-3" /> {user.email}
+                                </span>
+                            </div>
+                        </div>
+                    );
+                },
+                meta: { headerClassName: "font-bold text-xs uppercase tracking-wider" },
+            },
+            {
+                id: "ubicacion",
+                header: "Ubicación",
+                cell: ({ row }) => {
+                    const user = row.original;
+                    return (
+                        <div className="flex flex-col gap-1 text-xs">
+                            <div className="flex items-center gap-1 font-semibold text-foreground/80">
+                                <Briefcase className="h-3 w-3 opacity-70" />{" "}
+                                {user.campaign}
+                            </div>
+                            <div className="flex items-center gap-1 text-muted-foreground">
+                                <Building2 className="h-3 w-3 opacity-70" />{" "}
+                                {user.area}
+                            </div>
+                            <div className="flex items-center gap-1 text-muted-foreground">
+                                <Building2 className="h-3 w-3 opacity-70" />{" "}
+                                {user.sede}
+                            </div>
+                            {user.ubicacion && (
+                                <div className="flex items-center gap-1 text-muted-foreground">
+                                    <Building2 className="h-3 w-3 opacity-70" />{" "}
+                                    {user.ubicacion}
+                                </div>
+                            )}
+                        </div>
+                    );
+                },
+                meta: {
+                    headerClassName: "font-bold text-xs uppercase tracking-wider hidden md:table-cell",
+                    className: "hidden md:table-cell",
+                },
+            },
+            {
+                id: "rolEstado",
+                header: "Rol / Estado",
+                cell: ({ row }) => {
+                    const user = row.original;
+                    return (
+                        <div className="flex flex-col items-start gap-1.5">
+                            <StatusBadge
+                                status={user.status}
+                                isBlacklisted={user.is_blacklisted}
+                            />
+                            <span className="text-[10px] font-medium text-muted-foreground uppercase flex items-center gap-1">
+                                <ShieldCheck className="h-3 w-3" /> {user.position}
+                            </span>
+                        </div>
+                    );
+                },
+                meta: { headerClassName: "font-bold text-xs uppercase tracking-wider" },
+            },
+            {
+                id: "acciones",
+                header: "Acciones",
+                cell: ({ row }) => renderRowActions(row.original),
+                meta: {
+                    headerClassName: "text-right font-bold text-xs uppercase tracking-wider px-6",
+                    className: "text-right px-6",
+                },
+            },
+        ],
+        [selectedIds, setSelectedIds, renderRowActions, data]
+    );
+}
+
+function UsersTable({
+    data,
+    loading,
+    selectedIds,
+    setSelectedIds,
+    renderRowActions,
+}) {
+    const columns = useUsersTableColumns({
+        selectedIds,
+        setSelectedIds,
+        renderRowActions,
+        data,
+    });
+    return (
+        <DataTable
+            columns={columns}
+            data={data}
+            loading={loading}
+            getRowId={(row) => row.id}
+            selectedIds={selectedIds}
+            emptyMessage="No se encontraron resultados"
+            emptyColSpan={5}
+        />
+    );
+}
 
 const resolveRoleId = (userRoles, availableRoles) => {
     const role = userRoles?.[0];
@@ -603,102 +748,15 @@ export default function Users() {
                 )}
             </Card>
 
-            {/* TABLA */}
+            {/* TABLA (TanStack Table) */}
             <Card className="overflow-hidden border-border/60 shadow-sm">
-                <Table>
-                    <TableHeader className="bg-muted/30">
-                        <TableRow>
-                            <TableHead className="w-[40px] text-center">
-                                <Checkbox
-                                    checked={filteredUsers.length > 0 && selectedIds.length === filteredUsers.length}
-                                    onCheckedChange={(c) => setSelectedIds(c ? filteredUsers.map(u => u.id) : [])}
-                                />
-                            </TableHead>
-                            <TableHead className="font-bold text-xs uppercase tracking-wider">Identidad</TableHead>
-                            <TableHead className="font-bold text-xs uppercase tracking-wider hidden md:table-cell">Ubicación</TableHead>
-                            <TableHead className="font-bold text-xs uppercase tracking-wider">Rol / Estado</TableHead>
-                            <TableHead className="text-right font-bold text-xs uppercase tracking-wider px-6">Acciones</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {loading ? (
-                            Array.from({ length: 5 }).map((_, i) => (
-                                <TableRow key={i}>
-                                    <TableCell><Skeleton className="h-4 w-4 rounded" /></TableCell>
-                                    <TableCell>
-                                        <div className="space-y-2">
-                                            <Skeleton className="h-4 w-32" />
-                                            <Skeleton className="h-3 w-20" />
-                                        </div>
-                                    </TableCell>
-                                    <TableCell className="hidden md:table-cell"><Skeleton className="h-4 w-24" /></TableCell>
-                                    <TableCell><Skeleton className="h-5 w-20 rounded-full" /></TableCell>
-                                    <TableCell><Skeleton className="h-8 w-8 ml-auto" /></TableCell>
-                                </TableRow>
-                            ))
-                        ) : filteredUsers.length === 0 ? (
-                            <TableRow>
-                                <TableCell colSpan={5} className="h-32 text-center">
-                                    <div className="flex flex-col items-center justify-center text-muted-foreground">
-                                        <div className="bg-muted p-3 rounded-full mb-2">
-                                            <Search className="h-6 w-6 opacity-50" />
-                                        </div>
-                                        <p className="text-sm font-medium">No se encontraron resultados</p>
-                                    </div>
-                                </TableCell>
-                            </TableRow>
-                        ) : (
-                            filteredUsers.map((user) => (
-                                <TableRow key={user.id} className={`group ${selectedIds.includes(user.id) ? "bg-muted/40" : ""}`}>
-                                    <TableCell className="text-center">
-                                        <Checkbox
-                                            checked={selectedIds.includes(user.id)}
-                                            onCheckedChange={() => setSelectedIds(prev => prev.includes(user.id) ? prev.filter(i => i !== user.id) : [...prev, user.id])}
-                                        />
-                                    </TableCell>
-                                    <TableCell>
-                                        <div className="flex flex-col">
-                                            <span className="font-bold text-sm text-foreground">{user.name}</span>
-                                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                                <span className="font-mono bg-muted px-1 rounded text-[10px]">#{user.employee_number}</span>
-                                                <span className="flex items-center gap-1"><Mail className="h-3 w-3"/> {user.email}</span>
-                                            </div>
-                                        </div>
-                                    </TableCell>
-                                    <TableCell className="hidden md:table-cell">
-                                        <div className="flex flex-col gap-1 text-xs">
-                                            <div className="flex items-center gap-1 font-semibold text-foreground/80">
-                                                <Briefcase className="h-3 w-3 opacity-70" /> {user.campaign}
-                                            </div>
-                                            <div className="flex items-center gap-1 text-muted-foreground">
-                                                <Building2 className="h-3 w-3 opacity-70" /> {user.area}
-                                            </div>
-                                            <div className="flex items-center gap-1 text-muted-foreground">
-                                                <Building2 className="h-3 w-3 opacity-70" /> {user.sede}
-                                            </div>
-                                            {user.ubicacion && (
-                                                <div className="flex items-center gap-1 text-muted-foreground">
-                                                    <Building2 className="h-3 w-3 opacity-70" /> {user.ubicacion}
-                                                </div>
-                                            )}
-                                        </div>
-                                    </TableCell>
-                                    <TableCell>
-                                        <div className="flex flex-col items-start gap-1.5">
-                                            <StatusBadge status={user.status} isBlacklisted={user.is_blacklisted} />
-                                            <span className="text-[10px] font-medium text-muted-foreground uppercase flex items-center gap-1">
-                                                <ShieldCheck className="h-3 w-3"/> {user.position}
-                                            </span>
-                                        </div>
-                                    </TableCell>
-                                    <TableCell className="text-right px-6">
-                                        {renderRowActions(user)}
-                                    </TableCell>
-                                </TableRow>
-                            ))
-                        )}
-                    </TableBody>
-                </Table>
+                <UsersTable
+                    data={filteredUsers}
+                    loading={loading}
+                    selectedIds={selectedIds}
+                    setSelectedIds={setSelectedIds}
+                    renderRowActions={renderRowActions}
+                />
 
                 {/* PAGINACIÓN CORREGIDA: Incluye selector de registros */}
                 <div className="border-t border-border/50 bg-muted/20 px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-4">

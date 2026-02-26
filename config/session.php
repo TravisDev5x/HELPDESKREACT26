@@ -156,7 +156,11 @@ return [
     |
     */
 
-    'domain' => env('SESSION_DOMAIN'),
+    // Si .env tiene SESSION_DOMAIN=null (texto), el navegador no acepta la cookie. Normalizar a null PHP.
+    'domain' => (function () {
+        $d = env('SESSION_DOMAIN');
+        return ($d === null || $d === '' || $d === 'null') ? null : $d;
+    })(),
 
     /*
     |--------------------------------------------------------------------------

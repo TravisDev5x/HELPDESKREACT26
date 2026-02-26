@@ -16,6 +16,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { UserAvatar } from "@/components/user-avatar";
+import { DashboardStackedBar } from "@/components/dashboard/DashboardStackedBar";
+import { ChartErrorBoundary } from "@/components/dashboard/ChartErrorBoundary";
+import { TinyVerticalBarChart } from "@/components/dashboard/TinyVerticalBarChart";
 import { cn } from "@/lib/utils";
 import {
     Activity,
@@ -42,7 +45,9 @@ import {
     AlertCircle,
     Clock,
     Bell,
-    BellOff
+    BellOff,
+    Maximize2,
+    Info
 } from "lucide-react";
 
 // --- CONSTANTES ---
@@ -100,54 +105,149 @@ const SummaryMetric = ({ label, value, icon: Icon, helper, variant = "default" }
     );
 };
 
-const MetricList = ({ title, icon: Icon, items, total, className }) => {
+const MetricList = ({
+    id,
+    title,
+    icon: Icon,
+    items,
+    total,
+    className,
+    isExpanded = false,
+    onExpand,
+    onCollapse,
+}) => {
     const safeItems = items || [];
-    const maxValue = safeItems.length
-        ? Math.max(...safeItems.map((item) => Number(item.value || 0)))
-        : 0;
+    const totalNum = Number(total) || 0;
 
     return (
-        <Card className={cn("flex flex-col h-full shadow-sm border-border/60", className)}>
-            <CardHeader className="pb-3 border-b bg-muted/10 px-4 py-3">
-                <CardTitle className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                    {Icon && <Icon className="h-3.5 w-3.5" />}
-                    {title}
-                </CardTitle>
-            </CardHeader>
-            <CardContent className="p-0 overflow-hidden">
-                <div className="max-h-[300px] overflow-y-auto p-4 space-y-4 scrollbar-thin scrollbar-thumb-muted">
-                    {safeItems.length ? (
-                        safeItems.map((item, idx) => {
-                            const value = Number(item.value || 0);
-                            const pct = maxValue ? Math.round((value / maxValue) * 100) : 0;
-                            return (
-                                <div key={idx} className="space-y-1.5 group">
-                                    <div className="flex items-center justify-between text-xs">
-                                        <span className="font-medium text-foreground/90 truncate pr-2" title={item.label}>
-                                            {item.label}
-                                        </span>
-                                        <span className="font-mono text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded text-[10px]">
-                                            {value}
-                                        </span>
-                                    </div>
-                                    <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                                        <div
-                                            className="h-full bg-primary/70 group-hover:bg-primary transition-colors duration-300"
-                                            style={{ width: `${pct}%` }}
-                                        />
-                                    </div>
-                                </div>
-                            );
-                        })
-                    ) : (
-                        <div className="flex flex-col items-center justify-center py-8 text-muted-foreground opacity-50 space-y-2">
-                            <BarChart3 className="w-8 h-8" />
-                            <p className="text-xs">Sin datos registrados</p>
+        <>
+            <Card className={cn("flex flex-col h-full shadow-sm border-border/60", className)}>
+                <CardHeader className="pb-3 border-b bg-muted/10 px-4 py-3 min-w-0">
+                    <div className="flex items-center justify-between gap-2 min-w-0">
+                        <CardTitle className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2 min-w-0 overflow-hidden">
+                            {Icon && <Icon className="h-3.5 w-3.5 shrink-0" />}
+                            <span className="truncate min-w-0">{title}</span>
+                            {id && onExpand && (
+                                <span
+                                    className="inline-flex items-center gap-1 text-[10px] font-normal normal-case tracking-normal text-muted-foreground/90 shrink-0"
+                                    title="Clic en el gráfico o en Ver detalle para ampliar"
+                                >
+                                    <Info className="h-3 w-3" aria-hidden />
+                                    <span className="hidden sm:inline">Clic para ver detalle</span>
+                                </span>
+                            )}
+                        </CardTitle>
+                        {id && onExpand && (
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 text-xs shrink-0 whitespace-nowrap text-primary hover:text-primary"
+                                onClick={onExpand}
+                                aria-label="Ver detalle y tabla completa"
+                            >
+                                <Maximize2 className="h-3.5 w-3.5 mr-1 shrink-0" />
+                                Ver detalle
+                            </Button>
+                        )}
+                    </div>
+                </CardHeader>
+                <CardContent className="p-0 overflow-hidden">
+                    <div className="p-4 pt-2">
+                        {safeItems.length ? (
+                            <div
+                                role={id && onExpand ? "button" : undefined}
+                                tabIndex={id && onExpand ? 0 : undefined}
+                                onClick={id && onExpand ? (e) => { e.preventDefault(); onExpand(); } : undefined}
+                                onKeyDown={id && onExpand ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onExpand(); } } : undefined}
+                                className={cn(
+                                    "max-h-[300px] overflow-hidden rounded-lg transition-all",
+                                    id && onExpand && "cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 hover:ring-2 hover:ring-primary/20 hover:ring-offset-2"
+                                )}
+                                aria-label={id && onExpand ? "Clic para ver detalle y tabla completa" : undefined}
+                            >
+                                <ChartErrorBoundary>
+                                    <TinyVerticalBarChart
+                                        data={safeItems}
+                                        dataKey="value"
+                                        cardTitle={title}
+                                        onBarClick={onExpand}
+                                    />
+                                </ChartErrorBoundary>
+                            </div>
+                        ) : (
+                            <div className="flex flex-col items-center justify-center py-8 text-muted-foreground opacity-50 space-y-2">
+                                <BarChart3 className="w-8 h-8" />
+                                <p className="text-xs">Sin datos registrados</p>
+                            </div>
+                        )}
+                        {id && onExpand && safeItems.length > 0 && (
+                            <p className="text-[10px] text-muted-foreground mt-2 text-center">
+                                Clic en el gráfico o en «Ver detalle» para ver la tabla completa.
+                            </p>
+                        )}
+                    </div>
+                </CardContent>
+            </Card>
+
+            {/* Modal expandido: datos completos; Esc o botón Cerrar */}
+            <Dialog open={!!id && isExpanded} onOpenChange={(open) => !open && onCollapse?.()}>
+                <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto !duration-100">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-base">
+                            {Icon && <Icon className="h-4 w-4 text-primary" />}
+                            {title}
+                        </DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 pt-2">
+                        <ChartErrorBoundary>
+                            <TinyVerticalBarChart
+                                data={safeItems}
+                                dataKey="value"
+                                cardTitle={title}
+                                height={280}
+                                animationDuration={0}
+                            />
+                        </ChartErrorBoundary>
+                        <div className="border rounded-md overflow-hidden">
+                            <table className="w-full text-sm">
+                                <thead>
+                                    <tr className="border-b bg-muted/50">
+                                        <th className="text-left font-medium px-3 py-2 text-muted-foreground">Concepto</th>
+                                        <th className="text-right font-medium px-3 py-2 text-muted-foreground">Cantidad</th>
+                                        {totalNum > 0 && (
+                                            <th className="text-right font-medium px-3 py-2 text-muted-foreground">% del total</th>
+                                        )}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {safeItems.map((row, idx) => {
+                                        const val = Number(row?.value ?? 0) || 0;
+                                        const pct = totalNum > 0 ? ((val / totalNum) * 100).toFixed(1) : "—";
+                                        return (
+                                            <tr key={idx} className="border-b border-border/50 last:border-0 hover:bg-muted/30">
+                                                <td className="px-3 py-2 font-medium text-foreground max-w-[240px]" title={row?.label}>
+                                                    <span className="block truncate">{row?.label ?? "—"}</span>
+                                                </td>
+                                                <td className="px-3 py-2 text-right font-mono text-muted-foreground tabular-nums">{val}</td>
+                                                {totalNum > 0 && (
+                                                    <td className="px-3 py-2 text-right font-mono text-muted-foreground tabular-nums">{pct}%</td>
+                                                )}
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
                         </div>
-                    )}
-                </div>
-            </CardContent>
-        </Card>
+                    </div>
+                    <DialogFooter className="flex flex-row justify-end gap-2 pt-4 border-t border-border/50 sm:justify-end">
+                        <Button type="button" variant="outline" onClick={onCollapse}>
+                            Cerrar
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </>
     );
 };
 
@@ -170,26 +270,9 @@ const StateDistribution = ({ states, total }) => {
                 </div>
             </CardHeader>
             <CardContent>
-                {/* Visualización de Barra Apilada */}
-                <div className="h-6 w-full rounded-md flex overflow-hidden ring-1 ring-border/50 mb-6">
-                    {safeStates.length ? (
-                        safeStates.map((state, idx) => {
-                            const value = Number(state.value || 0);
-                            const pct = total ? (value / total) * 100 : 0;
-                            if (pct < 1) return null; // Ocultar segmentos muy pequeños
-                            return (
-                                <div
-                                    key={`${state.label}-${idx}`}
-                                    className={cn("h-full border-r border-background/20 last:border-0 transition-all hover:brightness-110 cursor-help", STATE_COLORS[idx % STATE_COLORS.length])}
-                                    style={{ width: `${pct}%` }}
-                                    title={`${state.label}: ${value} (${pct.toFixed(1)}%)`}
-                                />
-                            );
-                        })
-                    ) : (
-                        <div className="h-full w-full bg-muted flex items-center justify-center text-[10px] text-muted-foreground">Sin datos</div>
-                    )}
-                </div>
+                <ChartErrorBoundary>
+                    <DashboardStackedBar states={safeStates} total={total} height={24} />
+                </ChartErrorBoundary>
 
                 {/* Leyenda Grid */}
                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
@@ -1113,8 +1196,33 @@ export default function Dashboard() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [lastUpdated, setLastUpdated] = useState(null);
+    const [expandedCardId, setExpandedCardId] = useState(null);
+    const [expandHintDismissed, setExpandHintDismissed] = useState(() => {
+        try {
+            return !!window.localStorage?.getItem("dashboard.expandHintSeen");
+        } catch {
+            return false;
+        }
+    });
 
     const isAreaLocked = !canManageAll && canViewArea && user?.area_id;
+
+    const dismissExpandHint = useCallback(() => {
+        try {
+            window.localStorage?.setItem("dashboard.expandHintSeen", "1");
+        } catch (_) {}
+        setExpandHintDismissed(true);
+    }, []);
+
+    useEffect(() => {
+        const handleEsc = (e) => {
+            if (e?.key === "Escape") setExpandedCardId(null);
+        };
+        if (expandedCardId) {
+            window.addEventListener("keydown", handleEsc);
+            return () => window.removeEventListener("keydown", handleEsc);
+        }
+    }, [expandedCardId]);
 
     // --- EFECTOS & LOGICA ---
 
@@ -1418,36 +1526,67 @@ export default function Dashboard() {
                     </div>
 
                     {/* 3. DETAILS GRIDS */}
+                    {!expandHintDismissed && (
+                        <div className="flex items-center justify-between gap-3 rounded-lg border border-primary/20 bg-primary/5 px-4 py-2.5 text-sm text-foreground">
+                            <span className="flex items-center gap-2">
+                                <Info className="h-4 w-4 text-primary shrink-0" aria-hidden />
+                                <span>Tip: haz clic en cualquier gráfico o en «Ver detalle» para ver la tabla completa.</span>
+                            </span>
+                            <Button type="button" variant="ghost" size="sm" className="h-7 text-xs shrink-0" onClick={dismissExpandHint}>
+                                Entendido
+                            </Button>
+                        </div>
+                    )}
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                         <MetricList
+                            id="top_resolvers"
                             title="Top Usuarios (Cierres)"
                             icon={Users}
                             items={data.top_resolvers}
                             total={totalTickets}
+                            isExpanded={expandedCardId === "top_resolvers"}
+                            onExpand={() => setExpandedCardId("top_resolvers")}
+                            onCollapse={() => setExpandedCardId(null)}
                         />
                         <MetricList
+                            id="areas_receive"
                             title="Áreas con más carga"
                             icon={Network}
                             items={data.areas_receive}
                             total={totalTickets}
+                            isExpanded={expandedCardId === "areas_receive"}
+                            onExpand={() => setExpandedCardId("areas_receive")}
+                            onCollapse={() => setExpandedCardId(null)}
                         />
                         <MetricList
+                            id="areas_resolve"
                             title="Áreas más eficientes"
                             icon={CheckCircle2}
                             items={data.areas_resolve}
                             total={totalTickets}
+                            isExpanded={expandedCardId === "areas_resolve"}
+                            onExpand={() => setExpandedCardId("areas_resolve")}
+                            onCollapse={() => setExpandedCardId(null)}
                         />
                         <MetricList
+                            id="types_frequent"
                             title="Tipos Recurrentes"
                             icon={Activity}
                             items={data.types_frequent}
                             total={totalTickets}
+                            isExpanded={expandedCardId === "types_frequent"}
+                            onExpand={() => setExpandedCardId("types_frequent")}
+                            onCollapse={() => setExpandedCardId(null)}
                         />
                         <MetricList
+                            id="types_resolved"
                             title="Tipos Resueltos"
                             icon={CheckCircle2}
                             items={data.types_resolved}
                             total={totalTickets}
+                            isExpanded={expandedCardId === "types_resolved"}
+                            onExpand={() => setExpandedCardId("types_resolved")}
+                            onCollapse={() => setExpandedCardId(null)}
                         />
                     </div>
                 </div>

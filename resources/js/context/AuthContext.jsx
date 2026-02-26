@@ -3,13 +3,27 @@ import axios from "@/lib/axios";
 
 const AuthContext = createContext(null);
 
+/** Rutas donde NUNCA se debe llamar /check-auth (siempre 401; no es un bug). */
+const GUEST_ONLY_PATHS = ["/login", "/register", "/forgot-password", "/reset-password", "/verify-email"];
+
+function isGuestOnlyPath() {
+    const path = typeof window !== "undefined" ? window.location.pathname : "";
+    return GUEST_ONLY_PATHS.some((p) => path === p || path.startsWith(p + "/"));
+}
+
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        axios.get('/api/check-auth')
-            .then(res => {
+        if (isGuestOnlyPath()) {
+            setUser(null);
+            setLoading(false);
+            return;
+        }
+        axios
+            .get("/check-auth", { withCredentials: true })
+            .then((res) => {
                 const payload = res.data;
                 if (payload?.user) {
                     setUser({
@@ -52,7 +66,7 @@ export const AuthProvider = ({ children }) => {
     }, []);
 
     const refreshUser = useCallback(() => {
-        return axios.get('/api/check-auth').then((res) => {
+        return axios.get("/check-auth", { withCredentials: true }).then((res) => {
             const payload = res.data;
             if (payload?.user) {
                 setUser({

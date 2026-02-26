@@ -13,10 +13,11 @@ No agrega endpoints nuevos ni cambia respuestas existentes.
   - 422 { errors: { root: "..." } }
   - 403 { errors: { root: "..." } }
 
-### GET /api/check-auth
-- Response 200:
-  - { user: null }
-  - { user, roles, permissions } si hay sesion
+### GET /check-auth (ruta web, sesión)
+- Protegido por middleware `auth` (guard web). Sin sesión → 401.
+- Response 200 (autenticado):
+  - { authenticated: true, user, roles, permissions }
+- La verificación de sesión no vive en API; ver routes/web.php.
 
 ### POST /api/logout
 - Response 200: { message }

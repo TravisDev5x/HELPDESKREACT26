@@ -15,6 +15,7 @@ class DatabaseSeeder extends Seeder
     {
         $this->call([
             FullDemoSeeder::class,
+            SiguaPermissionsSeeder::class, // Permisos SIGUA y asignación al rol admin
         ]);
     }
 }

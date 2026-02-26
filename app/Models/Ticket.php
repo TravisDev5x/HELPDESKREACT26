@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -70,6 +71,15 @@ class Ticket extends Model
     public function alerts(): HasMany
     {
         return $this->hasMany(TicketAlert::class);
+    }
+
+    /**
+     * Scope para el módulo "Mis Tickets": solo tickets donde el usuario es solicitante.
+     * No usar en el módulo operativo Tickets.
+     */
+    public function scopeRequesterOnly(Builder $query, int $userId): Builder
+    {
+        return $query->where('requester_id', $userId);
     }
 
     /**

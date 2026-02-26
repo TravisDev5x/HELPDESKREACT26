@@ -74,20 +74,18 @@ class AuthApiTest extends TestCase
     }
 
     /**
-     * check-auth sin autenticación devuelve user null.
+     * Verificación de sesión (web /check-auth): sin autenticación devuelve 401 JSON (nunca redirect).
      */
-    public function test_check_auth_unauthenticated_returns_null_user(): void
+    public function test_check_auth_unauthenticated_returns_401(): void
     {
-        $response = $this->getJson('/api/check-auth');
+        $response = $this->getJson('/check-auth');
 
-        $response->assertStatus(200);
-        $data = $response->json();
-        $this->assertArrayHasKey('user', $data);
-        $this->assertNull($data['user']);
+        $response->assertStatus(401)
+            ->assertJson(['authenticated' => false]);
     }
 
     /**
-     * check-auth autenticado devuelve user, roles y permissions.
+     * Verificación de sesión (web /check-auth): autenticado con guard web devuelve user, roles y permissions.
      */
     public function test_check_auth_authenticated_returns_user(): void
     {
@@ -98,9 +96,10 @@ class AuthApiTest extends TestCase
             'email_verified_at' => now(),
         ]);
 
-        $response = $this->actingAs($user, 'web')->getJson('/api/check-auth');
+        $response = $this->actingAs($user, 'web')->getJson('/check-auth');
 
         $response->assertStatus(200)
+            ->assertJsonPath('authenticated', true)
             ->assertJsonPath('user.email', 'auth@example.com');
     }
 }

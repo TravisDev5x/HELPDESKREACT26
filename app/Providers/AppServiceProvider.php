@@ -38,7 +38,8 @@ class AppServiceProvider extends ServiceProvider
         });
         RateLimiter::for('tickets', function (Request $request) {
             $key = $request->user() ? 'tickets.user.' . $request->user()->id : 'tickets.ip.' . $request->ip();
-            return Limit::perMinute(120)->by($key)->response(function () {
+            // Dashboard hace varias llamadas (tickets, summary, analytics, filtros); 300/min evita 429 en uso normal
+            return Limit::perMinute(300)->by($key)->response(function () {
                 return response()->json(['message' => 'Demasiadas peticiones. Espera un momento.'], 429);
             });
         });
