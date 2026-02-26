@@ -534,8 +534,8 @@ export default function AppLayout() {
         if (can('sigua.ca01.view')) siguaChildren.push({ to: '/sigua/ca01', label: 'Formatos CA-01', icon: FileCheck })
         if (can('sigua.bitacora.view') || can('sigua.bitacora.registrar') || can('sigua.bitacora.sede')) siguaChildren.push({ to: '/sigua/bitacora', label: 'Bitácora CA-02', icon: BookOpen })
         if (can('sigua.incidentes.view')) siguaChildren.push({ to: '/sigua/incidentes', label: 'Incidentes', icon: AlertTriangle })
-        if (can('sigua.importar.upload')) siguaChildren.push({ to: '/sigua/importar', label: 'Importar Datos', icon: Upload })
-        if (can('sigua.cruces.view') || can('sigua.cruces.ejecutar')) siguaChildren.push({ to: '/sigua/cruces', label: 'Cruces RH/AD', icon: GitMerge })
+        if (can('sigua.importar')) siguaChildren.push({ to: '/sigua/importar', label: 'Importar Datos', icon: Upload })
+        if (can('sigua.cruces')) siguaChildren.push({ to: '/sigua/cruces', label: 'Cruces RH/AD', icon: GitMerge })
         if (can('sigua.reportes')) siguaChildren.push({ to: '/sigua/reportes', label: 'Reportes', icon: FileSpreadsheet })
 
         const sections = [

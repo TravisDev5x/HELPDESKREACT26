@@ -17,11 +17,14 @@ class RolePermissionController extends Controller
     {
         $data = $request->validate([
             'permissions' => ['array'],
-            'permissions.*' => ['exists:permissions,id'],
+            'permissions.*' => ['integer', 'exists:permissions,id'],
         ]);
 
         $permissionIds = $data['permissions'] ?? [];
-        $permissions = $permissionIds ? Permission::whereIn('id', $permissionIds)->get() : [];
+        // Solo permisos del mismo guard que el rol (evita mezclar web/sanctum y PermissionDoesNotExist)
+        $permissions = $permissionIds
+            ? Permission::whereIn('id', $permissionIds)->where('guard_name', $role->guard_name)->get()
+            : [];
         $role->syncPermissions($permissions);
 
         return response()->noContent();

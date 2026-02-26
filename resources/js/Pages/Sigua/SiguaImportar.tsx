@@ -66,7 +66,7 @@ function parsePreview(file: File): Promise<string[][]> {
 
 export default function SiguaImportar() {
   const { can } = useAuth();
-  const canImport = can("sigua.importar.upload");
+  const canImport = can("sigua.importar");
 
   const [tipo, setTipo] = useState<TipoImportacion>("rh_activos");
   const [file, setFile] = useState<File | null>(null);

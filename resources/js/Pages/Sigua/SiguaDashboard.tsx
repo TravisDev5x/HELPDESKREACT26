@@ -174,7 +174,7 @@ export default function SiguaDashboard() {
   const canCA01 = can("sigua.ca01.view");
   const canBitacora = can("sigua.bitacora.view") || can("sigua.bitacora.registrar") || can("sigua.bitacora.sede");
   const canIncidentes = can("sigua.incidentes.view");
-  const canImportar = can("sigua.importar.upload");
+  const canImportar = can("sigua.importar");
   const canCruces = can("sigua.cruces.view") || can("sigua.cruces.ejecutar");
   const canReportes = can("sigua.reportes");
 

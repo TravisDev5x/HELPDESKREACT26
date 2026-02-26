@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\Area;
 use App\Models\Campaign;
+use App\Models\Permission;
 use App\Models\Position;
 use App\Models\Priority;
 use App\Models\Sede;
@@ -151,6 +152,10 @@ class FullDemoSeeder extends Seeder
             'tickets.assign', 'tickets.comment', 'tickets.change_status', 'tickets.escalate', 'tickets.manage_all',
             'users.manage', 'roles.manage', 'permissions.manage', 'catalogs.manage', 'notifications.manage',
             'incidents.create', 'incidents.view_own', 'incidents.view_area', 'incidents.manage_all',
+            // SIGUA (también creados por SiguaPermissionsSeeder; aquí para que admin los tenga desde el seed completo)
+            'sigua.dashboard', 'sigua.cuentas.view', 'sigua.cuentas.manage', 'sigua.ca01.view', 'sigua.ca01.manage',
+            'sigua.ca01.firmar', 'sigua.bitacora.view', 'sigua.bitacora.registrar', 'sigua.bitacora.sede',
+            'sigua.incidentes.view', 'sigua.incidentes.manage', 'sigua.importar', 'sigua.cruces', 'sigua.reportes',
         ];
         foreach (['web', 'sanctum'] as $guard) {
             foreach ($perms as $name) {
@@ -163,9 +168,25 @@ class FullDemoSeeder extends Seeder
             }
         }
 
-        $allPermIds = DB::table('permissions')->where('guard_name', 'web')->pluck('id')->all();
+        // Asegurar que permisos SIGUA existan vía Eloquent (por si la migración no los creó o caché está desactualizada)
+        $siguaNames = [
+            'sigua.dashboard', 'sigua.cuentas.view', 'sigua.cuentas.manage', 'sigua.ca01.view', 'sigua.ca01.manage',
+            'sigua.ca01.firmar', 'sigua.bitacora.view', 'sigua.bitacora.registrar', 'sigua.bitacora.sede',
+            'sigua.incidentes.view', 'sigua.incidentes.manage', 'sigua.importar', 'sigua.cruces', 'sigua.reportes',
+        ];
+        foreach (['web', 'sanctum'] as $guard) {
+            foreach ($siguaNames as $name) {
+                Permission::firstOrCreate(['name' => $name, 'guard_name' => $guard]);
+            }
+        }
+
+        // Limpiar caché de Spatie para que findByName() vea los permisos
+        app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
+
+        // Usar nombres (no IDs) para evitar PermissionDoesNotExist cuando hay mismo nombre en guard web/sanctum
+        $allPermNames = DB::table('permissions')->where('guard_name', 'web')->pluck('name')->all();
         $roles = [
-            'admin' => $allPermIds,
+            'admin' => $allPermNames,
             'agente_soporte' => ['tickets.view_area', 'tickets.comment', 'tickets.change_status', 'tickets.assign', 'tickets.filter_by_sede'],
             'supervisor_soporte' => ['tickets.view_area', 'tickets.assign', 'tickets.escalate', 'tickets.comment', 'tickets.change_status', 'tickets.filter_by_sede'],
             'usuario' => ['tickets.create', 'tickets.view_own'],
