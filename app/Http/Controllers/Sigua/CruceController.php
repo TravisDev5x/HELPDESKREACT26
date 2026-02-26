@@ -4,14 +4,18 @@ namespace App\Http\Controllers\Sigua;
 
 use App\Http\Controllers\Controller;
 use App\Models\Sigua\Cruce;
-use App\Models\Sigua\Importacion;
+use App\Services\Sigua\CruceService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class CruceController extends Controller
 {
+    public function __construct(
+        protected CruceService $cruceService
+    ) {}
+
     /**
-     * POST: Ejecutar cruce RH vs AD vs Neotel. Guarda resultado en sigua_cruces.
+     * POST: Ejecutar cruce completo o individual. Body: sistema_ids (array opcional), tipo: completo|individual, sistema_id (si individual).
      * Permiso: sigua.cruces
      */
     public function ejecutar(Request $request): JsonResponse
@@ -21,29 +25,26 @@ class CruceController extends Controller
         }
 
         $data = $request->validate([
-            'tipo_cruce' => 'required|in:rh_vs_ad,rh_vs_neotel,ad_vs_neotel,completo',
-            'import_id' => 'nullable|exists:sigua_imports,id',
+            'tipo_cruce' => 'nullable|in:completo,individual',
+            'sistema_ids' => 'nullable|array',
+            'sistema_ids.*' => 'integer|exists:sigua_systems,id',
+            'sistema_id' => 'required_if:tipo_cruce,individual|nullable|integer|exists:sigua_systems,id',
         ]);
 
         try {
-            $resultadoJson = []; // Aquí iría la lógica real de cruce (datos de importaciones, comparación, etc.)
-            $cruce = Cruce::create([
-                'import_id' => $data['import_id'] ?? null,
-                'tipo_cruce' => $data['tipo_cruce'],
-                'fecha_ejecucion' => now(),
-                'total_analizados' => 0,
-                'coincidencias' => 0,
-                'sin_match' => 0,
-                'resultado_json' => $resultadoJson,
-                'ejecutado_por' => $request->user()->id,
-            ]);
+            $userId = $request->user()->id;
+            if (($data['tipo_cruce'] ?? '') === 'individual' && ! empty($data['sistema_id'])) {
+                $cruce = $this->cruceService->ejecutarCruceIndividual((int) $data['sistema_id'], $userId);
+            } else {
+                $sistemaIds = isset($data['sistema_ids']) && is_array($data['sistema_ids'])
+                    ? array_map('intval', $data['sistema_ids'])
+                    : null;
+                $cruce = $this->cruceService->ejecutarCruceCompleto($sistemaIds, $userId);
+            }
 
-            $cruce->load('ejecutadoPor');
+            $cruce->load(['ejecutadoPor', 'resultados']);
 
-            return response()->json([
-                'data' => $cruce,
-                'message' => 'Cruce ejecutado. Implemente la lógica de comparación en el servicio correspondiente.',
-            ], 201);
+            return response()->json(['data' => $cruce, 'message' => 'Cruce ejecutado'], 201);
         } catch (\Throwable $e) {
             return response()->json(['message' => 'Error al ejecutar cruce: ' . $e->getMessage()], 422);
         }
@@ -82,7 +83,7 @@ class CruceController extends Controller
     }
 
     /**
-     * GET: Detalle de un cruce.
+     * GET: Detalle de un cruce (con resultados).
      * Permiso: sigua.cruces
      */
     public function detalle(Request $request, Cruce $cruce): JsonResponse
@@ -91,8 +92,21 @@ class CruceController extends Controller
             return response()->json(['message' => 'No autorizado'], 403);
         }
 
-        $cruce->load(['ejecutadoPor', 'importacion']);
+        $cruce->load(['ejecutadoPor', 'importacion', 'resultados']);
 
         return response()->json(['data' => $cruce, 'message' => 'OK']);
+    }
+
+    /**
+     * GET: Comparar cruce con el anterior (anomalías nuevas, resueltas, sin cambio).
+     */
+    public function comparar(Request $request, Cruce $cruce): JsonResponse
+    {
+        if (! $request->user()?->can('sigua.cruces')) {
+            return response()->json(['message' => 'No autorizado'], 403);
+        }
+
+        $result = $this->cruceService->compararConCruceAnterior($cruce->id);
+        return response()->json(['data' => $result, 'message' => 'OK']);
     }
 }

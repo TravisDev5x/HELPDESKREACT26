@@ -26,6 +26,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string|null $hora_cambio
  * @property int $supervisor_user_id
  * @property string|null $observaciones
+ * @property string $tipo_registro
+ * @property int|null $empleado_rh_id
  */
 class Bitacora extends Model
 {
@@ -35,6 +37,11 @@ class Bitacora extends Model
     public const TURNO_VESPERTINO = 'vespertino';
     public const TURNO_NOCTURNO = 'nocturno';
     public const TURNO_MIXTO = 'mixto';
+
+    public const TIPO_ASIGNACION = 'asignacion';
+    public const TIPO_CAMBIO = 'cambio';
+    public const TIPO_SIN_USO = 'sin_uso';
+    public const TIPO_CIERRE = 'cierre';
 
     protected $fillable = [
         'account_id',
@@ -50,6 +57,8 @@ class Bitacora extends Model
         'hora_cambio',
         'supervisor_user_id',
         'observaciones',
+        'tipo_registro',
+        'empleado_rh_id',
     ];
 
     protected $casts = [
@@ -90,6 +99,11 @@ class Bitacora extends Model
     public function supervisor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'supervisor_user_id');
+    }
+
+    public function empleadoRh(): BelongsTo
+    {
+        return $this->belongsTo(EmpleadoRh::class, 'empleado_rh_id');
     }
 
     /**
@@ -138,6 +152,17 @@ class Bitacora extends Model
     public function scopeHoy(Builder $query): Builder
     {
         return $query->whereDate('fecha', now()->toDateString());
+    }
+
+    /**
+     * Scope: registros marcados como sin uso.
+     *
+     * @param  Builder<Bitacora>  $query
+     * @return Builder<Bitacora>
+     */
+    public function scopeSinUso(Builder $query): Builder
+    {
+        return $query->where('tipo_registro', 'sin_uso');
     }
 
     /**

@@ -45,7 +45,7 @@ import {
   Maximize2,
   Info,
 } from "lucide-react";
-import type { SiguaDashboardData, SiguaFilters } from "@/types/sigua";
+import type { SiguaDashboardData, SiguaFilters, IndicadorSistema } from "@/types/sigua";
 
 // --- SKELETON ---
 function SiguaDashboardSkeleton() {
@@ -215,6 +215,7 @@ export default function SiguaDashboard() {
   const incidentesAbiertos = Number(data?.incidentes_abiertos ?? data?.kpis?.incidentes_abiertos ?? 0);
   const alertas = data?.alertas ?? [];
   const alertasCount = alertas.length;
+  const indicadoresPorSistema = (data?.indicadores_por_sistema ?? []) as IndicadorSistema[];
 
   // Datos para gráficas
   const barData = useMemo(() => (data?.total_cuentas_por_sistema ?? []).map((r) => ({
@@ -401,91 +402,135 @@ export default function SiguaDashboard() {
         <SiguaDashboardSkeleton />
       ) : (
         <div className="space-y-6">
-          {/* KPIs */}
+          {/* KPIs: dinámicos por sistema cuando hay indicadores_por_sistema, sino clásicos */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-            <KpiCard
-              label="Total cuentas"
-              value={totalCuentas}
-              icon={Users}
-              helper={`${barData.length} sistemas`}
-              variant="default"
-              id="kpi-cuentas"
-              isExpanded={expandedKpiId === "kpi-cuentas"}
-              onExpand={() => setExpandedKpiId("kpi-cuentas")}
-              onCollapse={() => setExpandedKpiId(null)}
-              detailTitle="Cuentas por sistema"
-              detailContent={
-                barData.length ? (
-                  <ul className="text-sm space-y-1">
-                    {barData.map((r, i) => (
-                      <li key={i} className="flex justify-between gap-4">
-                        <span className="truncate" title={r.fullName}>{r.name}</span>
-                        <span className="font-mono tabular-nums">{r.total}</span>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-sm text-muted-foreground">Sin datos</p>
-                )
-              }
-            />
-            <KpiCard
-              label="CA-01 vigentes"
-              value={ca01Vigentes}
-              icon={FileCheck}
-              helper="Formatos vigentes"
-              variant="success"
-              id="kpi-ca01"
-              isExpanded={expandedKpiId === "kpi-ca01"}
-              onExpand={() => setExpandedKpiId("kpi-ca01")}
-              onCollapse={() => setExpandedKpiId(null)}
-              detailTitle="CA-01"
-              detailContent={
-                <p className="text-sm text-muted-foreground">
-                  Vigentes: {ca01Vigentes} · Vencidos: {ca01Vencidos}
-                </p>
-              }
-            />
-            <KpiCard
-              label="Bitácoras hoy"
-              value={bitacorasHoy}
-              icon={BookOpen}
-              helper="Registros del día"
-              variant={bitacorasHoy === 0 ? "warning" : "default"}
-            />
-            <KpiCard
-              label="Incidentes abiertos"
-              value={incidentesAbiertos}
-              icon={AlertTriangle}
-              helper="Pendientes de atención"
-              variant={incidentesAbiertos > 0 ? "destructive" : "success"}
-            />
-            <KpiCard
-              label="Alertas"
-              value={alertasCount}
-              icon={Bell}
-              helper={alertasCount ? "Requieren atención" : "Sin alertas"}
-              variant={alertasCount > 0 ? "warning" : "default"}
-              id="kpi-alertas"
-              isExpanded={expandedKpiId === "kpi-alertas"}
-              onExpand={() => setExpandedKpiId("kpi-alertas")}
-              onCollapse={() => setExpandedKpiId(null)}
-              detailTitle="Panel de alertas"
-              detailContent={
-                alertas.length ? (
-                  <ul className="text-sm space-y-2">
-                    {alertas.map((a, i) => (
-                      <li key={i} className="flex flex-col gap-0.5 p-2 rounded border bg-muted/30">
-                        <span className="font-medium text-xs text-muted-foreground">{a.tipo}</span>
-                        <span>{a.mensaje}</span>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-sm text-muted-foreground">No hay alertas.</p>
-                )
-              }
-            />
+            {indicadoresPorSistema.length > 0 ? (
+              <>
+                {indicadoresPorSistema.map((ind) => (
+                  <KpiCard
+                    key={ind.sistema_id}
+                    label={ind.sistema ?? `Sistema ${ind.sistema_id}`}
+                    value={ind.total_cuentas ?? ind.bitacoras_hoy ?? ind.incidentes_abiertos ?? 0}
+                    icon={Users}
+                    helper={ind.total_cuentas != null ? "Cuentas" : ind.bitacoras_hoy != null ? "Bitácoras hoy" : "Incidentes"}
+                    variant="default"
+                  />
+                ))}
+                <KpiCard label="CA-01 vigentes" value={ca01Vigentes} icon={FileCheck} helper="Formatos vigentes" variant="success" />
+                <KpiCard
+                  label="Alertas"
+                  value={alertasCount}
+                  icon={Bell}
+                  helper={alertasCount ? "Requieren atención" : "Sin alertas"}
+                  variant={alertasCount > 0 ? "warning" : "default"}
+                  id="kpi-alertas"
+                  isExpanded={expandedKpiId === "kpi-alertas"}
+                  onExpand={() => setExpandedKpiId("kpi-alertas")}
+                  onCollapse={() => setExpandedKpiId(null)}
+                  detailTitle="Panel de alertas"
+                  detailContent={
+                    alertas.length ? (
+                      <ul className="text-sm space-y-2">
+                        {alertas.map((a, i) => (
+                          <li key={i} className="flex flex-col gap-0.5 p-2 rounded border bg-muted/30">
+                            <span className="font-medium text-xs text-muted-foreground">{a.tipo}</span>
+                            <span>{a.mensaje}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No hay alertas. <Link to="/sigua/alertas" className="text-primary underline">Ver alertas</Link></p>
+                    )
+                  }
+                />
+              </>
+            ) : (
+              <>
+                <KpiCard
+                  label="Total cuentas"
+                  value={totalCuentas}
+                  icon={Users}
+                  helper={`${barData.length} sistemas`}
+                  variant="default"
+                  id="kpi-cuentas"
+                  isExpanded={expandedKpiId === "kpi-cuentas"}
+                  onExpand={() => setExpandedKpiId("kpi-cuentas")}
+                  onCollapse={() => setExpandedKpiId(null)}
+                  detailTitle="Cuentas por sistema"
+                  detailContent={
+                    barData.length ? (
+                      <ul className="text-sm space-y-1">
+                        {barData.map((r, i) => (
+                          <li key={i} className="flex justify-between gap-4">
+                            <span className="truncate" title={r.fullName}>{r.name}</span>
+                            <span className="font-mono tabular-nums">{r.total}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">Sin datos</p>
+                    )
+                  }
+                />
+                <KpiCard
+                  label="CA-01 vigentes"
+                  value={ca01Vigentes}
+                  icon={FileCheck}
+                  helper="Formatos vigentes"
+                  variant="success"
+                  id="kpi-ca01"
+                  isExpanded={expandedKpiId === "kpi-ca01"}
+                  onExpand={() => setExpandedKpiId("kpi-ca01")}
+                  onCollapse={() => setExpandedKpiId(null)}
+                  detailTitle="CA-01"
+                  detailContent={
+                    <p className="text-sm text-muted-foreground">
+                      Vigentes: {ca01Vigentes} · Vencidos: {ca01Vencidos}
+                    </p>
+                  }
+                />
+                <KpiCard
+                  label="Bitácoras hoy"
+                  value={bitacorasHoy}
+                  icon={BookOpen}
+                  helper="Registros del día"
+                  variant={bitacorasHoy === 0 ? "warning" : "default"}
+                />
+                <KpiCard
+                  label="Incidentes abiertos"
+                  value={incidentesAbiertos}
+                  icon={AlertTriangle}
+                  helper="Pendientes de atención"
+                  variant={incidentesAbiertos > 0 ? "destructive" : "success"}
+                />
+                <KpiCard
+                  label="Alertas"
+                  value={alertasCount}
+                  icon={Bell}
+                  helper={alertasCount ? "Requieren atención" : "Sin alertas"}
+                  variant={alertasCount > 0 ? "warning" : "default"}
+                  id="kpi-alertas"
+                  isExpanded={expandedKpiId === "kpi-alertas"}
+                  onExpand={() => setExpandedKpiId("kpi-alertas")}
+                  onCollapse={() => setExpandedKpiId(null)}
+                  detailTitle="Panel de alertas"
+                  detailContent={
+                    alertas.length ? (
+                      <ul className="text-sm space-y-2">
+                        {alertas.map((a, i) => (
+                          <li key={i} className="flex flex-col gap-0.5 p-2 rounded border bg-muted/30">
+                            <span className="font-medium text-xs text-muted-foreground">{a.tipo}</span>
+                            <span>{a.mensaje}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No hay alertas. <Link to="/sigua/alertas" className="text-primary underline">Ver alertas</Link></p>
+                    )
+                  }
+                />
+              </>
+            )}
           </div>
 
           {/* Gráfica 1: Cuentas por sistema (BarChart) */}

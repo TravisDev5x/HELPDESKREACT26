@@ -16,7 +16,12 @@ import type {
   Incidente,
   Importacion,
   Cruce,
+  CruceResultado,
   Sistema,
+  EmpleadoRh,
+  Alerta,
+  Configuracion,
+  TipoCuenta,
 } from "@/types/sigua";
 
 const PREFIX = "/api/sigua";
@@ -111,8 +116,33 @@ export interface ResolverIncidentePayload {
 }
 
 export interface EjecutarCrucePayload {
-  tipo_cruce?: "rh_vs_ad" | "rh_vs_neotel" | "ad_vs_neotel" | "completo";
+  tipo_cruce?: "rh_vs_ad" | "rh_vs_neotel" | "ad_vs_neotel" | "completo" | "individual";
+  sistema_ids?: number[];
   import_id?: number | null;
+}
+
+export interface CreateSistemaPayload {
+  name: string;
+  slug: string;
+  description?: string | null;
+  es_externo?: boolean;
+  contacto_externo?: string | null;
+  campos_mapeo?: Record<string, string> | null;
+  campo_id_empleado?: string | null;
+  regex_id_empleado?: string | null;
+  activo?: boolean;
+  icono?: string | null;
+  color?: string | null;
+  orden?: number;
+}
+
+export type UpdateSistemaPayload = Partial<CreateSistemaPayload>;
+
+export interface CumplimientoBitacoraFilters {
+  fecha_desde?: string;
+  fecha_hasta?: string;
+  sede_id?: number;
+  sistema_id?: number;
 }
 
 // --- Catálogos ---
@@ -120,6 +150,62 @@ export interface EjecutarCrucePayload {
 export async function getSistemas(): Promise<SiguaApiResult<Sistema[]>> {
   try {
     const response = await axios.get<SiguaApiResponse<Sistema[]>>(`${PREFIX}/sistemas`);
+    return toResult(response);
+  } catch (err) {
+    return toError(err);
+  }
+}
+
+export async function getSistema(id: number): Promise<SiguaApiResult<Sistema>> {
+  try {
+    const response = await axios.get<SiguaApiResponse<Sistema>>(`${PREFIX}/sistemas/${id}`);
+    return toResult(response);
+  } catch (err) {
+    return toError(err);
+  }
+}
+
+export async function createSistema(data: CreateSistemaPayload): Promise<SiguaApiResult<Sistema>> {
+  try {
+    const response = await axios.post<SiguaApiResponse<Sistema>>(`${PREFIX}/sistemas`, data);
+    return toResult(response);
+  } catch (err) {
+    return toError(err);
+  }
+}
+
+export async function updateSistema(id: number, data: UpdateSistemaPayload): Promise<SiguaApiResult<Sistema>> {
+  try {
+    const response = await axios.put<SiguaApiResponse<Sistema>>(`${PREFIX}/sistemas/${id}`, data);
+    return toResult(response);
+  } catch (err) {
+    return toError(err);
+  }
+}
+
+export async function deleteSistema(id: number): Promise<SiguaApiResult<null>> {
+  try {
+    const response = await axios.delete<SiguaApiResponse<null>>(`${PREFIX}/sistemas/${id}`);
+    return toResult(response);
+  } catch (err) {
+    return toError(err);
+  }
+}
+
+// --- Empleados RH ---
+
+export async function getEmpleadosRh(params?: { sede_id?: number; per_page?: number; page?: number }): Promise<SiguaApiResult<{ data: EmpleadoRh[]; meta?: SiguaApiResponse<EmpleadoRh[]>["meta"] }>> {
+  try {
+    const response = await axios.get<SiguaApiResponse<EmpleadoRh[]>>(`${PREFIX}/empleados-rh`, { params });
+    return toResult(response);
+  } catch (err) {
+    return toError(err);
+  }
+}
+
+export async function getEmpleadoRh(id: number): Promise<SiguaApiResult<EmpleadoRh>> {
+  try {
+    const response = await axios.get<SiguaApiResponse<EmpleadoRh>>(`${PREFIX}/empleados-rh/${id}`);
     return toResult(response);
   } catch (err) {
     return toError(err);
@@ -192,6 +278,24 @@ export async function updateCuenta(id: number, data: UpdateCuentaPayload): Promi
 export async function deleteCuenta(id: number): Promise<SiguaApiResult<null>> {
   try {
     const response = await axios.delete<SiguaApiResponse<null>>(`${PREFIX}/cuentas/${id}`);
+    return toResult(response);
+  } catch (err) {
+    return toError(err);
+  }
+}
+
+export async function clasificarCuenta(id: number, tipo: TipoCuenta): Promise<SiguaApiResult<CuentaGenerica>> {
+  try {
+    const response = await axios.patch<SiguaApiResponse<CuentaGenerica>>(`${PREFIX}/cuentas/${id}/clasificar`, { tipo });
+    return toResult(response);
+  } catch (err) {
+    return toError(err);
+  }
+}
+
+export async function vincularCuenta(id: number, empleadoRhId: number): Promise<SiguaApiResult<CuentaGenerica>> {
+  try {
+    const response = await axios.patch<SiguaApiResponse<CuentaGenerica>>(`${PREFIX}/cuentas/${id}/vincular`, { empleado_rh_id: empleadoRhId });
     return toResult(response);
   } catch (err) {
     return toError(err);
@@ -311,6 +415,18 @@ export async function registrarSinUso(data: SinUsoPayload): Promise<SiguaApiResu
   }
 }
 
+export async function getCumplimientoBitacora(
+  filters?: CumplimientoBitacoraFilters
+): Promise<SiguaApiResult<{ cumplimiento: number; total_esperados: number; registros: Array<{ sede_id: number; fecha: string; turno: string; cumplido: boolean }> }>> {
+  try {
+    const params = filters ? { fecha_desde: filters.fecha_desde, fecha_hasta: filters.fecha_hasta, sede_id: filters.sede_id, sistema_id: filters.sistema_id } : {};
+    const response = await axios.get<{ data: { cumplimiento: number; total_esperados: number; registros: Array<{ sede_id: number; fecha: string; turno: string; cumplido: boolean }> }; message?: string }>(`${PREFIX}/bitacora/cumplimiento`, { params });
+    return toResult(response);
+  } catch (err) {
+    return toError(err);
+  }
+}
+
 // --- Incidentes ---
 
 export async function getIncidentes(
@@ -384,13 +500,34 @@ export async function escalarIncidente(id: number): Promise<SiguaApiResult<Incid
 
 export async function importarArchivo(
   file: File,
-  tipo: Importacion["tipo"]
+  tipo: Importacion["tipo"],
+  sistemaId?: number
 ): Promise<SiguaApiResult<Importacion>> {
   try {
     const form = new FormData();
     form.append("archivo", file);
     form.append("tipo", tipo);
+    if (tipo === "sistema" && sistemaId != null) {
+      form.append("sistema_id", String(sistemaId));
+    }
     const response = await axios.post<SiguaApiResponse<Importacion>>(`${PREFIX}/importar`, form, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    return toResult(response);
+  } catch (err) {
+    return toError(err);
+  }
+}
+
+export async function previewImportacion(
+  file: File,
+  sistemaId: number
+): Promise<SiguaApiResult<{ filas: number; columnas: string[]; muestra: Array<Record<string, unknown>>; errores?: string[] }>> {
+  try {
+    const form = new FormData();
+    form.append("archivo", file);
+    form.append("sistema_id", String(sistemaId));
+    const response = await axios.post<{ data: { filas: number; columnas: string[]; muestra: Array<Record<string, unknown>>; errores?: string[] }; message?: string }>(`${PREFIX}/importar/preview`, form, {
       headers: { "Content-Type": "multipart/form-data" },
     });
     return toResult(response);
@@ -431,6 +568,64 @@ export async function getHistorialCruces(params?: { tipo_cruce?: string; per_pag
 export async function getDetalleCruce(id: number): Promise<SiguaApiResult<Cruce>> {
   try {
     const response = await axios.get<SiguaApiResponse<Cruce>>(`${PREFIX}/cruces/${id}`);
+    return toResult(response);
+  } catch (err) {
+    return toError(err);
+  }
+}
+
+export async function compararCruce(cruceId: number): Promise<SiguaApiResult<{ cruce: Cruce; resultados: CruceResultado[] }>> {
+  try {
+    const response = await axios.get<{ data: { cruce: Cruce; resultados: CruceResultado[] }; message?: string }>(`${PREFIX}/cruces/${cruceId}/comparar`);
+    return toResult(response);
+  } catch (err) {
+    return toError(err);
+  }
+}
+
+// --- Alertas ---
+
+export async function getAlertas(params?: { leida?: boolean; resuelta?: boolean; severidad?: string; per_page?: number; page?: number }): Promise<SiguaApiResult<{ data: Alerta[]; meta?: SiguaApiResponse<Alerta[]>["meta"] }>> {
+  try {
+    const response = await axios.get<SiguaApiResponse<Alerta[]>>(`${PREFIX}/alertas`, { params });
+    return toResult(response);
+  } catch (err) {
+    return toError(err);
+  }
+}
+
+export async function marcarAlertaLeida(id: number): Promise<SiguaApiResult<Alerta>> {
+  try {
+    const response = await axios.patch<SiguaApiResponse<Alerta>>(`${PREFIX}/alertas/${id}/leida`);
+    return toResult(response);
+  } catch (err) {
+    return toError(err);
+  }
+}
+
+export async function resolverAlerta(id: number): Promise<SiguaApiResult<Alerta>> {
+  try {
+    const response = await axios.patch<SiguaApiResponse<Alerta>>(`${PREFIX}/alertas/${id}/resolver`);
+    return toResult(response);
+  } catch (err) {
+    return toError(err);
+  }
+}
+
+// --- Configuración ---
+
+export async function getConfiguracion(): Promise<SiguaApiResult<Configuracion[]>> {
+  try {
+    const response = await axios.get<SiguaApiResponse<Configuracion[]>>(`${PREFIX}/configuracion`);
+    return toResult(response);
+  } catch (err) {
+    return toError(err);
+  }
+}
+
+export async function updateConfiguracion(clave: string, valor: string | number | boolean | Record<string, unknown> | null): Promise<SiguaApiResult<Configuracion>> {
+  try {
+    const response = await axios.put<SiguaApiResponse<Configuracion>>(`${PREFIX}/configuracion/${encodeURIComponent(clave)}`, { valor });
     return toResult(response);
   } catch (err) {
     return toError(err);

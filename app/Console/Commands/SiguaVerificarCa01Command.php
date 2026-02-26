@@ -11,9 +11,11 @@ use Illuminate\Console\Command;
 
 class SiguaVerificarCa01Command extends Command
 {
-    protected $signature = 'sigua:verificar-ca01';
+    protected $signature = 'sigua:legacy-verificar-ca01';
 
-    protected $description = 'Busca CA-01 que vencen en 15 días, notifica a gerente y admin, marca como vencidos los ya pasados';
+    protected $description = '[Legacy] Busca CA-01 que vencen en 15 días (use sigua:verificar-ca01)';
+
+    protected $hidden = true;
 
     public function handle(AlertaService $alertaService): int
     {

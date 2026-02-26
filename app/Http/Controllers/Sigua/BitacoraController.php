@@ -8,11 +8,15 @@ use App\Http\Requests\Sigua\StoreBitacoraRequest;
 use App\Models\Sigua\Bitacora;
 use App\Models\Sigua\BitacoraSinUso;
 use App\Models\Sigua\CuentaGenerica;
+use App\Services\Sigua\BitacoraService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class BitacoraController extends Controller
 {
+    public function __construct(
+        protected BitacoraService $bitacoraService
+    ) {}
     /**
      * Listado de registros de bitácora con filtros.
      * Permiso: sigua.bitacora.view o sigua.bitacora.sede (por sede del usuario)
@@ -262,5 +266,30 @@ class BitacoraController extends Controller
         } catch (\Throwable $e) {
             return response()->json(['message' => 'Error al registrar: ' . $e->getMessage()], 422);
         }
+    }
+
+    /**
+     * GET: Cumplimiento de bitácora en un rango de fechas. Query: fecha_desde, fecha_hasta, sede_id (opcional).
+     * Permiso: sigua.bitacora.view
+     */
+    public function cumplimiento(Request $request): JsonResponse
+    {
+        if (! $request->user()?->can('sigua.bitacora.view')) {
+            return response()->json(['message' => 'No autorizado'], 403);
+        }
+
+        $data = $request->validate([
+            'fecha_desde' => 'required|date',
+            'fecha_hasta' => 'required|date|after_or_equal:fecha_desde',
+            'sede_id' => 'nullable|integer|exists:sites,id',
+        ]);
+
+        $result = $this->bitacoraService->obtenerCumplimiento(
+            $data['fecha_desde'],
+            $data['fecha_hasta'],
+            $data['sede_id'] ?? null
+        );
+
+        return response()->json(['data' => $result, 'message' => 'OK']);
     }
 }

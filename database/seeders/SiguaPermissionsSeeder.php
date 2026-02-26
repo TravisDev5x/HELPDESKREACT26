@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\Role;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -24,7 +25,8 @@ class SiguaPermissionsSeeder extends Seeder
             $this->assignPermissionsToAdmin();
         });
 
-        $this->command->info('SiguaPermissionsSeeder finalizado.');
+        Artisan::call('permission:cache-reset');
+        $this->command->info('SiguaPermissionsSeeder finalizado. Caché de permisos limpiada.');
     }
 
     private function seedPermissions(): void
@@ -43,6 +45,8 @@ class SiguaPermissionsSeeder extends Seeder
             'sigua.incidentes.manage'  => 'Gestionar incidentes',
             'sigua.importar'           => 'Importar archivos Excel',
             'sigua.cruces'             => 'Ejecutar cruces RH/AD/Neotel',
+            'sigua.cruces.view'        => 'Ver página de cruces',
+            'sigua.cruces.ejecutar'    => 'Ejecutar cruces RH/AD/Neotel',
             'sigua.reportes'           => 'Generar reportes y exportar',
         ];
 

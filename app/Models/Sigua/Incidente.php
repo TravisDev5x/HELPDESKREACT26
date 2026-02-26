@@ -22,6 +22,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string $estado
  * @property int $reportado_por
  * @property int|null $asignado_a
+ * @property int|null $bitacora_id
+ * @property array|null $datos_log
  */
 class Incidente extends Model
 {
@@ -34,8 +36,10 @@ class Incidente extends Model
         'ip_origen',
         'system_id',
         'ca01_id',
+        'bitacora_id',
         'agente_identificado',
         'resolucion',
+        'datos_log',
         'estado',
         'reportado_por',
         'asignado_a',
@@ -44,6 +48,7 @@ class Incidente extends Model
     protected $casts = [
         'fecha_incidente' => 'datetime',
         'estado' => 'string',
+        'datos_log' => 'array',
     ];
 
     public function account(): BelongsTo
@@ -59,6 +64,11 @@ class Incidente extends Model
     public function ca01(): BelongsTo
     {
         return $this->belongsTo(FormatoCA01::class, 'ca01_id');
+    }
+
+    public function bitacora(): BelongsTo
+    {
+        return $this->belongsTo(Bitacora::class, 'bitacora_id');
     }
 
     public function reportadoPor(): BelongsTo
@@ -91,5 +101,16 @@ class Incidente extends Model
     public function scopePorSistema(Builder $query, int $sistemaId): Builder
     {
         return $query->where('system_id', $sistemaId);
+    }
+
+    /**
+     * Scope: cerrados sin bitácora asociada.
+     *
+     * @param  Builder<Incidente>  $query
+     * @return Builder<Incidente>
+     */
+    public function scopeCerradosSinBitacora(Builder $query): Builder
+    {
+        return $query->where('estado', 'cerrado_sin_bitacora');
     }
 }

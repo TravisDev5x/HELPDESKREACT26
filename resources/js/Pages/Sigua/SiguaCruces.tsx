@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { useCruces } from "@/hooks/sigua";
-import { exportarCruce } from "@/services/siguaApi";
+import { exportarCruce, compararCruce } from "@/services/siguaApi";
 import { SiguaBreadcrumbs } from "@/components/SiguaBreadcrumbs";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -25,7 +25,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { notify } from "@/lib/notify";
 import { cn } from "@/lib/utils";
-import type { Cruce } from "@/types/sigua";
+import type { Cruce, CruceResultado, CategoriaCruce } from "@/types/sigua";
 import {
   PieChart,
   Pie,
@@ -52,6 +52,25 @@ const CATEGORIA_LABELS: Record<string, string> = {
   en_ad_no_rh: "No en RH",
   en_rh_no_ad: "En RH sin AD",
   coincidencias: "Coincidencias",
+  ok_completo: "OK completo",
+  sin_cuenta_sistema: "Sin cuenta sistema",
+  cuenta_sin_rh: "Cuenta sin RH",
+  generico_con_responsable: "Genérico con responsable",
+  generico_sin_responsable: "Genérico sin responsable",
+  cuenta_baja_pendiente: "Baja pendiente",
+  cuenta_servicio: "Cuenta servicio",
+  anomalia: "Anomalía",
+};
+
+const CATEGORIA_COLORS: Record<string, string> = {
+  ok_completo: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30",
+  sin_cuenta_sistema: "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30",
+  cuenta_sin_rh: "bg-rose-500/15 text-rose-700 dark:text-rose-400 border-rose-500/30",
+  generico_con_responsable: "bg-sky-500/15 text-sky-700 dark:text-sky-400 border-sky-500/30",
+  generico_sin_responsable: "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30",
+  cuenta_baja_pendiente: "bg-slate-500/15 text-slate-600 dark:text-slate-400 border-slate-500/30",
+  cuenta_servicio: "bg-violet-500/15 text-violet-700 dark:text-violet-400 border-violet-500/30",
+  anomalia: "bg-red-500/15 text-red-700 dark:text-red-400 border-red-500/30",
 };
 
 const CHART_COLORS = ["#22c55e", "#eab308", "#ef4444", "#8b5cf6", "#06b6d4", "#f97316"];
@@ -104,6 +123,8 @@ export default function SiguaCruces() {
 
   const { historial, meta, loading, error, refetchHistorial, ejecutar, getDetalle, executing } = useCruces({ per_page: 20 });
   const [detalle, setDetalle] = useState<Cruce | null>(null);
+  const [resultados, setResultados] = useState<CruceResultado[]>([]);
+  const [resultadosLoading, setResultadosLoading] = useState(false);
 
   useEffect(() => {
     if (historial.length > 0 && !selectedId) setSelectedId(historial[0].id);
@@ -112,14 +133,18 @@ export default function SiguaCruces() {
   useEffect(() => {
     if (selectedId == null) {
       setDetalle(null);
+      setResultados([]);
       return;
     }
     const c = historial.find((h) => h.id === selectedId);
-    if (c) {
-      setDetalle(c);
-      return;
-    }
-    getDetalle(selectedId).then((r) => r.data && setDetalle(r.data));
+    if (c) setDetalle(c);
+    else getDetalle(selectedId).then((r) => r.data && setDetalle(r.data));
+    setResultadosLoading(true);
+    compararCruce(selectedId).then((res) => {
+      setResultadosLoading(false);
+      if (res.data?.resultados) setResultados(res.data.resultados);
+      else setResultados([]);
+    });
   }, [selectedId, historial, getDetalle]);
 
   const handleEjecutar = useCallback(async () => {
@@ -148,21 +173,33 @@ export default function SiguaCruces() {
     notify.success("Exportado.");
   }, []);
 
+  const sistemasFromResultados = useMemo(() => {
+    const first = resultados[0];
+    const rps = first?.resultados_por_sistema ?? [];
+    return rps.map((r) => ({ id: r.sistema_id, slug: r.slug }));
+  }, [resultados]);
+
   const tableRows = useMemo(() => {
     const rows = buildTableRows(detalle);
     if (categoriaFilter === "all") return rows;
     return rows.filter((r) => String(r.categoria ?? "").toLowerCase().includes(categoriaFilter.toLowerCase()) || String(r.categoria) === categoriaFilter);
   }, [detalle, categoriaFilter]);
 
+  const resultadosFiltered = useMemo(() => {
+    if (categoriaFilter === "all") return resultados;
+    return resultados.filter((r) => r.categoria === categoriaFilter || String(r.categoria).toLowerCase().includes(categoriaFilter.toLowerCase()));
+  }, [resultados, categoriaFilter]);
+
   const categoriasInData = useMemo(() => {
-    const rows = buildTableRows(detalle);
     const set = new Set<string>();
+    const rows = buildTableRows(detalle);
     rows.forEach((r) => {
       const c = r.categoria as string;
       if (c) set.add(c);
     });
+    resultados.forEach((r) => set.add(r.categoria));
     return Array.from(set).sort();
-  }, [detalle]);
+  }, [detalle, resultados]);
 
   const pieData = useMemo(() => buildPieData(detalle), [detalle]);
 
@@ -329,48 +366,107 @@ export default function SiguaCruces() {
               <SelectContent>
                 <SelectItem value="all">Todas las categorías</SelectItem>
                 {categoriasInData.map((c) => (
-                  <SelectItem key={c} value={c}>{c}</SelectItem>
+                  <SelectItem key={c} value={c}>{CATEGORIA_LABELS[c] ?? c}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
-          <div className="overflow-auto max-h-[400px]">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/30">
-                  <TableHead>Categoría</TableHead>
-                  {tableRows[0] && Object.keys(tableRows[0]).filter((k) => k !== "categoria").slice(0, 6).map((k) => (
-                    <TableHead key={k} className="capitalize">{k.replace(/_/g, " ")}</TableHead>
-                  ))}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {tableRows.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
-                      Sin filas para este cruce o filtro.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  tableRows.slice(0, 200).map((row, ri) => (
-                    <TableRow key={ri}>
-                      <TableCell><Badge variant="outline" className="text-xs">{String(row.categoria ?? "—")}</Badge></TableCell>
-                      {Object.entries(row)
-                        .filter(([k]) => k !== "categoria")
-                        .slice(0, 6)
-                        .map(([k, v]) => (
-                          <TableCell key={k} className="text-xs max-w-[140px] truncate" title={String(v ?? "")}>
-                            {v != null ? String(v) : "—"}
-                          </TableCell>
-                        ))}
+          {resultadosLoading ? (
+            <div className="p-6 flex items-center justify-center text-muted-foreground">Cargando resultados…</div>
+          ) : resultados.length > 0 ? (
+            <>
+              <div className="overflow-auto max-h-[400px]">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/30">
+                      <TableHead>Empleado</TableHead>
+                      <TableHead>Sede</TableHead>
+                      <TableHead>Campaña</TableHead>
+                      {sistemasFromResultados.map((s) => (
+                        <TableHead key={s.id} className="text-center text-xs">{s.slug}</TableHead>
+                      ))}
+                      <TableHead>Categoría</TableHead>
+                      <TableHead className="text-right">Acciones</TableHead>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
-          {tableRows.length > 200 && (
-            <p className="text-xs text-muted-foreground px-4 py-2 border-t">Mostrando 200 de {tableRows.length} filas. Exporta a Excel para ver todas.</p>
+                  </TableHeader>
+                  <TableBody>
+                    {resultadosFiltered.slice(0, 200).map((r) => (
+                      <TableRow key={r.id}>
+                        <TableCell className="text-sm">
+                          <span className="font-mono text-xs">{r.num_empleado ?? "—"}</span>
+                          <span className="block truncate max-w-[140px]" title={r.nombre_empleado ?? ""}>{r.nombre_empleado ?? "—"}</span>
+                        </TableCell>
+                        <TableCell className="text-xs">{r.sede ?? "—"}</TableCell>
+                        <TableCell className="text-xs">{r.campana ?? "—"}</TableCell>
+                        {sistemasFromResultados.map((sys) => {
+                          const s = (r.resultados_por_sistema ?? []).find((x) => x.sistema_id === sys.id);
+                          return (
+                            <TableCell key={sys.id} className="text-center">
+                              {s?.tiene_cuenta ? (
+                                <Badge variant="outline" className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 text-[10px]">✓</Badge>
+                              ) : (
+                                <Badge variant="outline" className="bg-muted text-muted-foreground text-[10px]">—</Badge>
+                              )}
+                            </TableCell>
+                          );
+                        })}
+                        <TableCell>
+                          <Badge variant="outline" className={cn("text-xs", CATEGORIA_COLORS[r.categoria] ?? "")}>
+                            {CATEGORIA_LABELS[r.categoria] ?? r.categoria}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {r.empleado_rh_id && (
+                            <Button variant="ghost" size="sm" asChild className="h-7 text-xs">
+                              <Link to={`/sigua/empleados-rh/${r.empleado_rh_id}`}>Ver empleado</Link>
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              {resultadosFiltered.length > 200 && (
+                <p className="text-xs text-muted-foreground px-4 py-2 border-t">Mostrando 200 de {resultadosFiltered.length} filas. Exporta para ver todas.</p>
+              )}
+            </>
+          ) : (
+            <div className="overflow-auto max-h-[400px]">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/30">
+                    <TableHead>Categoría</TableHead>
+                    {tableRows[0] && Object.keys(tableRows[0]).filter((k) => k !== "categoria").slice(0, 6).map((k) => (
+                      <TableHead key={k} className="capitalize">{k.replace(/_/g, " ")}</TableHead>
+                    ))}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {tableRows.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                        Sin filas para este cruce o filtro.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    tableRows.slice(0, 200).map((row, ri) => (
+                      <TableRow key={ri}>
+                        <TableCell><Badge variant="outline" className="text-xs">{String(row.categoria ?? "—")}</Badge></TableCell>
+                        {Object.entries(row)
+                          .filter(([k]) => k !== "categoria")
+                          .slice(0, 6)
+                          .map(([k, v]) => (
+                            <TableCell key={k} className="text-xs max-w-[140px] truncate" title={String(v ?? "")}>
+                              {v != null ? String(v) : "—"}
+                            </TableCell>
+                          ))}
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </Card>
       )}

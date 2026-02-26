@@ -17,8 +17,9 @@ class ImportarArchivoRequest extends FormRequest
             'archivo' => ['required', 'file', 'mimes:xlsx,xls,csv', 'max:10240'],
             'tipo' => [
                 'required',
-                'in:rh_activos,ad_usuarios,neotel_isla2,neotel_isla3,neotel_isla4,bajas_rh',
+                'in:rh_activos,ad_usuarios,neotel_isla2,neotel_isla3,neotel_isla4,bajas_rh,sistema',
             ],
+            'sistema_id' => ['required_if:tipo,sistema', 'nullable', 'integer', 'exists:sigua_systems,id'],
         ];
     }
 

@@ -57,11 +57,26 @@ class SiguaDashboardController extends Controller
                 $incidentesQuery->where('fecha_incidente', '<=', $fechaHasta->endOfDay());
             }
 
-            $totalCuentasPorSistema = (clone $cuentasQuery)->selectRaw('system_id, count(*) as total')
-                ->groupBy('system_id')
-                ->with('sistema:id,name,slug')
-                ->get()
-                ->map(fn ($r) => ['sistema_id' => $r->system_id, 'sistema' => $r->sistema?->name ?? null, 'total' => (int) $r->total]);
+            $sistemasActivos = Sistema::activos()->orderBy('orden')->orderBy('name')->get(['id', 'name', 'slug']);
+            $indicadoresPorSistema = $sistemasActivos->map(function ($sistema) use ($cuentasQuery, $bitacoraQuery, $incidentesQuery) {
+                $qCuentas = (clone $cuentasQuery)->where('system_id', $sistema->id);
+                $qBitacora = (clone $bitacoraQuery)->where('system_id', $sistema->id)->hoy();
+                $qIncidentes = (clone $incidentesQuery)->where('system_id', $sistema->id)->abiertos();
+                return [
+                    'sistema_id' => $sistema->id,
+                    'sistema' => $sistema->name,
+                    'slug' => $sistema->slug,
+                    'total_cuentas' => $qCuentas->count(),
+                    'bitacoras_hoy' => $qBitacora->count(),
+                    'incidentes_abiertos' => $qIncidentes->count(),
+                ];
+            })->values()->all();
+
+            $totalCuentasPorSistema = $sistemasActivos->map(fn ($s) => [
+                'sistema_id' => $s->id,
+                'sistema' => $s->name,
+                'total' => (clone $cuentasQuery)->where('system_id', $s->id)->count(),
+            ])->all();
 
             $ca01Vigentes = (clone $ca01Query)->vigentes()->count();
             $ca01Vencidos = (clone $ca01Query)->vencidos()->count();
@@ -78,6 +93,7 @@ class SiguaDashboardController extends Controller
                 ->map(fn ($r) => ['sede_id' => $r->sede_id, 'sede' => $r->sede?->name ?? null, 'total' => (int) $r->total]);
 
             $data = [
+                'indicadores_por_sistema' => $indicadoresPorSistema,
                 'total_cuentas_por_sistema' => $totalCuentasPorSistema,
                 'ca01_vigentes' => $ca01Vigentes,
                 'ca01_vencidos' => $ca01Vencidos,

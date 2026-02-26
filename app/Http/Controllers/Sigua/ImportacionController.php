@@ -5,14 +5,19 @@ namespace App\Http\Controllers\Sigua;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Sigua\ImportarArchivoRequest;
 use App\Models\Sigua\Importacion;
+use App\Services\Sigua\ImportacionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
 class ImportacionController extends Controller
 {
+    public function __construct(
+        protected ImportacionService $importacionService
+    ) {}
+
     /**
-     * POST: Subir y registrar importación. El procesamiento pesado puede ir a cola.
+     * POST: Subir y procesar importación. Acepta tipo='sistema' + sistema_id para importación dinámica.
      * Permiso: sigua.importar
      */
     public function importar(ImportarArchivoRequest $request): JsonResponse
@@ -20,27 +25,58 @@ class ImportacionController extends Controller
         try {
             $file = $request->file('archivo');
             $tipo = $request->input('tipo');
-            $path = $file->store('sigua/imports/' . date('Y-m-d'), ['disk' => 'local', 'visibility' => 'private']);
+            $userId = $request->user()->id;
+            $path = $file->store('sigua/imports/temp', ['disk' => 'local', 'visibility' => 'private']);
+            $fullPath = Storage::disk('local')->path($path);
 
-            $import = Importacion::create([
-                'tipo' => $tipo,
-                'archivo' => $path,
-                'registros_procesados' => 0,
-                'registros_nuevos' => 0,
-                'registros_actualizados' => 0,
-                'errores' => 0,
-                'importado_por' => $request->user()->id,
-            ]);
+            $import = match ($tipo) {
+                'rh_activos' => $this->importacionService->importarRH($fullPath, $userId),
+                'bajas_rh' => $this->importacionService->importarBajasRH($fullPath, $userId),
+                'sistema' => $this->importacionService->importarSistema(
+                    $fullPath,
+                    (int) $request->input('sistema_id'),
+                    $userId,
+                    $request->input('sede_id_default') ? (int) $request->input('sede_id_default') : null
+                ),
+                'ad_usuarios' => $this->importacionService->importarAdUsuarios($fullPath, $userId),
+                'neotel_isla2', 'neotel_isla3', 'neotel_isla4' => $this->importacionService->importarNeotel($fullPath, $tipo, $userId),
+                default => throw new \InvalidArgumentException("Tipo de importación no soportado: {$tipo}"),
+            };
 
-            // Opcional: despachar job para procesar el archivo y actualizar registros_* y detalle_errores
-            // dispatch(new ProcesarImportacionSiguaJob($import));
+            @unlink($fullPath);
 
             return response()->json([
                 'data' => $import->load('importadoPor'),
-                'message' => 'Archivo recibido. La importación ha sido registrada.',
+                'message' => 'Importación completada.',
             ], 201);
         } catch (\Throwable $e) {
             return response()->json(['message' => 'Error al importar: ' . $e->getMessage()], 422);
+        }
+    }
+
+    /**
+     * POST: Vista previa de archivo para un sistema (primeras filas mapeadas, sin guardar).
+     * Body: archivo (file), sistema_id (int).
+     */
+    public function preview(Request $request): JsonResponse
+    {
+        if (! $request->user()?->can('sigua.importar')) {
+            return response()->json(['message' => 'No autorizado'], 403);
+        }
+
+        $request->validate([
+            'archivo' => ['required', 'file', 'mimes:xlsx,xls,csv', 'max:10240'],
+            'sistema_id' => ['required', 'integer', 'exists:sigua_systems,id'],
+        ]);
+
+        try {
+            $path = $request->file('archivo')->store('sigua/imports/temp', ['disk' => 'local']);
+            $fullPath = Storage::disk('local')->path($path);
+            $result = $this->importacionService->preview($fullPath, (int) $request->input('sistema_id'));
+            @unlink($fullPath);
+            return response()->json(['data' => $result, 'message' => 'OK']);
+        } catch (\Throwable $e) {
+            return response()->json(['message' => 'Error en preview: ' . $e->getMessage()], 422);
         }
     }
 

@@ -46,6 +46,11 @@ const SiguaIncidentes = lazy(() => import("@/Pages/Sigua/SiguaIncidentes"));
 const SiguaImportar = lazy(() => import("@/Pages/Sigua/SiguaImportar"));
 const SiguaCruces = lazy(() => import("@/Pages/Sigua/SiguaCruces"));
 const SiguaReportes = lazy(() => import("@/Pages/Sigua/SiguaReportes"));
+const SiguaEmpleados = lazy(() => import("@/Pages/Sigua/SiguaEmpleados"));
+const SiguaEmpleadoDetalle = lazy(() => import("@/Pages/Sigua/SiguaEmpleadoDetalle"));
+const SiguaSistemas = lazy(() => import("@/Pages/Sigua/SiguaSistemas"));
+const SiguaAlertas = lazy(() => import("@/Pages/Sigua/SiguaAlertas"));
+const SiguaConfiguracion = lazy(() => import("@/Pages/Sigua/SiguaConfiguracion"));
 
 // Público / auth (lazy)
 const Login = lazy(() => import("@/Pages/Login"));
@@ -156,6 +161,11 @@ export default function Main() {
                                     <Route path="/sigua" element={<SiguaDashboard />} />
                                     <Route path="/sigua/cuentas" element={<SiguaCuentas />} />
                                     <Route path="/sigua/cuentas/:id" element={<SiguaCuentaDetalle />} />
+                                    <Route path="/sigua/empleados-rh" element={<SiguaEmpleados />} />
+                                    <Route path="/sigua/empleados-rh/:id" element={<SiguaEmpleadoDetalle />} />
+                                    <Route path="/sigua/sistemas" element={<SiguaSistemas />} />
+                                    <Route path="/sigua/alertas" element={<SiguaAlertas />} />
+                                    <Route path="/sigua/configuracion" element={<SiguaConfiguracion />} />
                                     <Route path="/sigua/ca01" element={<SiguaCA01 />} />
                                     <Route path="/sigua/ca01/nuevo" element={<SiguaCA01Nuevo />} />
                                     <Route path="/sigua/ca01/:id" element={<SiguaCA01Detalle />} />

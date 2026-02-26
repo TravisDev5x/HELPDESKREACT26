@@ -50,6 +50,8 @@ return new class extends Migration
             'sigua.incidentes.manage',
             'sigua.importar',
             'sigua.cruces',
+            'sigua.cruces.view',
+            'sigua.cruces.ejecutar',
             'sigua.reportes',
         ];
 

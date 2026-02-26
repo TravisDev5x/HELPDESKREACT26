@@ -531,11 +531,15 @@ export default function AppLayout() {
         const siguaChildren = []
         if (can('sigua.dashboard')) siguaChildren.push({ to: '/sigua', label: 'Dashboard', icon: LayoutDashboard })
         if (can('sigua.cuentas.view')) siguaChildren.push({ to: '/sigua/cuentas', label: 'Cuentas Genéricas', icon: Users })
+        if (can('sigua.dashboard') || can('sigua.cuentas.view')) siguaChildren.push({ to: '/sigua/empleados-rh', label: 'Empleados RH', icon: UserCircle })
+        if (can('sigua.cuentas.manage') || can('sigua.importar')) siguaChildren.push({ to: '/sigua/sistemas', label: 'Sistemas', icon: Layers })
         if (can('sigua.ca01.view')) siguaChildren.push({ to: '/sigua/ca01', label: 'Formatos CA-01', icon: FileCheck })
         if (can('sigua.bitacora.view') || can('sigua.bitacora.registrar') || can('sigua.bitacora.sede')) siguaChildren.push({ to: '/sigua/bitacora', label: 'Bitácora CA-02', icon: BookOpen })
         if (can('sigua.incidentes.view')) siguaChildren.push({ to: '/sigua/incidentes', label: 'Incidentes', icon: AlertTriangle })
         if (can('sigua.importar')) siguaChildren.push({ to: '/sigua/importar', label: 'Importar Datos', icon: Upload })
         if (can('sigua.cruces')) siguaChildren.push({ to: '/sigua/cruces', label: 'Cruces RH/AD', icon: GitMerge })
+        if (can('sigua.dashboard') || can('sigua.cuentas.view')) siguaChildren.push({ to: '/sigua/alertas', label: 'Alertas', icon: Bell })
+        if (can('sigua.dashboard') || can('sigua.cuentas.manage') || can('sigua.importar')) siguaChildren.push({ to: '/sigua/configuracion', label: 'Configuración', icon: Settings })
         if (can('sigua.reportes')) siguaChildren.push({ to: '/sigua/reportes', label: 'Reportes', icon: FileSpreadsheet })
 
         const sections = [
@@ -630,10 +634,15 @@ export default function AppLayout() {
         '/sigua/importar': 'SIGUA · Importar',
         '/sigua/cruces': 'SIGUA · Cruces',
         '/sigua/reportes': 'SIGUA · Reportes',
+        '/sigua/empleados-rh': 'SIGUA · Empleados RH',
+        '/sigua/sistemas': 'SIGUA · Sistemas',
+        '/sigua/alertas': 'SIGUA · Alertas',
+        '/sigua/configuracion': 'SIGUA · Configuración',
     }
     const title = titleMap[pathname] ?? (
         pathname?.match(/^\/sigua\/ca01\/\d+$/) ? 'SIGUA · CA-01 Detalle' :
         pathname?.match(/^\/sigua\/incidentes\/\d+$/) ? 'SIGUA · Incidente' :
+        pathname?.match(/^\/sigua\/empleados-rh\/\d+$/) ? 'SIGUA · Empleado RH' :
         t('layout.section.default')
     )
 

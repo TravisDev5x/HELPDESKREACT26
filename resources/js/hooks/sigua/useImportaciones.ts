@@ -15,7 +15,7 @@ export interface UseImportacionesReturn {
   loading: boolean;
   error: string | null;
   refetchHistorial: (page?: number) => Promise<void>;
-  importar: (file: File, tipo: TipoImportacion) => Promise<{ data: Importacion | null; error: string | null }>;
+  importar: (file: File, tipo: TipoImportacion, sistemaId?: number) => Promise<{ data: Importacion | null; error: string | null }>;
   importing: boolean;
 }
 
@@ -51,9 +51,9 @@ export function useImportaciones(params?: { tipo?: string; per_page?: number }):
   }, [params?.tipo]);
 
   const importar = useCallback(
-    async (file: File, tipo: TipoImportacion) => {
+    async (file: File, tipo: TipoImportacion, sistemaId?: number) => {
       setImporting(true);
-      const result = await importarArchivo(file, tipo);
+      const result = await importarArchivo(file, tipo, sistemaId);
       setImporting(false);
       if (!result.error) await refetchHistorial(1);
       return { data: result.data, error: result.error };

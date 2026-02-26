@@ -5,6 +5,7 @@ namespace App\Models\Sigua;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * Resultado de cruce RH vs AD vs Neotel en SIGUA.
@@ -12,6 +13,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int $id
  * @property int|null $import_id
  * @property string $tipo_cruce
+ * @property string|null $nombre
+ * @property array|null $sistemas_incluidos
  * @property \Carbon\Carbon $fecha_ejecucion
  * @property int $total_analizados
  * @property int $coincidencias
@@ -26,6 +29,8 @@ class Cruce extends Model
     protected $fillable = [
         'import_id',
         'tipo_cruce',
+        'nombre',
+        'sistemas_incluidos',
         'fecha_ejecucion',
         'total_analizados',
         'coincidencias',
@@ -41,6 +46,7 @@ class Cruce extends Model
         'coincidencias' => 'integer',
         'sin_match' => 'integer',
         'resultado_json' => 'array',
+        'sistemas_incluidos' => 'array',
     ];
 
     public function importacion(): BelongsTo
@@ -51,5 +57,15 @@ class Cruce extends Model
     public function ejecutadoPor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'ejecutado_por');
+    }
+
+    /**
+     * Detalle por empleado/cuenta de este cruce (SIGUA v2).
+     *
+     * @return HasMany<CruceResultado>
+     */
+    public function resultados(): HasMany
+    {
+        return $this->hasMany(CruceResultado::class, 'cruce_id');
     }
 }

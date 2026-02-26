@@ -20,6 +20,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property array|null $detalle_errores
  * @property array|null $datos_importados
  * @property int $importado_por
+ * @property int $registros_sin_cambio
+ * @property array|null $mapeo_usado
  */
 class Importacion extends Model
 {
@@ -31,9 +33,11 @@ class Importacion extends Model
         'registros_procesados',
         'registros_nuevos',
         'registros_actualizados',
+        'registros_sin_cambio',
         'errores',
         'detalle_errores',
         'datos_importados',
+        'mapeo_usado',
         'importado_por',
     ];
 
@@ -42,9 +46,11 @@ class Importacion extends Model
         'registros_procesados' => 'integer',
         'registros_nuevos' => 'integer',
         'registros_actualizados' => 'integer',
+        'registros_sin_cambio' => 'integer',
         'errores' => 'integer',
         'detalle_errores' => 'array',
         'datos_importados' => 'array',
+        'mapeo_usado' => 'array',
     ];
 
     public function importadoPor(): BelongsTo

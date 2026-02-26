@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { useImportaciones } from "@/hooks/sigua";
+import { getSistemas, previewImportacion } from "@/services/siguaApi";
 import { SiguaBreadcrumbs } from "@/components/SiguaBreadcrumbs";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -25,7 +26,7 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { notify } from "@/lib/notify";
 import { cn } from "@/lib/utils";
-import type { TipoImportacion, Importacion } from "@/types/sigua";
+import type { TipoImportacion, Importacion, Sistema } from "@/types/sigua";
 import {
   Upload,
   Loader2,
@@ -34,6 +35,7 @@ import {
   CheckCircle2,
   XCircle,
   History,
+  Eye,
 } from "lucide-react";
 
 const TIPO_OPTIONS: { value: TipoImportacion; label: string }[] = [
@@ -43,6 +45,7 @@ const TIPO_OPTIONS: { value: TipoImportacion; label: string }[] = [
   { value: "neotel_isla3", label: "Neotel Isla 3" },
   { value: "neotel_isla4", label: "Neotel Isla 4" },
   { value: "bajas_rh", label: "Bajas RH" },
+  { value: "sistema", label: "Por sistema (dinámico)" },
 ];
 
 const PREVIEW_MAX_ROWS = 10;
@@ -69,22 +72,41 @@ export default function SiguaImportar() {
   const canImport = can("sigua.importar");
 
   const [tipo, setTipo] = useState<TipoImportacion>("rh_activos");
+  const [sistemaId, setSistemaId] = useState<number | null>(null);
+  const [sistemas, setSistemas] = useState<Sistema[]>([]);
   const [file, setFile] = useState<File | null>(null);
   const [previewRows, setPreviewRows] = useState<string[][]>([]);
+  const [previewApi, setPreviewApi] = useState<{ filas: number; columnas: string[]; muestra: Array<Record<string, unknown>>; errores?: string[] } | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [progress, setProgress] = useState(0);
 
   const { historial, meta, loading, error, refetchHistorial, importar, importing } = useImportaciones({ per_page: 20 });
 
   useEffect(() => {
+    getSistemas().then((r) => {
+      if (r.data) setSistemas(r.data.filter((s) => s.activo !== false));
+    });
+  }, []);
+
+  useEffect(() => {
     if (!file) {
       setPreviewRows([]);
+      setPreviewApi(null);
       return;
     }
-    parsePreview(file)
-      .then(setPreviewRows)
-      .catch(() => setPreviewRows([]));
-  }, [file]);
+    if (tipo === "sistema" && sistemaId != null) {
+      setPreviewLoading(true);
+      previewImportacion(file, sistemaId).then((res) => {
+        setPreviewLoading(false);
+        if (res.data) setPreviewApi(res.data);
+        else setPreviewApi(null);
+      });
+    } else {
+      setPreviewApi(null);
+      parsePreview(file).then(setPreviewRows).catch(() => setPreviewRows([]));
+    }
+  }, [file, tipo, sistemaId]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -111,9 +133,13 @@ export default function SiguaImportar() {
 
   const handleImport = useCallback(async () => {
     if (!file || !canImport) return;
+    if (tipo === "sistema" && !sistemaId) {
+      notify.error("Selecciona un sistema para importar.");
+      return;
+    }
     setProgress(0);
     const id = setInterval(() => setProgress((p) => Math.min(p + 8, 90)), 200);
-    const result = await importar(file, tipo);
+    const result = await importar(file, tipo, tipo === "sistema" ? sistemaId ?? undefined : undefined);
     clearInterval(id);
     setProgress(100);
     if (result.error) {
@@ -122,9 +148,10 @@ export default function SiguaImportar() {
       notify.success("Importación completada.");
       setFile(null);
       setPreviewRows([]);
+      setPreviewApi(null);
     }
     setTimeout(() => setProgress(0), 800);
-  }, [file, tipo, canImport, importar]);
+  }, [file, tipo, sistemaId, canImport, importar]);
 
   if (!canImport) {
     return (
@@ -150,7 +177,7 @@ export default function SiguaImportar() {
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className="text-sm font-medium mb-2 block">Tipo de importación</label>
-            <Select value={tipo} onValueChange={(v) => setTipo(v as TipoImportacion)}>
+            <Select value={tipo} onValueChange={(v) => { setTipo(v as TipoImportacion); setPreviewApi(null); }}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -161,6 +188,21 @@ export default function SiguaImportar() {
               </SelectContent>
             </Select>
           </div>
+          {tipo === "sistema" && (
+            <div>
+              <label className="text-sm font-medium mb-2 block">Sistema</label>
+              <Select value={sistemaId != null ? String(sistemaId) : ""} onValueChange={(v) => { setSistemaId(v ? Number(v) : null); setPreviewApi(null); }}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecciona sistema" />
+                </SelectTrigger>
+                <SelectContent>
+                  {sistemas.map((s) => (
+                    <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </div>
 
         <div
@@ -209,23 +251,31 @@ export default function SiguaImportar() {
           </div>
         )}
 
-        {previewRows.length > 0 && (
+        {(previewApi || previewRows.length > 0) && (
           <div>
-            <h3 className="text-sm font-semibold mb-2">Vista previa (primeras filas)</h3>
+            <h3 className="text-sm font-semibold mb-2 flex items-center gap-2">
+              {previewLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
+              Vista previa {previewApi ? `(API: ${previewApi.filas} filas, ${previewApi.columnas?.length ?? 0} columnas)` : "(primeras filas)"}
+            </h3>
+            {previewApi?.errores && previewApi.errores.length > 0 && (
+              <div className="mb-2 p-2 rounded bg-amber-500/10 text-amber-700 dark:text-amber-400 text-xs">
+                {previewApi.errores.map((e, i) => <div key={i}>{e}</div>)}
+              </div>
+            )}
             <div className="rounded border overflow-auto max-h-[240px]">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/30">
-                    {previewRows[0]?.map((cell, i) => (
-                      <TableHead key={i} className="text-xs whitespace-nowrap">{cell || `Col ${i + 1}`}</TableHead>
+                    {(previewApi?.columnas ?? previewRows[0])?.map((cell, i) => (
+                      <TableHead key={i} className="text-xs whitespace-nowrap">{String(cell || `Col ${i + 1}`)}</TableHead>
                     ))}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {previewRows.slice(1).map((row, ri) => (
+                  {(previewApi?.muestra ?? previewRows.slice(1).map((row) => Object.fromEntries(row.map((c, i) => [`col_${i}`, c])))).slice(0, 10).map((row, ri) => (
                     <TableRow key={ri}>
-                      {row.map((cell, ci) => (
-                        <TableCell key={ci} className="text-xs max-w-[180px] truncate">{cell}</TableCell>
+                      {Object.values(row).slice(0, 8).map((v, ci) => (
+                        <TableCell key={ci} className="text-xs max-w-[180px] truncate">{v != null ? String(v) : "—"}</TableCell>
                       ))}
                     </TableRow>
                   ))}

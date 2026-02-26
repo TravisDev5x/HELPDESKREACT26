@@ -65,13 +65,14 @@ export function useCuentasGenericas(filters?: SiguaFilters | null) {
       filters?.estado,
       filters?.campaign_id,
       filters?.search,
+      filters?.tipo,
       page,
     ]
   );
 
   useEffect(() => {
     refetch(1);
-  }, [filters?.sede_id, filters?.sistema_id, filters?.estado, filters?.campaign_id, filters?.search]);
+  }, [filters?.sede_id, filters?.sistema_id, filters?.estado, filters?.campaign_id, filters?.search, filters?.tipo]);
 
   const create = useCallback(
     async (payload: CreateCuentaPayload) => {

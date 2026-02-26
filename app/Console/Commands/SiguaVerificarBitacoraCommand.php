@@ -9,9 +9,11 @@ use Illuminate\Console\Command;
 
 class SiguaVerificarBitacoraCommand extends Command
 {
-    protected $signature = 'sigua:verificar-bitacora';
+    protected $signature = 'sigua:legacy-verificar-bitacora';
 
-    protected $description = 'Busca sedes/campañas sin bitácora en los últimos 5 días hábiles y notifica al gerente responsable';
+    protected $description = '[Legacy] Bitácoras faltantes (use sigua:verificar-bitacora)';
+
+    protected $hidden = true;
 
     public function handle(AlertaService $alertaService): int
     {

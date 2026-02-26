@@ -133,6 +133,44 @@ class CuentaGenericaController extends Controller
     }
 
     /**
+     * PATCH: Clasificar cuenta (tipo: nominal, generica, servicio, prueba, desconocida).
+     * Permiso: sigua.cuentas.manage
+     */
+    public function clasificar(Request $request, CuentaGenerica $cuenta): JsonResponse
+    {
+        if (! $request->user()?->can('sigua.cuentas.manage')) {
+            return response()->json(['message' => 'No autorizado'], 403);
+        }
+
+        $data = $request->validate([
+            'tipo' => 'required|in:nominal,generica,servicio,prueba,desconocida',
+        ]);
+        $cuenta->update(['tipo' => $data['tipo']]);
+        $cuenta->load(['sistema', 'sede', 'campaign', 'empleadoRh', 'ca01Vigente']);
+
+        return response()->json(['data' => $cuenta, 'message' => 'Tipo de cuenta actualizado']);
+    }
+
+    /**
+     * PATCH: Vincular cuenta a empleado RH (empleado_rh_id) o desvincular (null).
+     * Permiso: sigua.cuentas.manage
+     */
+    public function vincular(Request $request, CuentaGenerica $cuenta): JsonResponse
+    {
+        if (! $request->user()?->can('sigua.cuentas.manage')) {
+            return response()->json(['message' => 'No autorizado'], 403);
+        }
+
+        $data = $request->validate([
+            'empleado_rh_id' => 'nullable|integer|exists:sigua_empleados_rh,id',
+        ]);
+        $cuenta->update(['empleado_rh_id' => $data['empleado_rh_id'] ?? null]);
+        $cuenta->load(['sistema', 'sede', 'campaign', 'empleadoRh', 'ca01Vigente']);
+
+        return response()->json(['data' => $cuenta, 'message' => 'Vinculación actualizada']);
+    }
+
+    /**
      * Cambiar estado de varias cuentas a la vez.
      * Permiso: sigua.cuentas.manage
      */

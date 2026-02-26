@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { useCuentasGenericas } from "@/hooks/sigua";
-import { getSistemas, bulkUpdateEstadoCuentas } from "@/services/siguaApi";
+import { getSistemas, bulkUpdateEstadoCuentas, clasificarCuenta } from "@/services/siguaApi";
 import { loadCatalogs } from "@/lib/catalogCache";
 import { SiguaBreadcrumbs } from "@/components/SiguaBreadcrumbs";
 import { DataTable } from "@/components/ui/data-table";
@@ -29,7 +29,7 @@ import {
 import { SiguaCuentaForm } from "./SiguaCuentaForm";
 import { notify } from "@/lib/notify";
 import { cn } from "@/lib/utils";
-import type { CuentaGenerica, SiguaFilters, Sistema } from "@/types/sigua";
+import type { CuentaGenerica, SiguaFilters, Sistema, TipoCuenta } from "@/types/sigua";
 import type { CreateCuentaPayload } from "@/services/siguaApi";
 import {
   Plus,
@@ -57,12 +57,29 @@ const ESTADO_VARIANTS: Record<string, string> = {
   baja: "bg-slate-500/15 text-slate-600 dark:text-slate-400 border-slate-500/30",
 };
 
+const TIPO_LABELS: Record<TipoCuenta, string> = {
+  nominal: "Nominal",
+  generica: "Genérica",
+  servicio: "Servicio",
+  prueba: "Prueba",
+  desconocida: "Desconocida",
+};
+
+const TIPO_VARIANTS: Record<TipoCuenta, string> = {
+  nominal: "bg-sky-500/15 text-sky-700 dark:text-sky-400 border-sky-500/30",
+  generica: "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30",
+  servicio: "bg-violet-500/15 text-violet-700 dark:text-violet-400 border-violet-500/30",
+  prueba: "bg-slate-500/15 text-slate-600 dark:text-slate-400 border-slate-500/30",
+  desconocida: "bg-muted text-muted-foreground",
+};
+
 function useSiguaCuentasColumns({
   selectedIds,
   setSelectedIds,
   data,
   onEdit,
   onDelete,
+  onClasificar,
   canManage,
 }: {
   selectedIds: number[];
@@ -70,6 +87,7 @@ function useSiguaCuentasColumns({
   data: CuentaGenerica[];
   onEdit: (c: CuentaGenerica) => void;
   onDelete: (c: CuentaGenerica) => void;
+  onClasificar: (c: CuentaGenerica) => void;
   canManage: boolean;
 }) {
   return useMemo(
@@ -178,6 +196,19 @@ function useSiguaCuentasColumns({
         },
       },
       {
+        id: "tipo",
+        header: "Tipo",
+        cell: ({ row }: { row: { original: CuentaGenerica } }) => {
+          const t = (row.original.tipo ?? "desconocida") as TipoCuenta;
+          return (
+            <Badge variant="outline" className={cn("text-[10px]", TIPO_VARIANTS[t] ?? TIPO_VARIANTS.desconocida)}>
+              {TIPO_LABELS[t] ?? t}
+            </Badge>
+          );
+        },
+        meta: { className: "hidden lg:table-cell" },
+      },
+      {
         id: "ca01",
         header: "CA-01",
         cell: ({ row }: { row: { original: CuentaGenerica } }) => {
@@ -208,6 +239,9 @@ function useSiguaCuentasColumns({
               </Button>
               {canManage && (
                 <>
+                  <Button variant="ghost" size="sm" className="h-8" onClick={() => onClasificar(c)} title="Clasificar">
+                    Clasificar
+                  </Button>
                   <Button variant="ghost" size="sm" className="h-8" onClick={() => onEdit(c)}>
                     <Pencil className="h-4 w-4" />
                   </Button>
@@ -227,7 +261,7 @@ function useSiguaCuentasColumns({
         meta: { headerClassName: "text-right", className: "text-right" },
       },
     ],
-    [selectedIds, setSelectedIds, data, onEdit, onDelete, canManage]
+    [selectedIds, setSelectedIds, data, onEdit, onDelete, onClasificar, canManage]
   );
 }
 
@@ -243,6 +277,7 @@ export default function SiguaCuentas() {
     estado: null,
     campaign_id: null,
     search: null,
+    tipo: null,
   });
   const [searchInput, setSearchInput] = useState("");
   const [page, setPage] = useState(1);
@@ -255,6 +290,10 @@ export default function SiguaCuentas() {
   const [bulkEstado, setBulkEstado] = useState<"activa" | "suspendida" | "baja">("activa");
   const [bulkSubmitting, setBulkSubmitting] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<CuentaGenerica | null>(null);
+  const [clasificarCuentaOpen, setClasificarCuentaOpen] = useState(false);
+  const [clasificarTarget, setClasificarTarget] = useState<CuentaGenerica | null>(null);
+  const [clasificarTipo, setClasificarTipo] = useState<TipoCuenta>("nominal");
+  const [clasificarSubmitting, setClasificarSubmitting] = useState(false);
 
   const appliedFilters = useMemo(() => ({
     ...filters,
@@ -282,6 +321,25 @@ export default function SiguaCuentas() {
     setFormOpen(true);
   }, []);
   const onDelete = useCallback((c: CuentaGenerica) => setDeleteConfirm(c), []);
+  const onClasificar = useCallback((c: CuentaGenerica) => {
+    setClasificarTarget(c);
+    setClasificarTipo((c.tipo as TipoCuenta) ?? "desconocida");
+    setClasificarCuentaOpen(true);
+  }, []);
+
+  const handleClasificarSubmit = useCallback(async () => {
+    if (!clasificarTarget) return;
+    setClasificarSubmitting(true);
+    const res = await clasificarCuenta(clasificarTarget.id, clasificarTipo);
+    setClasificarSubmitting(false);
+    setClasificarCuentaOpen(false);
+    setClasificarTarget(null);
+    if (res.error) notify.error(res.error);
+    else {
+      notify.success("Tipo actualizado.");
+      refetch(meta?.current_page ?? 1);
+    }
+  }, [clasificarTarget, clasificarTipo, refetch, meta?.current_page]);
 
   const columns = useSiguaCuentasColumns({
     selectedIds,
@@ -289,6 +347,7 @@ export default function SiguaCuentas() {
     data,
     onEdit,
     onDelete,
+    onClasificar,
     canManage,
   });
 
@@ -442,6 +501,20 @@ export default function SiguaCuentas() {
                 {catalogs.campaigns.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
               </SelectContent>
             </Select>
+            <Select
+              value={filters.tipo ?? "all"}
+              onValueChange={(v) => setFilters((p) => ({ ...p, tipo: v === "all" ? null : (v as TipoCuenta) }))}
+            >
+              <SelectTrigger className="w-[130px] h-9">
+                <SelectValue placeholder="Tipo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                {(Object.keys(TIPO_LABELS) as TipoCuenta[]).map((t) => (
+                  <SelectItem key={t} value={t}>{TIPO_LABELS[t]}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           {selectedIds.length > 0 && canManage && (
             <div className="flex items-center gap-2">
@@ -466,7 +539,7 @@ export default function SiguaCuentas() {
           getRowId={(row) => row.id}
           selectedIds={selectedIds}
           emptyMessage="No hay cuentas con los filtros aplicados"
-          emptyColSpan={10}
+          emptyColSpan={11}
         />
 
         {meta && (
@@ -535,6 +608,37 @@ export default function SiguaCuentas() {
             <Button onClick={handleBulkEstado} disabled={bulkSubmitting}>
               {bulkSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Aplicar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={clasificarCuentaOpen} onOpenChange={(o) => !o && (setClasificarCuentaOpen(false), setClasificarTarget(null))}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Clasificar cuenta</DialogTitle>
+            <DialogDescription>
+              Cuenta: {clasificarTarget?.usuario_cuenta} — {clasificarTarget?.nombre_cuenta}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-2">
+            <label className="text-sm font-medium">Tipo</label>
+            <Select value={clasificarTipo} onValueChange={(v) => setClasificarTipo(v as TipoCuenta)}>
+              <SelectTrigger className="mt-2">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(Object.keys(TIPO_LABELS) as TipoCuenta[]).map((t) => (
+                  <SelectItem key={t} value={t}>{TIPO_LABELS[t]}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setClasificarCuentaOpen(false); setClasificarTarget(null); }}>Cancelar</Button>
+            <Button onClick={handleClasificarSubmit} disabled={clasificarSubmitting}>
+              {clasificarSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Guardar
             </Button>
           </DialogFooter>
         </DialogContent>
