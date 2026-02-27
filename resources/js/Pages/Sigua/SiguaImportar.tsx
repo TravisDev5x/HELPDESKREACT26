@@ -80,8 +80,19 @@ export default function SiguaImportar() {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [lastImportTipo, setLastImportTipo] = useState<TipoImportacion | null>(null);
+  const [lastImportResumen, setLastImportResumen] = useState<{ procesados: number; nuevos: number; actualizados: number; errores?: number } | null>(null);
 
   const { historial, meta, loading, error, refetchHistorial, importar, importing } = useImportaciones({ per_page: 20 });
+
+  useEffect(() => {
+    if (lastImportTipo == null) return;
+    const t = setTimeout(() => {
+      setLastImportTipo(null);
+      setLastImportResumen(null);
+    }, 10000);
+    return () => clearTimeout(t);
+  }, [lastImportTipo]);
 
   useEffect(() => {
     getSistemas().then((r) => {
@@ -145,7 +156,16 @@ export default function SiguaImportar() {
     if (result.error) {
       notify.error(result.error);
     } else {
-      notify.success("Importación completada.");
+      const importTipo = (result.data?.tipo ?? tipo) as TipoImportacion;
+      setLastImportTipo(importTipo);
+      setLastImportResumen({
+        procesados: result.data?.registros_procesados ?? 0,
+        nuevos: result.data?.registros_nuevos ?? 0,
+        actualizados: result.data?.registros_actualizados ?? 0,
+        errores: result.data?.errores ?? 0,
+      });
+      const esRh = importTipo === "rh_activos" || importTipo === "bajas_rh";
+      notify.success(esRh ? "Importación completada. Ver datos en Empleados RH." : "Importación completada. Ver datos en Cuentas genéricas.");
       setFile(null);
       setPreviewRows([]);
       setPreviewApi(null);
@@ -171,6 +191,11 @@ export default function SiguaImportar() {
         <SiguaBreadcrumbs items={[{ label: "Importar" }]} />
         <h1 className="text-2xl font-bold tracking-tight">Importación de archivos</h1>
         <p className="text-sm text-muted-foreground">Sube archivos CSV/Excel según el tipo de datos.</p>
+        {(tipo === "rh_activos" || tipo === "bajas_rh") && (
+          <p className="text-xs text-muted-foreground">
+            RH: primera fila = encabezado. Incluye columna de número de empleado (<strong>Núm. Empleado</strong>, <strong>ID</strong>, etc.) y <strong>Nombre</strong>. Opcional: <strong>Sede</strong>, <strong>Campaña</strong> (si el Excel los trae, se crean en catálogo y se asignan al reimportar).
+          </p>
+        )}
       </div>
 
       <Card className="border-border/60 overflow-hidden p-6 space-y-6">
@@ -248,6 +273,27 @@ export default function SiguaImportar() {
           <div className="space-y-2">
             <p className="text-sm text-muted-foreground">Importando…</p>
             <Progress value={progress} className="h-2" />
+          </div>
+        )}
+
+        {lastImportTipo && lastImportResumen && (
+          <div className="rounded-lg border border-emerald-500/50 bg-emerald-500/10 p-4 flex flex-wrap items-center gap-2">
+            <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <span className="text-sm text-emerald-800 dark:text-emerald-200">Datos importados correctamente.</span>
+            <span className="text-xs text-muted-foreground">
+              {lastImportResumen.procesados} procesados, {lastImportResumen.nuevos} nuevos, {lastImportResumen.actualizados} actualizados
+              {(lastImportResumen.errores ?? 0) > 0 && `, ${lastImportResumen.errores} errores`}.
+            </span>
+            {(lastImportTipo === "rh_activos" || lastImportTipo === "bajas_rh") ? (
+              <Button asChild variant="outline" size="sm" className="border-emerald-600/50 text-emerald-700 dark:text-emerald-300">
+                <Link to="/sigua/empleados-rh">Ver en Empleados RH</Link>
+              </Button>
+            ) : (
+              <Button asChild variant="outline" size="sm" className="border-emerald-600/50 text-emerald-700 dark:text-emerald-300">
+                <Link to="/sigua/cuentas">Ver en Cuentas genéricas</Link>
+              </Button>
+            )}
+            <span className="text-xs text-muted-foreground">Historial actualizado abajo.</span>
           </div>
         )}
 

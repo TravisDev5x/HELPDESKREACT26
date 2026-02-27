@@ -46,15 +46,14 @@ export function useCuentasGenericas(filters?: SiguaFilters | null) {
       const p = pageNum ?? page;
       setLoading(true);
       setError(null);
-      const { data: res, error: err } = await getCuentas(filters ?? undefined, p);
-      if (err) {
-        setError(err);
+      const result = await getCuentas(filters ?? undefined, p);
+      if (result.error) {
+        setError(result.error);
         setData([]);
         setMeta(null);
       } else {
-        const body = res as { data: CuentaGenerica[]; meta?: SiguaMeta };
-        setData(Array.isArray(body?.data) ? body.data : []);
-        setMeta(body?.meta ?? null);
+        setData(Array.isArray(result.data) ? result.data : []);
+        setMeta(result.meta ?? null);
         if (pageNum != null) setPage(pageNum);
       }
       setLoading(false);

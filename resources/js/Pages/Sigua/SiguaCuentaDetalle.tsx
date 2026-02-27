@@ -59,8 +59,7 @@ export default function SiguaCuentaDetalle() {
     if (!id) return;
     setLoadingBitacora(true);
     getBitacora({ cuenta_generica_id: Number(id) }, 1).then((res) => {
-      const list = res.data && "data" in res.data ? (res.data as { data: RegistroBitacora[] }).data : [];
-      setBitacoraList(Array.isArray(list) ? list : []);
+      setBitacoraList(Array.isArray(res.data) ? res.data : []);
       setLoadingBitacora(false);
     }).catch(() => setLoadingBitacora(false));
   }, [id]);
@@ -69,8 +68,7 @@ export default function SiguaCuentaDetalle() {
     if (!id) return;
     setLoadingIncidentes(true);
     getIncidentes({ cuenta_generica_id: Number(id) }, 1).then((res) => {
-      const list = res.data && "data" in res.data ? (res.data as { data: Incidente[] }).data : [];
-      setIncidentesList(Array.isArray(list) ? list : []);
+      setIncidentesList(Array.isArray(res.data) ? res.data : []);
       setLoadingIncidentes(false);
     }).catch(() => setLoadingIncidentes(false));
   }, [id]);

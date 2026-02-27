@@ -50,7 +50,15 @@ class ImportacionController extends Controller
                 'message' => 'Importación completada.',
             ], 201);
         } catch (\Throwable $e) {
-            return response()->json(['message' => 'Error al importar: ' . $e->getMessage()], 422);
+            \Illuminate\Support\Facades\Log::warning('SIGUA importar: ' . $e->getMessage(), [
+                'exception' => $e,
+                'tipo' => $request->input('tipo'),
+            ]);
+            $msg = $e->getMessage();
+            if (preg_match('/[A-Za-z]:[\\\\\/]|\\\\var\\\\|\\/var\\/|\\/home\\/|storage\\/|vendor\\//', $msg)) {
+                $msg = 'Error al procesar el archivo.';
+            }
+            return response()->json(['message' => 'Error al importar: ' . $msg], 422);
         }
     }
 
@@ -74,9 +82,19 @@ class ImportacionController extends Controller
             $fullPath = Storage::disk('local')->path($path);
             $result = $this->importacionService->preview($fullPath, (int) $request->input('sistema_id'));
             @unlink($fullPath);
-            return response()->json(['data' => $result, 'message' => 'OK']);
+            $data = array_merge($result, [
+                'filas' => count($result['preview'] ?? []),
+                'columnas' => $result['columnas_detectadas'] ?? [],
+                'muestra' => $result['preview'] ?? [],
+                'errores' => $result['advertencias'] ?? [],
+            ]);
+            return response()->json(['data' => $data, 'message' => 'OK']);
         } catch (\Throwable $e) {
-            return response()->json(['message' => 'Error en preview: ' . $e->getMessage()], 422);
+            $msg = $e->getMessage();
+            if (preg_match('/[A-Za-z]:[\\\\\/]|\\\\var\\\\|\\/var\\/|\\/home\\/|storage\\/|vendor\\//', $msg)) {
+                $msg = 'Error al procesar el archivo.';
+            }
+            return response()->json(['message' => 'Error en preview: ' . $msg], 422);
         }
     }
 

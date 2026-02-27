@@ -207,7 +207,13 @@ class ReporteController extends Controller
                     if (! empty($headers)) {
                         fputcsv($out, $headers);
                         foreach ($rows as $row) {
-                            fputcsv($out, is_array($row) ? array_values($row) : [$row]);
+                            $row = is_array($row) ? $row : [$row];
+                            $values = [];
+                            foreach ($headers as $h) {
+                                $v = $row[$h] ?? '';
+                                $values[] = is_array($v) || is_object($v) ? json_encode($v, JSON_UNESCAPED_UNICODE) : (string) $v;
+                            }
+                            fputcsv($out, $values);
                         }
                     }
                 }

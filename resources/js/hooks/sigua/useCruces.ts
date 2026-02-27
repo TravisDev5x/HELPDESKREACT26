@@ -31,19 +31,18 @@ export function useCruces(params?: { tipo_cruce?: string; per_page?: number }): 
   const refetchHistorial = useCallback(async (pageNum?: number) => {
     setLoading(true);
     setError(null);
-    const { data: res, error: err } = await getHistorialCruces({
+    const result = await getHistorialCruces({
       ...params,
       per_page: params?.per_page ?? 15,
       ...(pageNum != null && { page: pageNum }),
     });
-    if (err) {
-      setError(err);
+    if (result.error) {
+      setError(result.error);
       setHistorial([]);
       setMeta(null);
     } else {
-      const body = res as { data: Cruce[]; meta?: SiguaMeta };
-      setHistorial(Array.isArray(body?.data) ? body.data : []);
-      setMeta(body?.meta ?? null);
+      setHistorial(Array.isArray(result.data) ? result.data : []);
+      setMeta(result.meta ?? null);
     }
     setLoading(false);
   }, [params?.tipo_cruce, params?.per_page]);

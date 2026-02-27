@@ -29,19 +29,18 @@ export function useImportaciones(params?: { tipo?: string; per_page?: number }):
   const refetchHistorial = useCallback(async (page?: number) => {
     setLoading(true);
     setError(null);
-    const { data: res, error: err } = await getHistorialImportaciones({
+    const result = await getHistorialImportaciones({
       ...params,
       per_page: params?.per_page ?? 15,
       ...(page != null && { page }),
     });
-    if (err) {
-      setError(err);
+    if (result.error) {
+      setError(result.error);
       setHistorial([]);
       setMeta(null);
     } else {
-      const body = res as { data: Importacion[]; meta?: SiguaMeta };
-      setHistorial(Array.isArray(body?.data) ? body.data : []);
-      setMeta(body?.meta ?? null);
+      setHistorial(Array.isArray(result.data) ? result.data : []);
+      setMeta(result.meta ?? null);
     }
     setLoading(false);
   }, [params?.tipo, params?.per_page]);

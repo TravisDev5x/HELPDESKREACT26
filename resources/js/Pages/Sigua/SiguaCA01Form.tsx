@@ -123,7 +123,7 @@ export function SiguaCA01Form({
       return;
     }
     getCA01s({ sede_id: sedeId, sistema_id: sistemaId, estado: "vigente" }, 1).then((res) => {
-      const list = (res.data && "data" in res.data ? (res.data as { data: FormatoCA01[] }).data : []) ?? [];
+      const list = Array.isArray(res.data) ? res.data : [];
       const mismoGerenteCampana = gerenteId && campaignId
         ? list.some((c) => c.gerente_user_id === gerenteId && c.campaign_id === campaignId)
         : false;

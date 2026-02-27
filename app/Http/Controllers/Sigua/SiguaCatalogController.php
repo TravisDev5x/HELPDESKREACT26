@@ -21,7 +21,7 @@ class SiguaCatalogController extends Controller
 
         $items = Sistema::query()
             ->orderBy('name')
-            ->get(['id', 'name', 'slug', 'es_externo']);
+            ->get(['id', 'name', 'slug', 'es_externo', 'activo']);
 
         return response()->json(['data' => $items, 'message' => 'OK']);
     }

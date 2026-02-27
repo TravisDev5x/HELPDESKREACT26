@@ -47,8 +47,7 @@ export default function SiguaAlertas() {
       setError(res.error);
       setAlertas([]);
     } else {
-      const body = res.data as { data?: Alerta[] };
-      setAlertas(Array.isArray(body?.data) ? body.data : []);
+      setAlertas(Array.isArray(res.data) ? res.data : []);
     }
     setLoading(false);
   }, [filterLeida, filterResuelta]);

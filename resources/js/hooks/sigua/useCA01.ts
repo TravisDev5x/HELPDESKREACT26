@@ -42,15 +42,14 @@ export function useCA01(filters?: SiguaFilters | null): UseCA01Return {
       const p = pageNum ?? page;
       setLoading(true);
       setError(null);
-      const { data: res, error: err } = await getCA01s(filters ?? undefined, p);
-      if (err) {
-        setError(err);
+      const result = await getCA01s(filters ?? undefined, p);
+      if (result.error) {
+        setError(result.error);
         setData([]);
         setMeta(null);
       } else {
-        const body = res as { data: FormatoCA01[]; meta?: SiguaMeta };
-        setData(Array.isArray(body?.data) ? body.data : []);
-        setMeta(body?.meta ?? null);
+        setData(Array.isArray(result.data) ? result.data : []);
+        setMeta(result.meta ?? null);
         if (pageNum != null) setPage(pageNum);
       }
       setLoading(false);

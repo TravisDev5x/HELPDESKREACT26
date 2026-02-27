@@ -42,15 +42,14 @@ export function useBitacora(filters?: SiguaFilters | null): UseBitacoraReturn {
       const p = pageNum ?? page;
       setLoading(true);
       setError(null);
-      const { data: res, error: err } = await getBitacora(filters ?? undefined, p);
-      if (err) {
-        setError(err);
+      const result = await getBitacora(filters ?? undefined, p);
+      if (result.error) {
+        setError(result.error);
         setData([]);
         setMeta(null);
       } else {
-        const body = res as { data: RegistroBitacora[]; meta?: SiguaMeta };
-        setData(Array.isArray(body?.data) ? body.data : []);
-        setMeta(body?.meta ?? null);
+        setData(Array.isArray(result.data) ? result.data : []);
+        setMeta(result.meta ?? null);
         if (pageNum != null) setPage(pageNum);
       }
       setLoading(false);
@@ -158,15 +157,14 @@ export function useBitacoraPorSede(sedeId: number | null) {
     }
     setLoading(true);
     setError(null);
-    const { data: res, error: err } = await getBitacoraPorSede(sedeId);
-    if (err) {
-      setError(err);
+    const result = await getBitacoraPorSede(sedeId);
+    if (result.error) {
+      setError(result.error);
       setData([]);
       setMeta(null);
     } else {
-      const body = res as { data: RegistroBitacora[]; meta?: SiguaMeta };
-      setData(Array.isArray(body?.data) ? body.data : []);
-      setMeta(body?.meta ?? null);
+      setData(Array.isArray(result.data) ? result.data : []);
+      setMeta(result.meta ?? null);
     }
     setLoading(false);
   }, [sedeId]);

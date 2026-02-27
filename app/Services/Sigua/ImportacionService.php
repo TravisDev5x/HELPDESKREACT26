@@ -503,7 +503,7 @@ class ImportacionService
         }
         $header = array_shift($rows);
         $header = array_map(fn ($k) => trim((string) $k), $header);
-        $out = [array_combine($header, $header) ?: $header];
+        $out = [];
         foreach ($rows as $row) {
             $asoc = [];
             foreach ($header as $i => $key) {
@@ -534,19 +534,25 @@ class ImportacionService
     protected function normalizarFilaRh(array $row): array
     {
         $map = [
-            'id' => 'id', 'ID' => 'id',
-            'nombre_completo' => 'nombre_completo', 'NOMBRE COMPLETO' => 'nombre_completo',
-            'sede' => 'sede', 'SEDE' => 'sede',
-            'campaña' => 'campaign', 'CAMPAÑA' => 'campaign', 'campaign' => 'campaign',
+            'id' => 'id', 'ID' => 'id', 'id empleado' => 'id', 'id_empleado' => 'id',
+            'nombre_completo' => 'nombre_completo', 'NOMBRE COMPLETO' => 'nombre_completo', 'nombre' => 'nombre_completo', 'NOMBRE' => 'nombre_completo',
+            'sede' => 'sede', 'SEDE' => 'sede', 'centro' => 'sede', 'ubicación' => 'sede', 'ubicacion' => 'sede', 'centro_de_trabajo' => 'sede', 'location' => 'sede',
+            'campaña' => 'campaign', 'CAMPAÑA' => 'campaign', 'campaign' => 'campaign', 'campaña' => 'campaign', 'campana' => 'campaign', 'campaña_' => 'campaign',
             'puesto' => 'puesto', 'PUESTO' => 'puesto',
             'numero_empleado' => 'numero_empleado', 'num_empleado' => 'numero_empleado',
+            'núm._empleado' => 'numero_empleado', 'núm_empleado' => 'numero_empleado', 'núm.empleado' => 'numero_empleado', 'numero_empleado' => 'numero_empleado',
+            'no._empleado' => 'numero_empleado', 'no_empleado' => 'numero_empleado', 'no.empleado' => 'numero_empleado',
+            'número_empleado' => 'numero_empleado', 'número_de_empleado' => 'numero_empleado',
             'area' => 'area', 'AREA' => 'area',
             'jefe_inmediato' => 'jefe_inmediato', 'horario' => 'horario', 'tipo_ingreso' => 'tipo_ingreso',
             'fecha_ingreso' => 'fecha_ingreso',
         ];
         $out = [];
         foreach ($row as $key => $value) {
-            $k = $map[$key] ?? strtolower(str_replace(' ', '_', trim((string) $key)));
+            $keyNorm = strtolower(str_replace(' ', '_', trim((string) $key)));
+            $keyNorm = preg_replace('/[.\s]+/', '_', $keyNorm);
+            $keyNorm = preg_replace('/_+/', '_', $keyNorm);
+            $k = $map[$key] ?? $map[$keyNorm] ?? $keyNorm;
             $out[$k] = $value;
         }
         if (! isset($out['nombre_completo']) && isset($row['NOMBRE COMPLETO'])) {
@@ -557,31 +563,62 @@ class ImportacionService
 
     protected function extraerNumEmpleadoRh(array $normalizado): ?string
     {
-        $id = $normalizado['id'] ?? $normalizado['numero_empleado'] ?? $normalizado['num_empleado'] ?? null;
-        if ($id !== null && $id !== '') {
-            return trim((string) $id);
+        $candidatos = ['id', 'numero_empleado', 'num_empleado'];
+        foreach ($candidatos as $k) {
+            $v = $normalizado[$k] ?? null;
+            if ($v !== null && trim((string) $v) !== '') {
+                return trim((string) $v);
+            }
+        }
+        foreach ($normalizado as $key => $value) {
+            if ($value === null || trim((string) $value) === '') {
+                continue;
+            }
+            $keyLower = strtolower((string) $key);
+            if (str_contains($keyLower, 'empleado') && (str_contains($keyLower, 'num') || str_contains($keyLower, 'núm') || str_contains($keyLower, 'id') || str_contains($keyLower, 'no.'))) {
+                return trim((string) $value);
+            }
+            if ($keyLower === 'id' || $keyLower === 'numero' || $keyLower === 'número') {
+                return trim((string) $value);
+            }
         }
         return null;
     }
 
     protected function resolverSedePorNombre(string $nombre): ?int
     {
-        if (trim($nombre) === '') {
+        $nombre = trim($nombre);
+        if ($nombre === '') {
             return null;
         }
-        $sede = Sede::where('name', 'like', '%' . trim($nombre) . '%')
-            ->orWhere('code', 'like', '%' . trim($nombre) . '%')
+        $sede = Sede::where('name', 'like', '%' . $nombre . '%')
+            ->orWhere('code', 'like', '%' . $nombre . '%')
             ->first();
-        return $sede?->id;
+        if ($sede) {
+            return $sede->id;
+        }
+        $sede = Sede::firstOrCreate(
+            ['name' => $nombre],
+            ['code' => null, 'type' => 'physical', 'is_active' => true]
+        );
+        return $sede->id;
     }
 
     protected function resolverCampaignPorNombre(string $nombre): ?int
     {
-        if (trim($nombre) === '') {
+        $nombre = trim($nombre);
+        if ($nombre === '') {
             return null;
         }
-        $campaign = Campaign::where('name', 'like', '%' . trim($nombre) . '%')->first();
-        return $campaign?->id;
+        $campaign = Campaign::where('name', 'like', '%' . $nombre . '%')->first();
+        if ($campaign) {
+            return $campaign->id;
+        }
+        $campaign = Campaign::firstOrCreate(
+            ['name' => $nombre],
+            ['is_active' => true]
+        );
+        return $campaign->id;
     }
 
     protected function parsearFecha(?string $value): ?string

@@ -112,8 +112,7 @@ export default function SiguaIncidentes() {
     setLoadingCuentas(true);
     getBitacora({ cuenta_generica_id: nuevoCuentaId }, 1)
       .then((r) => {
-        const body = r.data && "data" in r.data ? (r.data as { data: unknown[] }).data : [];
-        setBitacoraPreview(Array.isArray(body) ? body : []);
+        setBitacoraPreview(Array.isArray(r.data) ? r.data : []);
       })
       .catch(() => setBitacoraPreview([]))
       .finally(() => setLoadingCuentas(false));

@@ -48,9 +48,8 @@ export default function SiguaEmpleados() {
       setEmpleados([]);
       setMeta(null);
     } else {
-      const body = res.data as { data?: EmpleadoRh[]; meta?: { current_page: number; last_page: number; total: number } };
-      setEmpleados(Array.isArray(body?.data) ? body.data : []);
-      setMeta(body?.meta ?? null);
+      setEmpleados(Array.isArray(res.data) ? res.data : []);
+      setMeta(res.meta ?? null);
     }
     setLoading(false);
   }, [sedeId]);
