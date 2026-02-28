@@ -180,12 +180,18 @@ function useUsersTableColumns({ selectedIds, setSelectedIds, renderRowActions, d
                 header: "Rol / Estado",
                 cell: ({ row }) => {
                     const user = row.original;
+                    const hasBajaSolicitadaRH = user.employee_profile?.termination_date && !user.deleted_at;
                     return (
                         <div className="flex flex-col items-start gap-1.5">
                             <StatusBadge
                                 status={user.status}
                                 isBlacklisted={user.is_blacklisted}
                             />
+                            {hasBajaSolicitadaRH && (
+                                <Badge variant="outline" className="bg-orange-500/15 text-orange-600 dark:text-orange-400 border-orange-500/30 text-[10px] font-bold uppercase tracking-wider">
+                                    Baja Solicitada por RH
+                                </Badge>
+                            )}
                             <span className="text-[10px] font-medium text-muted-foreground uppercase flex items-center gap-1">
                                 <ShieldCheck className="h-3 w-3" /> {user.position}
                             </span>
@@ -572,15 +578,13 @@ export default function Users() {
         if (actionReason.length < 5) return;
         setProcessing(true);
         try {
-            const isDelete = actionConfig.type === 'DELETE';
-            const url = isDelete ? '/api/users/mass-delete' : '/api/users/blacklist';
-            await axios.post(url, { ids: actionConfig.ids, reason: actionReason, action: 'add' });
+            await axios.post('/api/users/mass-delete', { ids: actionConfig.ids, reason: actionReason });
             fetchData(pagination.current);
             setSelectedIds([]);
             setConfirmOpen(false);
-            notify.success("Acción realizada correctamente");
+            notify.success("Baja técnica realizada correctamente");
         } catch (e) {
-            notify.error("Error en la operación");
+            notify.error(e?.response?.data?.message || "No puedes dar de baja: Recursos Humanos debe procesar la baja laboral primero.");
         } finally { setProcessing(false); }
     };
 
@@ -672,18 +676,23 @@ export default function Users() {
                         </TooltipTrigger><TooltipContent>Editar</TooltipContent></Tooltip>
 
                         <Tooltip><TooltipTrigger asChild>
-                            <Button size="icon" variant="ghost" className="h-8 w-8 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40"
-                                    onClick={() => initiateAction('BLACKLIST', user.id)}>
-                                <ShieldAlert className="h-4 w-4" />
-                            </Button>
-                        </TooltipTrigger><TooltipContent>Vetar</TooltipContent></Tooltip>
-
-                        <Tooltip><TooltipTrigger asChild>
-                            <Button size="icon" variant="ghost" className="h-8 w-8 text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40"
-                                    onClick={() => initiateAction('DELETE', user.id)}>
-                                <Trash2 className="h-4 w-4" />
-                            </Button>
-                        </TooltipTrigger><TooltipContent>Baja</TooltipContent></Tooltip>
+                            <span className="inline-block">
+                                <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-8 w-8 text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 disabled:opacity-50"
+                                    onClick={() => initiateAction('DELETE', user.id)}
+                                    disabled={!user.employee_profile?.termination_date}
+                                >
+                                    <Trash2 className="h-4 w-4" />
+                                </Button>
+                            </span>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                            {user.employee_profile?.termination_date
+                                ? "Baja técnica (solo si RH ya procesó la baja laboral)"
+                                : "No puedes dar de baja técnica a un usuario si Recursos Humanos no ha procesado su baja laboral previamente."}
+                        </TooltipContent></Tooltip>
                     </div>
                 </TooltipProvider>
             )}
@@ -750,18 +759,33 @@ export default function Users() {
                         </Button>
                     </div>
 
-                    {selectedIds.length > 0 && (
+                    {selectedIds.length > 0 && !showTrashed && (
                         <div className="flex items-center gap-2 animate-in slide-in-from-right-4 fade-in">
                             <span className="text-xs font-bold text-muted-foreground bg-muted px-2 py-1 rounded-md">{selectedIds.length} sel.</span>
                             <Separator orientation="vertical" className="h-6" />
-                            <Button size="sm" variant="destructive" onClick={() => initiateAction('DELETE')} className="h-9">
-                                <Trash2 className="h-3.5 w-3.5 mr-2" /> Eliminar
-                            </Button>
-                            {!showTrashed && (
-                                <Button size="sm" variant="outline" onClick={() => initiateAction('BLACKLIST')} className="h-9 text-amber-600 border-amber-200 hover:bg-amber-50">
-                                    <ShieldAlert className="h-3.5 w-3.5 mr-2" /> Vetar
-                                </Button>
-                            )}
+                            <TooltipProvider delayDuration={0}>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <span className="inline-block">
+                                            <Button
+                                                size="sm"
+                                                variant="destructive"
+                                                onClick={() => initiateAction('DELETE')}
+                                                className="h-9"
+                                                disabled={selectedIds.some((id) => {
+                                                    const u = filteredUsers.find((u) => u.id === id);
+                                                    return !u?.employee_profile?.termination_date;
+                                                })}
+                                            >
+                                                <Trash2 className="h-3.5 w-3.5 mr-2" /> Eliminar
+                                            </Button>
+                                        </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        Solo se puede dar de baja técnica a usuarios con baja laboral ya procesada por RH.
+                                    </TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
                         </div>
                     )}
                 </div>
@@ -928,10 +952,10 @@ export default function Users() {
                     <DialogHeader className="space-y-2 pb-2">
                         <DialogTitle className="flex items-center gap-2 text-destructive text-lg">
                             <AlertTriangle className="h-5 w-5 shrink-0" />
-                            {actionConfig.type === 'DELETE' ? 'Confirmar Baja' : 'Confirmar Veto'}
+                            Confirmar Baja (baja técnica)
                         </DialogTitle>
                         <DialogDescription className="text-muted-foreground text-sm">
-                            Acción irreversible para {actionConfig.ids.length} usuarios.
+                            Solo se dará de baja técnica a usuarios que tengan ya procesada la baja laboral por RH. Acción irreversible para {actionConfig.ids.length} usuario(s).
                         </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-2 py-1">
@@ -950,7 +974,7 @@ export default function Users() {
                             Cancelar
                         </Button>
                         <Button
-                            variant={actionConfig.type === 'DELETE' ? "destructive" : "default"}
+                            variant="destructive"
                             onClick={executeAction}
                             disabled={processing || actionReason.length < 5}
                             className="min-w-[120px]"

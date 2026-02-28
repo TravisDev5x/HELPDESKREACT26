@@ -45,6 +45,7 @@ import {
     Download,
     FileSpreadsheet,
     AlertCircle,
+    UserPlus,
 } from "lucide-react";
 import { handleAuthError, getApiErrorMessage } from "@/lib/apiErrors";
 
@@ -310,33 +311,14 @@ export default function TimeDeskEmployeesIndex() {
         if (!canSubmitBaja || !bajaTarget?.ids?.length) return;
         setBajaSubmitting(true);
         try {
-            const reason = bajaForm.reason.trim();
-            if (bajaTarget.ids.length === 1) {
-                await axios.delete(`/api/users/${bajaTarget.ids[0]}`, {
-                    data: {
-                        termination_reason_id: Number(bajaForm.termination_reason_id),
-                        termination_date: bajaForm.termination_date,
-                        reason,
-                    },
-                });
-                notify.success("Baja procesada correctamente");
-            } else {
-                await axios.post("/api/users/mass-delete", {
-                    ids: bajaTarget.ids,
-                    reason,
-                    termination_reason_id: Number(bajaForm.termination_reason_id),
-                    termination_date: bajaForm.termination_date,
-                });
-                notify.success("Bajas procesadas correctamente");
-            }
-            if (bajaForm.add_to_blacklist) {
-                await axios.post("/api/users/blacklist", {
-                    ids: bajaTarget.ids,
-                    reason,
-                    action: "add",
-                });
-                notify.success("Usuarios añadidos a la lista negra");
-            }
+            const { data } = await axios.post("/api/timedesk/employees/terminate", {
+                ids: bajaTarget.ids,
+                termination_reason_id: Number(bajaForm.termination_reason_id),
+                termination_date: bajaForm.termination_date,
+                reason: bajaForm.reason.trim() || undefined,
+                add_to_blacklist: !!bajaForm.add_to_blacklist,
+            });
+            notify.success(data?.message ?? "Baja laboral registrada. IT podrá ejecutar la baja técnica cuando corresponda.");
             setBajaModalOpen(false);
             setBajaTarget(null);
             setSelectedIds([]);
@@ -513,6 +495,14 @@ export default function TimeDeskEmployeesIndex() {
                         </p>
                     </div>
                 </div>
+                {canImportExport && (
+                    <Button asChild className="gap-2 shrink-0">
+                        <Link to="/timedesk/employees/create">
+                            <UserPlus className="h-4 w-4" />
+                            Alta de empleado
+                        </Link>
+                    </Button>
+                )}
             </div>
 
             {canImportExport && (
@@ -717,8 +707,7 @@ export default function TimeDeskEmployeesIndex() {
                             Procesar Baja
                         </DialogTitle>
                         <DialogDescription>
-                            Registre el motivo y la fecha de baja para el expediente de RH. Esta
-                            acción dará de baja al usuario en el sistema.
+                            Registre el motivo y la fecha de baja para el expediente. Esta acción solo registra la baja laboral (y opcionalmente la lista negra). La baja técnica en el sistema la ejecutará IT cuando corresponda.
                         </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4 py-2">

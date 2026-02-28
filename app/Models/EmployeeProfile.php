@@ -13,6 +13,15 @@ class EmployeeProfile extends Model
         'hire_date',
         'employee_status_id',
         'hire_type_id',
+        'recruitment_source_id',
+        'curp',
+        'nss',
+        'address',
+        'has_csf',
+        'ine_file_path',
+        'csf_file_path',
+        'address_proof_path',
+        'studies_proof_path',
         'termination_reason_id',
         'termination_date',
     ];
@@ -22,6 +31,7 @@ class EmployeeProfile extends Model
         return [
             'hire_date' => 'date',
             'termination_date' => 'date',
+            'has_csf' => 'boolean',
         ];
     }
 
@@ -53,5 +63,10 @@ class EmployeeProfile extends Model
     public function hireType(): BelongsTo
     {
         return $this->belongsTo(HireType::class);
+    }
+
+    public function recruitmentSource(): BelongsTo
+    {
+        return $this->belongsTo(RecruitmentSource::class);
     }
 }

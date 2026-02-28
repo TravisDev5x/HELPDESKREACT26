@@ -39,7 +39,11 @@ const Schedules = lazy(() => import("@/Pages/Schedules"));
 const ScheduleAssignmentManager = lazy(() => import("@/Pages/ScheduleAssignmentManager"));
 const TimeDeskDashboard = lazy(() => import("@/Pages/TimeDesk/Dashboard"));
 const TimeDeskEmployees = lazy(() => import("@/Pages/TimeDesk/Employees/Index"));
+const TimeDeskEmployeesCreate = lazy(() => import("@/Pages/TimeDesk/Employees/CreateForm"));
 const TimeDeskTerminationReasons = lazy(() => import("@/Pages/TimeDesk/TerminationReasons/Index"));
+const TimeDeskEmployeeStatuses = lazy(() => import("@/Pages/TimeDesk/EmployeeStatuses/Index"));
+const TimeDeskHireTypes = lazy(() => import("@/Pages/TimeDesk/HireTypes/Index"));
+const TimeDeskRecruitmentSources = lazy(() => import("@/Pages/TimeDesk/RecruitmentSources/Index"));
 const SiguaDashboard = lazy(() => import("@/Pages/Sigua/SiguaDashboard"));
 const SiguaCuentas = lazy(() => import("@/Pages/Sigua/SiguaCuentas"));
 const SiguaCuentaDetalle = lazy(() => import("@/Pages/Sigua/SiguaCuentaDetalle"));
@@ -171,7 +175,11 @@ export default function Main() {
                                     <Route element={<TimeDeskGuard />}>
                                         <Route path="/timedesk" element={<TimeDeskDashboard />} />
                                         <Route path="/timedesk/employees" element={<TimeDeskEmployees />} />
+                                        <Route path="/timedesk/employees/create" element={<TimeDeskEmployeesCreate />} />
                                         <Route path="/timedesk/termination-reasons" element={<TimeDeskTerminationReasons />} />
+                                        <Route path="/timedesk/employee-statuses" element={<TimeDeskEmployeeStatuses />} />
+                                        <Route path="/timedesk/hire-types" element={<TimeDeskHireTypes />} />
+                                        <Route path="/timedesk/recruitment-sources" element={<TimeDeskRecruitmentSources />} />
                                         <Route path="/timedesk/schedules" element={<Schedules />} />
                                         <Route path="/timedesk/schedule-assignments" element={<ScheduleAssignmentManager />} />
                                     </Route>

@@ -23,6 +23,7 @@ class DatabaseSeeder extends Seeder
             TerminationReasonSeeder::class,   // Catálogo de motivos de baja (RH/TimeDesk)
             EmployeeStatusSeeder::class,     // Catálogo estatus empleado (Entrevista, Capacitación, Activo, Baja)
             HireTypeSeeder::class,            // Catálogo tipo de ingreso (Nuevo Ingreso, Reingreso)
+            RecruitmentSourceSeeder::class,  // Catálogo medios de contratación (RH)
             SiguaPermissionsSeeder::class,    // Permisos SIGUA y asignación al rol admin
             SiguaConfiguracionSeeder::class,  // Configuración base de SIGUA
         ]);

@@ -31,7 +31,8 @@ import {
     LogOut, Sun, Moon, ChevronsLeft, ChevronsRight, ChevronDown,
     ChevronRight, Bell, BellOff, Layers, Shield, Maximize2,
     Minimize2, Square, SquareDashed, MoreHorizontal, Monitor, Check, CircleDot,
-    CalendarDays, BookOpen, UserCheck, Upload, GitMerge, FileSpreadsheet, FileCheck, Clock, Link2
+    CalendarDays, BookOpen, UserCheck, Upload, GitMerge, FileSpreadsheet, FileCheck, Clock, Link2,
+    Activity, LogIn
 } from 'lucide-react'
 
 // ----------------------------------------------------------------------
@@ -582,6 +583,9 @@ export default function AppLayout() {
             timedeskChildren.push({ to: '/timedesk', label: t('timedesk.dashboard'), icon: LayoutDashboard })
             timedeskChildren.push({ to: '/timedesk/employees', label: 'Directorio de Empleados', icon: Users })
             if (can('attendances.manage')) timedeskChildren.push({ to: '/timedesk/termination-reasons', label: 'Catálogo de Motivos de Baja', icon: Tags })
+            if (can('attendances.manage')) timedeskChildren.push({ to: '/timedesk/employee-statuses', label: 'Catálogo de Estatus', icon: Activity })
+            if (can('attendances.manage')) timedeskChildren.push({ to: '/timedesk/hire-types', label: 'Catálogo de Tipos de Ingreso', icon: LogIn })
+            if (can('attendances.manage')) timedeskChildren.push({ to: '/timedesk/recruitment-sources', label: t('timedesk.catalogRecruitmentSources'), icon: Megaphone })
             if (canSeeCatalogs) timedeskChildren.push({ to: '/timedesk/schedules', label: t('timedesk.catalogSchedules'), icon: Clock })
             if (can('attendances.manage')) timedeskChildren.push({ to: '/timedesk/schedule-assignments', label: t('timedesk.assignments'), icon: Link2 })
         }
@@ -680,6 +684,9 @@ export default function AppLayout() {
         '/schedules': t('nav.schedules'),
         '/schedules/assignments': t('nav.scheduleAssignments'),
         '/timedesk': t('timedesk.dashboard'),
+        '/timedesk/employee-statuses': 'Catálogo de Estatus',
+        '/timedesk/hire-types': 'Catálogo de Tipos de Ingreso',
+        '/timedesk/recruitment-sources': t('timedesk.catalogRecruitmentSources'),
         '/timedesk/schedules': t('timedesk.catalogSchedules'),
         '/timedesk/schedule-assignments': t('timedesk.assignments'),
         '/sigua': 'SIGUA',

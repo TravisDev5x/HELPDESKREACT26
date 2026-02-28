@@ -290,45 +290,44 @@ class UserController extends Controller
         return Role::where('name', $role->name)->where('guard_name', 'web')->first() ?? $role;
     }
 
+    /**
+     * Baja técnica (SoftDelete). Solo permitida si RH ya procesó la baja laboral (termination_date en expediente).
+     */
     public function destroy(Request $request, User $user)
     {
-        $terminationReasonId = $request->input('termination_reason_id');
-        $terminationDate = $request->input('termination_date');
-        $reason = $request->input('reason');
+        $terminationDate = $user->employeeProfile?->termination_date ?? null;
+        if ($terminationDate === null) {
+            abort(403, 'No puedes dar de baja a un usuario si Recursos Humanos no ha procesado su baja laboral previamente.');
+        }
 
-        if ($terminationReasonId !== null || $terminationDate !== null || $reason !== null) {
-            $this->syncEmployeeProfileForTermination($user, $terminationReasonId, $terminationDate);
-            if ($reason !== null && strlen($reason) >= 5) {
-                $user->update(['deletion_reason' => $reason]);
-            }
+        $reason = $request->input('reason');
+        if (is_string($reason) && strlen(trim($reason)) >= 5) {
+            $user->update(['deletion_reason' => trim($reason)]);
         }
 
         $user->delete();
         return response()->json(['message' => 'Usuario eliminado']);
     }
 
+    /**
+     * Baja técnica masiva (SoftDelete). Solo permitida si RH ya procesó la baja laboral en cada usuario.
+     */
     public function massDestroy(Request $request)
     {
         $request->validate([
             'ids' => 'required|array',
             'ids.*' => 'exists:users,id',
             'reason' => 'required|string|min:5',
-            'termination_reason_id' => 'nullable|exists:termination_reasons,id',
-            'termination_date' => 'nullable|date',
         ]);
 
-        $reason = $request->reason;
-        $terminationReasonId = $request->input('termination_reason_id');
-        $terminationDate = $request->input('termination_date');
-
-        $users = User::whereIn('id', $request->ids)->get();
+        $users = User::with('employeeProfile')->whereIn('id', $request->ids)->get();
         foreach ($users as $user) {
-            if ($terminationReasonId !== null || $terminationDate !== null) {
-                $this->syncEmployeeProfileForTermination($user, $terminationReasonId, $terminationDate);
+            if ($user->employeeProfile?->termination_date === null) {
+                abort(403, 'No puedes dar de baja a un usuario si Recursos Humanos no ha procesado su baja laboral previamente. Usuario sin baja laboral: ' . ($user->name ?? $user->employee_number));
             }
         }
 
-        User::whereIn('id', $request->ids)->update(['deletion_reason' => $reason]);
+        User::whereIn('id', $request->ids)->update(['deletion_reason' => $request->reason]);
         User::whereIn('id', $request->ids)->delete();
 
         return response()->json(['message' => 'Usuarios eliminados correctamente']);
@@ -352,36 +351,11 @@ class UserController extends Controller
         $user->employeeProfile()->updateOrCreate(['user_id' => $user->id], $attrs);
     }
 
-    public function toggleBlacklist(Request $request)
-    {
-        $request->validate([
-            'ids' => 'required|array',
-            'ids.*' => 'exists:users,id',
-            'reason' => 'required|string|min:5',
-            'action' => 'required|in:add,remove'
-        ]);
-
-        DB::transaction(function () use ($request) {
-            $isAdding = $request->action === 'add';
-
-            User::whereIn('id', $request->ids)->update(['is_blacklisted' => $isAdding]);
-
-            $logs = [];
-            foreach ($request->ids as $id) {
-                $logs[] = [
-                    'user_id' => $id,
-                    'admin_id' => Auth::id(),
-                    'action' => $isAdding ? 'ADDED' : 'REMOVED',
-                    'reason' => $request->reason,
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ];
-            }
-            DB::table('blacklist_logs')->insert($logs);
-        });
-
-        return response()->json(['message' => 'Lista negra actualizada']);
-    }
+    /**
+     * @deprecated Exclusividad de Lista Negra: solo RH puede añadir/quitar (vía Procesar Baja en TimeDesk).
+     * La función técnica de enviar a Blacklist ya no está disponible en el módulo global de IT.
+     */
+    // public function toggleBlacklist(Request $request) { ... }
 
     public function restore($id)
     {
