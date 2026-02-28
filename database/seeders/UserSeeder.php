@@ -18,7 +18,9 @@ class UserSeeder extends Seeder
         // Opcional: Crear un usuario ADMIN específico para ti
         User::factory()->create([
             'employee_number' => '00001',
-            'name' => 'Admin Sistema',
+            'first_name' => 'Admin',
+            'paternal_last_name' => 'Sistema',
+            'maternal_last_name' => null,
             'email' => 'admin@empresa.com',
             'password' => bcrypt('password123'),
             'campaign' => 'Corporativo',
@@ -27,12 +29,4 @@ class UserSeeder extends Seeder
             'phone' => '5512345678',
         ]);
     }
-
-public function run(): void
-{
-    $this->call([
-        UserSeeder::class,
-    ]);
-}
-
 }

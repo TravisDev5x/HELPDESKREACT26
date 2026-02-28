@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import axios from "@/lib/axios";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
 import { useI18n } from "@/hooks/useI18n";
@@ -16,6 +17,9 @@ export default function Login() {
     const { login } = useAuth();
     const { isDark, toggleTheme } = useTheme();
     const { t } = useI18n();
+    useEffect(() => {
+        axios.get("/sanctum/csrf-cookie", { withCredentials: true }).catch(() => {});
+    }, []);
     const [form, setForm] = useState({ identifier: "", password: "" });
     const [remember, setRemember] = useState(() => {
         if (typeof localStorage === "undefined") return false;

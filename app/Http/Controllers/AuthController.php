@@ -70,6 +70,12 @@ class AuthController extends Controller
             $request->session()->regenerate();
         }
 
+        // Actualizar información de última conexión (compatible con monitor de sesiones)
+        $user->forceFill([
+            'last_login_at' => now(),
+            'last_login_ip' => $request->ip(),
+        ])->save();
+
         $authUser = Auth::user()->load('roles:id,name,guard_name');
         $permissions = $authUser->getAllPermissions()->pluck('name')->values();
 
@@ -84,7 +90,9 @@ class AuthController extends Controller
     {
         $validated = $request->validate([
             'employee_number' => ['required', 'string', 'max:255', 'unique:users,employee_number'],
-            'name' => ['required', 'string', 'max:255'],
+            'first_name' => ['required', 'string', 'max:255'],
+            'paternal_last_name' => ['required', 'string', 'max:255'],
+            'maternal_last_name' => ['nullable', 'string', 'max:255'],
             'email' => ['nullable', 'email', 'unique:users,email'],
             'phone' => ['nullable', 'digits:10'],
             'sede_id' => ['nullable', 'exists:sites,id'],
@@ -105,7 +113,9 @@ class AuthController extends Controller
         $status = !empty($validated['email']) ? 'pending_email' : 'pending_admin';
         $user = User::create([
             'employee_number' => $validated['employee_number'],
-            'name' => $validated['name'],
+            'first_name' => $validated['first_name'],
+            'paternal_last_name' => $validated['paternal_last_name'],
+            'maternal_last_name' => $validated['maternal_last_name'] ?? null,
             'email' => $validated['email'] ?? null,
             'phone' => $validated['phone'] ?? null,
             'password' => Hash::make($validated['password']),

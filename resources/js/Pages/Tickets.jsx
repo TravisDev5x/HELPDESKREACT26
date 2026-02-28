@@ -357,30 +357,40 @@ export default function Tickets() {
     }, [filters, perPage]);
 
     const handleCreateOpen = () => {
+        const openState = catalogs.ticket_states?.find((s) => (s.code || "").toLowerCase() === "abierto") || catalogs.ticket_states?.[0];
         setForm({
             ...form,
-            subject: "", description: "",
-            sede_id: String(user?.sede?.id || ""),
+            subject: "",
+            description: "",
+            sede_id: String(user?.sede_id || user?.sede?.id || ""),
             area_origin_id: String(user?.area_id || ""),
-            area_current_id: "",
-            ticket_type_id: String(catalogs.ticket_types[0]?.id || ""),
-            priority_id: String(catalogs.priorities[0]?.id || ""),
-            ticket_state_id: "1",
+            area_current_id: String(user?.area_id || ""),
+            ticket_type_id: String(catalogs.ticket_types?.[0]?.id || ""),
+            priority_id: String(catalogs.priorities?.[0]?.id || ""),
+            ticket_state_id: String(openState?.id ?? ""),
+            ubicacion_id: form.ubicacion_id || "none",
         });
         setOpen(true);
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        if (!form.area_current_id || !form.sede_id || !form.ticket_type_id || !form.priority_id || !form.ticket_state_id) {
+            notify.error("Completa todos los campos obligatorios (sede, área responsable, área origen, tipo, prioridad).");
+            return;
+        }
         setSaving(true);
         const payload = {
-            ...form,
+            subject: (form.subject || "").trim(),
+            description: form.description?.trim() || null,
             sede_id: Number(form.sede_id),
             area_origin_id: Number(form.area_origin_id),
             area_current_id: Number(form.area_current_id),
             priority_id: Number(form.priority_id),
             ticket_type_id: Number(form.ticket_type_id),
-            ubicacion_id: form.ubicacion_id === "none" ? null : Number(form.ubicacion_id)
+            ticket_state_id: Number(form.ticket_state_id),
+            ubicacion_id: form.ubicacion_id === "none" || !form.ubicacion_id ? null : Number(form.ubicacion_id),
+            created_at: new Date().toISOString(),
         };
         const promise = axios.post("/api/tickets", payload);
         notify.promise(promise, {

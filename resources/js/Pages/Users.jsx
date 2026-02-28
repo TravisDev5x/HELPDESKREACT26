@@ -26,19 +26,32 @@ import {
     UserPlus, ShieldCheck, Trash2, Mail, Search,
     SlidersHorizontal, RotateCcw, AlertOctagon,
     Phone, Briefcase, Building2, UserCircle,
-    ShieldAlert, AlertTriangle, Filter, X, Loader2, CheckCircle2
+    ShieldAlert, AlertTriangle, Filter, X, Loader2, CheckCircle2, Eye
 } from "lucide-react";
 
 // --- SCHEMAS ---
+// Normaliza vacío/null/undefined para campos opcionales (evita "expected string, received null/undefined")
+const emptyToUndefined = (val) => (val === "" || val == null ? undefined : val);
+
 const emailOptionalSchema = z
-    .preprocess((val) => (val === "" ? undefined : val), z.string().email("Formato incorrecto"))
-    .optional();
+    .preprocess(emptyToUndefined, z.union([
+        z.undefined(),
+        z.string().min(1, "Ingresa un correo").email("Correo inválido o dominio incorrecto"),
+    ]));
+
+const phoneOptionalSchema = z
+    .preprocess(emptyToUndefined, z.union([
+        z.undefined(),
+        z.string().regex(/^\d{10}$/, "El teléfono debe tener exactamente 10 dígitos"),
+    ]));
 
 const createFormSchema = z.object({
     employee_number: z.string().min(1, "El número de empleado es requerido"),
-    name: z.string().min(3, "Nombre muy corto (mínimo 3 letras)"),
-    email: z.string().email("Correo inválido"),
-    phone: z.string().regex(/^\d{10}$/, "El teléfono debe tener 10 dígitos exactos"),
+    first_name: z.string().min(2, "Nombre(s) muy corto (mín. 2 letras)"),
+    paternal_last_name: z.string().min(2, "Apellido paterno requerido (mín. 2 letras)"),
+    maternal_last_name: z.string().max(255).optional().or(z.literal("")),
+    email: emailOptionalSchema,
+    phone: phoneOptionalSchema,
     campaign: z.string().min(1, "Selecciona una campaña"),
     area: z.string().min(1, "Selecciona un área"),
     position: z.string().min(1, "Seleccione un puesto"),
@@ -47,19 +60,18 @@ const createFormSchema = z.object({
 });
 
 const editFormSchema = createFormSchema.extend({
-    email: emailOptionalSchema,
     password: z.string().optional(),
 });
 
-// --- COMPONENTE AUXILIAR: STATUS BADGE ---
+// --- COMPONENTE AUXILIAR: STATUS BADGE (compatible tema claro/oscuro) ---
 const StatusBadge = ({ status, isBlacklisted }) => {
     if (isBlacklisted) return <Badge variant="destructive" className="gap-1"><AlertOctagon className="h-3 w-3"/> VETADO</Badge>;
 
     const styles = {
-        active: "bg-emerald-500/15 text-emerald-600 border-emerald-500/20 hover:bg-emerald-500/25",
-        pending_admin: "bg-amber-500/15 text-amber-600 border-amber-500/20 hover:bg-amber-500/25",
-        pending_email: "bg-blue-500/15 text-blue-600 border-blue-500/20 hover:bg-blue-500/25",
-        blocked: "bg-slate-500/15 text-slate-600 border-slate-500/20 hover:bg-slate-500/25",
+        active: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 dark:border-emerald-500/30 hover:bg-emerald-500/25 dark:hover:bg-emerald-500/20",
+        pending_admin: "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/20 dark:border-amber-500/30 hover:bg-amber-500/25 dark:hover:bg-amber-500/20",
+        pending_email: "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/20 dark:border-blue-500/30 hover:bg-blue-500/25 dark:hover:bg-blue-500/20",
+        blocked: "bg-slate-500/15 text-slate-600 dark:text-slate-400 border-slate-500/20 dark:border-slate-500/30 hover:bg-slate-500/25 dark:hover:bg-slate-500/20",
     };
 
     const labels = {
@@ -236,8 +248,8 @@ function UserForm({ defaultValues, onSubmit, onCancel, catalogs, isEdit = false 
     const form = useForm({
         resolver: zodResolver(isEdit ? editFormSchema : createFormSchema),
         defaultValues: defaultValues || {
-            employee_number: "", name: "", email: "", phone: "",
-            campaign: "", area: "", position: "", role_id: "", password: ""
+            employee_number: "", first_name: "", paternal_last_name: "", maternal_last_name: "",
+            email: "", phone: "", campaign: "", area: "", position: "", role_id: "", password: ""
         },
     });
 
@@ -249,8 +261,8 @@ function UserForm({ defaultValues, onSubmit, onCancel, catalogs, isEdit = false 
 
                 {/* Sección: Datos Personales */}
                 <div className="space-y-4">
-                    <div className="flex items-center gap-2 pb-2 border-b border-border/50">
-                        <UserCircle className="h-4 w-4 text-primary" />
+                    <div className="flex items-center gap-2 pb-2 border-b border-border">
+                        <UserCircle className="h-4 w-4 shrink-0 text-primary" />
                         <h4 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Información Personal</h4>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -261,24 +273,38 @@ function UserForm({ defaultValues, onSubmit, onCancel, catalogs, isEdit = false 
                                 <FormMessage />
                             </FormItem>
                         )} />
-                        <FormField control={form.control} name="name" render={({ field }) => (
+                        <FormField control={form.control} name="first_name" render={({ field }) => (
                             <FormItem>
-                                <FormLabel className="text-xs font-semibold">Nombre Completo</FormLabel>
-                                <FormControl><Input {...field} placeholder="Nombre Apellido" className="h-9" /></FormControl>
+                                <FormLabel className="text-xs font-semibold">Nombre(s)</FormLabel>
+                                <FormControl><Input {...field} placeholder="Ej. Juan Carlos" className="h-9" /></FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )} />
+                        <FormField control={form.control} name="paternal_last_name" render={({ field }) => (
+                            <FormItem>
+                                <FormLabel className="text-xs font-semibold">Apellido Paterno</FormLabel>
+                                <FormControl><Input {...field} placeholder="Ej. Pérez" className="h-9" /></FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )} />
+                        <FormField control={form.control} name="maternal_last_name" render={({ field }) => (
+                            <FormItem>
+                                <FormLabel className="text-xs font-semibold">Apellido Materno (opcional)</FormLabel>
+                                <FormControl><Input {...field} placeholder="Ej. García" className="h-9" /></FormControl>
                                 <FormMessage />
                             </FormItem>
                         )} />
                         <FormField control={form.control} name="email" render={({ field }) => (
                             <FormItem>
-                                <FormLabel className="text-xs font-semibold">Correo Electrónico</FormLabel>
-                                <FormControl><Input {...field} type="email" placeholder="usuario@empresa.com" className="h-9" /></FormControl>
+                                <FormLabel className="text-xs font-semibold">Correo Electrónico (opcional)</FormLabel>
+                                <FormControl><Input {...field} type="email" placeholder="usuario@empresa.com" className="h-9" value={field.value ?? ""} /></FormControl>
                                 <FormMessage />
                             </FormItem>
                         )} />
                         <FormField control={form.control} name="phone" render={({ field }) => (
                             <FormItem>
-                                <FormLabel className="text-xs font-semibold">Teléfono</FormLabel>
-                                <FormControl><Input {...field} placeholder="10 dígitos" className="h-9" maxLength={10} /></FormControl>
+                                <FormLabel className="text-xs font-semibold">Teléfono (opcional)</FormLabel>
+                                <FormControl><Input {...field} placeholder="10 dígitos" className="h-9" maxLength={10} value={field.value ?? ""} /></FormControl>
                                 <FormMessage />
                             </FormItem>
                         )} />
@@ -287,8 +313,8 @@ function UserForm({ defaultValues, onSubmit, onCancel, catalogs, isEdit = false 
 
                 {/* Sección: Datos Organizacionales */}
                 <div className="space-y-4">
-                    <div className="flex items-center gap-2 pb-2 border-b border-border/50">
-                        <Building2 className="h-4 w-4 text-primary" />
+                    <div className="flex items-center gap-2 pb-2 border-b border-border">
+                        <Building2 className="h-4 w-4 shrink-0 text-primary" />
                         <h4 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Organización y Acceso</h4>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -364,7 +390,7 @@ function UserForm({ defaultValues, onSubmit, onCancel, catalogs, isEdit = false 
                     </div>
                 </div>
 
-                <div className="bg-muted/30 p-4 rounded-lg border border-border/50">
+                <div className="bg-muted/30 dark:bg-muted/20 p-4 rounded-lg border border-border">
                     <FormField control={form.control} name="password" render={({ field }) => (
                         <FormItem>
                             <FormLabel className="text-xs font-semibold flex items-center gap-2">
@@ -419,6 +445,8 @@ export default function Users() {
 
     const [createOpen, setCreateOpen] = useState(false);
     const [editOpen, setEditOpen] = useState(false);
+    const [viewOpen, setViewOpen] = useState(false);
+    const [viewUser, setViewUser] = useState(null);
     const [selectedIds, setSelectedIds] = useState([]);
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [actionConfig, setActionConfig] = useState({ type: null, ids: [] });
@@ -519,6 +547,19 @@ export default function Users() {
     const updateFilter = (key, value) => setFilters(prev => ({ ...prev, [key]: value }));
     const clearFilters = () => setFilters({ campaign: "all", area: "all", role: "all", status: "all", sede: "all", ubicacion: "all" });
 
+    const activeFilterCount = useMemo(() => {
+        let n = 0;
+        if (filters.campaign !== "all") n++;
+        if (filters.area !== "all") n++;
+        if (filters.role !== "all") n++;
+        if (filters.status !== "all") n++;
+        if (filters.sede !== "all") n++;
+        if (filters.ubicacion !== "all") n++;
+        return n;
+    }, [filters]);
+
+    const hasActiveFilters = activeFilterCount > 0;
+
     const initiateAction = (type, ids = null) => {
         const targetIds = ids ? [ids] : selectedIds;
         if (targetIds.length === 0) return;
@@ -553,10 +594,13 @@ export default function Users() {
     };
 
     const handleCreateSubmit = async (values, form) => {
+        const payload = { ...values };
+        if (payload.email === "" || payload.email == null) payload.email = null;
+        if (payload.phone === "" || payload.phone == null) payload.phone = null;
         try {
-            const { data } = await axios.post("/api/users", values);
-            if (values.role_id) {
-                await axios.post(`/api/users/${data.id || data.user.id}/roles`, { roles: [Number(values.role_id)] });
+            const { data } = await axios.post("/api/users", payload);
+            if (payload.role_id) {
+                await axios.post(`/api/users/${data.id || data.user.id}/roles`, { roles: [Number(payload.role_id)] });
             }
             setCreateOpen(false);
             fetchData(1);
@@ -568,13 +612,16 @@ export default function Users() {
     };
 
     const handleEditSubmit = async (values, form) => {
-        if (!values.password) delete values.password;
-        if (approveMode) values.status = "active";
+        const payload = { ...values };
+        if (!payload.password) delete payload.password;
+        if (approveMode) payload.status = "active";
+        if (payload.email === "" || payload.email == null) payload.email = null;
+        if (payload.phone === "" || payload.phone == null) payload.phone = null;
         if (!selectedUser) return;
         try {
-            await axios.put(`/api/users/${selectedUser.id}`, values);
-            if (values.role_id) {
-                await axios.post(`/api/users/${selectedUser.id}/roles`, { roles: [Number(values.role_id)] });
+            await axios.put(`/api/users/${selectedUser.id}`, payload);
+            if (payload.role_id) {
+                await axios.post(`/api/users/${selectedUser.id}/roles`, { roles: [Number(payload.role_id)] });
             }
             setEditOpen(false);
             setApproveMode(false);
@@ -603,30 +650,36 @@ export default function Users() {
             ) : (
                 <TooltipProvider delayDuration={0}>
                     <div className="flex gap-1">
+                        <Tooltip><TooltipTrigger asChild>
+                            <Button size="icon" variant="ghost" className="h-8 w-8 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40"
+                                    onClick={() => { setViewUser(user); setViewOpen(true); }}>
+                                <Eye className="h-4 w-4" />
+                            </Button>
+                        </TooltipTrigger><TooltipContent>Ver (solo consulta)</TooltipContent></Tooltip>
                         {user.status === "pending_admin" && (
                             <Tooltip><TooltipTrigger asChild>
-                                <Button size="icon" variant="ghost" className="h-8 w-8 text-emerald-600 bg-emerald-50 hover:bg-emerald-100"
+                                <Button size="icon" variant="ghost" className="h-8 w-8 text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/40"
                                         onClick={() => { setSelectedUser(user); setApproveMode(true); setEditOpen(true); }}>
                                     <CheckCircle2 className="h-4 w-4" />
                                 </Button>
                             </TooltipTrigger><TooltipContent>Aprobar</TooltipContent></Tooltip>
                         )}
                         <Tooltip><TooltipTrigger asChild>
-                            <Button size="icon" variant="ghost" className="h-8 w-8 text-slate-500 hover:text-foreground"
+                            <Button size="icon" variant="ghost" className="h-8 w-8 text-slate-500 dark:text-slate-400 hover:text-foreground hover:bg-muted"
                                     onClick={() => { setSelectedUser(user); setApproveMode(false); setEditOpen(true); }}>
                                 <SlidersHorizontal className="h-4 w-4" />
                             </Button>
                         </TooltipTrigger><TooltipContent>Editar</TooltipContent></Tooltip>
 
                         <Tooltip><TooltipTrigger asChild>
-                            <Button size="icon" variant="ghost" className="h-8 w-8 text-amber-600 hover:bg-amber-50"
+                            <Button size="icon" variant="ghost" className="h-8 w-8 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40"
                                     onClick={() => initiateAction('BLACKLIST', user.id)}>
                                 <ShieldAlert className="h-4 w-4" />
                             </Button>
                         </TooltipTrigger><TooltipContent>Vetar</TooltipContent></Tooltip>
 
                         <Tooltip><TooltipTrigger asChild>
-                            <Button size="icon" variant="ghost" className="h-8 w-8 text-red-500 hover:bg-red-50"
+                            <Button size="icon" variant="ghost" className="h-8 w-8 text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40"
                                     onClick={() => initiateAction('DELETE', user.id)}>
                                 <Trash2 className="h-4 w-4" />
                             </Button>
@@ -673,8 +726,19 @@ export default function Users() {
                                 onChange={(e) => setSearchTerm(e.target.value)}
                             />
                         </div>
-                        <Button variant="outline" size="icon" onClick={() => setShowFilters(!showFilters)} className={showFilters ? "bg-muted" : ""}>
-                            <Filter className="h-4 w-4" />
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setShowFilters(!showFilters)}
+                            className={`h-10 gap-2 ${showFilters ? "bg-muted border-primary/30" : ""} ${hasActiveFilters ? "border-primary/50 text-primary" : ""}`}
+                        >
+                            <Filter className="h-4 w-4 shrink-0" />
+                            <span className="hidden sm:inline">Filtros</span>
+                            {hasActiveFilters && (
+                                <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-primary/15 px-1.5 text-xs font-bold text-primary">
+                                    {activeFilterCount}
+                                </span>
+                            )}
                         </Button>
                         <Button
                             variant={showTrashed ? "destructive" : "outline"}
@@ -703,47 +767,101 @@ export default function Users() {
                 </div>
 
                 {showFilters && (
-                    <div className="px-4 pb-4 pt-0 grid grid-cols-2 md:grid-cols-7 gap-3 animate-in slide-in-from-top-2">
-                        <Select value={filters.campaign} onValueChange={(v) => updateFilter('campaign', v)}>
-                            <SelectTrigger className="bg-background h-9 text-xs"><SelectValue placeholder="Campaña" /></SelectTrigger>
-                            <SelectContent>{catalogs.campaigns.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}</SelectContent>
-                        </Select>
-                        <Select value={filters.area} onValueChange={(v) => updateFilter('area', v)}>
-                            <SelectTrigger className="bg-background h-9 text-xs"><SelectValue placeholder="Área" /></SelectTrigger>
-                            <SelectContent>{catalogs.areas.map(a => <SelectItem key={a.id} value={a.name}>{a.name}</SelectItem>)}</SelectContent>
-                        </Select>
-                        <Select value={filters.role} onValueChange={(v) => updateFilter('role', v)}>
-                            <SelectTrigger className="bg-background h-9 text-xs"><SelectValue placeholder="Rol" /></SelectTrigger>
-                            <SelectContent>{catalogs.roles.map(r => <SelectItem key={r.id} value={String(r.id)}>{r.name}</SelectItem>)}</SelectContent>
-                        </Select>
-                        <Select value={filters.sede} onValueChange={(v) => updateFilter('sede', v)}>
-                            <SelectTrigger className="bg-background h-9 text-xs"><SelectValue placeholder="Sede" /></SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">Todas</SelectItem>
-                                {catalogs.sedes.map(s => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}
-                            </SelectContent>
-                        </Select>
-                        <Select value={filters.ubicacion} onValueChange={(v) => updateFilter('ubicacion', v)}>
-                            <SelectTrigger className="bg-background h-9 text-xs"><SelectValue placeholder="Ubicación" /></SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">Todas</SelectItem>
-                                {catalogs.ubicaciones
-                                    .filter(u => filters.sede === 'all' || u.sede_name === filters.sede)
-                                    .map(u => <SelectItem key={u.id} value={u.name}>{u.name} ({u.sede_name})</SelectItem>)}
-                            </SelectContent>
-                        </Select>
-                        <Select value={filters.status} onValueChange={(v) => updateFilter('status', v)}>
-                            <SelectTrigger className="bg-background h-9 text-xs"><SelectValue placeholder="Estatus" /></SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">Todos</SelectItem>
-                                <SelectItem value="active">Activos</SelectItem>
-                                <SelectItem value="pending_admin">Pendientes</SelectItem>
-                                <SelectItem value="blocked">Bloqueados</SelectItem>
-                            </SelectContent>
-                        </Select>
-                        <Button variant="ghost" size="sm" onClick={clearFilters} className="text-xs text-muted-foreground h-9">
-                            <X className="h-3 w-3 mr-1" /> Limpiar
-                        </Button>
+                    <div className="px-4 pb-4 pt-0 border-t border-border/60 mt-0">
+                        <div className="flex flex-wrap items-center gap-2 pt-4 pb-3">
+                            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Filtrar por</span>
+                            {hasActiveFilters && (
+                                <span className="text-xs text-muted-foreground">
+                                    ({activeFilterCount} activo{activeFilterCount !== 1 ? "s" : ""})
+                                </span>
+                            )}
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+                            <div className="space-y-1.5">
+                                <label className="block text-xs font-medium text-foreground">Campaña</label>
+                                <Select value={filters.campaign} onValueChange={(v) => updateFilter('campaign', v)}>
+                                    <SelectTrigger className="bg-background h-9 text-sm w-full">
+                                        <SelectValue placeholder="Todas las campañas" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">Todas las campañas</SelectItem>
+                                        {catalogs.campaigns.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="space-y-1.5">
+                                <label className="block text-xs font-medium text-foreground">Área</label>
+                                <Select value={filters.area} onValueChange={(v) => updateFilter('area', v)}>
+                                    <SelectTrigger className="bg-background h-9 text-sm w-full">
+                                        <SelectValue placeholder="Todas las áreas" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">Todas las áreas</SelectItem>
+                                        {catalogs.areas.map(a => <SelectItem key={a.id} value={a.name}>{a.name}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="space-y-1.5">
+                                <label className="block text-xs font-medium text-foreground">Rol de sistema</label>
+                                <Select value={filters.role} onValueChange={(v) => updateFilter('role', v)}>
+                                    <SelectTrigger className="bg-background h-9 text-sm w-full">
+                                        <SelectValue placeholder="Todos los roles" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">Todos los roles</SelectItem>
+                                        {catalogs.roles.map(r => <SelectItem key={r.id} value={String(r.id)}>{r.name}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="space-y-1.5">
+                                <label className="block text-xs font-medium text-foreground">Sede</label>
+                                <Select value={filters.sede} onValueChange={(v) => updateFilter('sede', v)}>
+                                    <SelectTrigger className="bg-background h-9 text-sm w-full">
+                                        <SelectValue placeholder="Todas las sedes" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">Todas las sedes</SelectItem>
+                                        {catalogs.sedes.map(s => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="space-y-1.5">
+                                <label className="block text-xs font-medium text-foreground">Ubicación</label>
+                                <Select value={filters.ubicacion} onValueChange={(v) => updateFilter('ubicacion', v)}>
+                                    <SelectTrigger className="bg-background h-9 text-sm w-full">
+                                        <SelectValue placeholder="Todas las ubicaciones" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">Todas las ubicaciones</SelectItem>
+                                        {catalogs.ubicaciones
+                                            .filter(u => filters.sede === 'all' || u.sede_name === filters.sede)
+                                            .map(u => <SelectItem key={u.id} value={u.name}>{u.name}{u.sede_name ? ` · ${u.sede_name}` : ""}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="space-y-1.5">
+                                <label className="block text-xs font-medium text-foreground">Estatus</label>
+                                <Select value={filters.status} onValueChange={(v) => updateFilter('status', v)}>
+                                    <SelectTrigger className="bg-background h-9 text-sm w-full">
+                                        <SelectValue placeholder="Todos los estatus" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">Todos los estatus</SelectItem>
+                                        <SelectItem value="active">Activo</SelectItem>
+                                        <SelectItem value="pending_admin">Pendiente de aprobación</SelectItem>
+                                        <SelectItem value="pending_email">Verificando email</SelectItem>
+                                        <SelectItem value="blocked">Bloqueado</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+                        {hasActiveFilters && (
+                            <div className="flex justify-end pt-3">
+                                <Button variant="ghost" size="sm" onClick={clearFilters} className="text-xs text-muted-foreground hover:text-foreground h-8 gap-1.5">
+                                    <X className="h-3.5 w-3.5" /> Limpiar todos los filtros
+                                </Button>
+                            </div>
+                        )}
                     </div>
                 )}
             </Card>
@@ -758,9 +876,9 @@ export default function Users() {
                     renderRowActions={renderRowActions}
                 />
 
-                {/* PAGINACIÓN CORREGIDA: Incluye selector de registros */}
+                {/* PAGINACIÓN: rango visible, total y botones correctamente deshabilitados */}
                 <div className="border-t border-border/50 bg-muted/20 px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-4">
-                    <div className="flex items-center gap-3 w-full sm:w-auto">
+                    <div className="flex items-center gap-3 w-full sm:w-auto flex-wrap">
                         <span className="text-xs text-muted-foreground font-medium whitespace-nowrap">Mostrar</span>
                         <Select value={perPage} onValueChange={(v) => { setPerPage(v); fetchData(1); }}>
                             <SelectTrigger className="h-8 w-[70px] text-xs bg-background"><SelectValue /></SelectTrigger>
@@ -768,14 +886,37 @@ export default function Users() {
                                 {["10", "20", "50", "100"].map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}
                             </SelectContent>
                         </Select>
-                        <span className="text-xs text-muted-foreground font-medium whitespace-nowrap">de {pagination.total}</span>
+                        <span className="text-xs text-muted-foreground font-medium whitespace-nowrap">
+                            {pagination.total === 0
+                                ? "0 registros"
+                                : (() => {
+                                    const from = (pagination.current - 1) * Number(perPage) + 1;
+                                    const to = Math.min(pagination.current * Number(perPage), pagination.total);
+                                    return to > from ? `${from}–${to} de ${pagination.total}` : `${from} de ${pagination.total}`;
+                                })()}
+                        </span>
                     </div>
 
-                    <div className="flex gap-2 w-full sm:w-auto justify-end">
-                        <Button variant="outline" size="sm" disabled={pagination.current <= 1 || loading} onClick={() => fetchData(pagination.current - 1)} className="h-8 text-xs">
+                    <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                        <span className="text-xs text-muted-foreground hidden sm:inline">
+                            Página {pagination.current} de {Math.max(1, pagination.last)}
+                        </span>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={pagination.current <= 1 || loading || pagination.total === 0}
+                            onClick={() => fetchData(pagination.current - 1)}
+                            className="h-8 text-xs"
+                        >
                             Anterior
                         </Button>
-                        <Button variant="outline" size="sm" disabled={pagination.current >= pagination.last || loading} onClick={() => fetchData(pagination.current + 1)} className="h-8 text-xs">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={pagination.current >= pagination.last || loading || pagination.total === 0}
+                            onClick={() => fetchData(pagination.current + 1)}
+                            className="h-8 text-xs"
+                        >
                             Siguiente
                         </Button>
                     </div>
@@ -783,64 +924,155 @@ export default function Users() {
             </Card>
 
             <Dialog open={confirmOpen} onOpenChange={(open) => { if (!processing) setConfirmOpen(open); }}>
-                <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
-                    <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2 text-destructive">
-                            <AlertTriangle className="h-5 w-5" />
+                <DialogContent className="sm:max-w-md border-border bg-background text-foreground shadow-xl">
+                    <DialogHeader className="space-y-2 pb-2">
+                        <DialogTitle className="flex items-center gap-2 text-destructive text-lg">
+                            <AlertTriangle className="h-5 w-5 shrink-0" />
                             {actionConfig.type === 'DELETE' ? 'Confirmar Baja' : 'Confirmar Veto'}
                         </DialogTitle>
-                        <DialogDescription>
+                        <DialogDescription className="text-muted-foreground text-sm">
                             Acción irreversible para {actionConfig.ids.length} usuarios.
                         </DialogDescription>
                     </DialogHeader>
-                    <div className="space-y-3 py-2">
-                        <label className="text-xs font-bold uppercase text-muted-foreground">Motivo (Min. 5 caracteres)</label>
+                    <div className="space-y-2 py-1">
+                        <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                            Motivo (mín. 5 caracteres)
+                        </label>
                         <Textarea
                             placeholder="Motivo..."
                             value={actionReason}
                             onChange={(e) => setActionReason(e.target.value)}
-                            className="resize-none"
+                            className="min-h-[80px] resize-none border-border bg-background text-foreground placeholder:text-muted-foreground"
                         />
                     </div>
-                    <DialogFooter>
-                        <Button variant="ghost" onClick={() => setConfirmOpen(false)} disabled={processing}>Cancelar</Button>
+                    <DialogFooter className="flex flex-row gap-3 pt-4 mt-4 border-t border-border">
+                        <Button variant="ghost" onClick={() => setConfirmOpen(false)} disabled={processing} className="min-w-0">
+                            Cancelar
+                        </Button>
                         <Button
                             variant={actionConfig.type === 'DELETE' ? "destructive" : "default"}
                             onClick={executeAction}
                             disabled={processing || actionReason.length < 5}
+                            className="min-w-[120px]"
                         >
-                            {processing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            {processing && <Loader2 className="mr-2 h-4 w-4 animate-spin shrink-0" />}
                             Confirmar
                         </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
 
+            {/* Modal solo consulta: ver usuario */}
+            <Dialog open={viewOpen} onOpenChange={(open) => { if (!open) { setViewOpen(false); setViewUser(null); } }}>
+                <DialogContent className="sm:max-w-[520px] max-h-[90vh] flex flex-col overflow-hidden border-border bg-background text-foreground shadow-xl p-0 gap-0">
+                    <DialogHeader className="shrink-0 px-6 pr-10 pt-6 pb-4 border-b border-border space-y-1.5 text-left">
+                        <DialogTitle className="text-xl flex items-center gap-2 text-foreground">
+                            <Eye className="h-5 w-5 shrink-0 text-blue-500 dark:text-blue-400" />
+                            Ver usuario (solo consulta)
+                        </DialogTitle>
+                        <DialogDescription className="text-muted-foreground text-sm">
+                            Información del colaborador. No se pueden editar datos desde esta vista.
+                        </DialogDescription>
+                    </DialogHeader>
+                    {viewUser && (
+                        <>
+                            <div className="flex-1 min-h-0 overflow-y-auto">
+                                <div className="px-6 py-5 space-y-5">
+                                    <div className="flex flex-wrap items-center gap-3 pb-4 border-b border-border">
+                                        <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+                                            <span className="font-bold text-lg text-foreground break-words">{viewUser.name}</span>
+                                            <span className="text-sm text-muted-foreground font-mono">#{viewUser.employee_number}</span>
+                                        </div>
+                                        <StatusBadge status={viewUser.status} isBlacklisted={viewUser.is_blacklisted} />
+                                    </div>
+                                    <dl className="grid grid-cols-1 gap-4 text-sm">
+                                        <div className="flex flex-col gap-1">
+                                            <dt className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Correo</dt>
+                                            <dd className="flex items-center gap-2 text-foreground"><Mail className="h-3.5 w-3.5 shrink-0 text-muted-foreground" /> {viewUser.email || "—"}</dd>
+                                        </div>
+                                        <div className="flex flex-col gap-1">
+                                            <dt className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Teléfono</dt>
+                                            <dd className="flex items-center gap-2 text-foreground"><Phone className="h-3.5 w-3.5 shrink-0 text-muted-foreground" /> {viewUser.phone || "—"}</dd>
+                                        </div>
+                                        <div className="flex flex-col gap-1">
+                                            <dt className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Campaña</dt>
+                                            <dd className="flex items-center gap-2 text-foreground"><Briefcase className="h-3.5 w-3.5 shrink-0 text-muted-foreground" /> {viewUser.campaign || "—"}</dd>
+                                        </div>
+                                        <div className="flex flex-col gap-1">
+                                            <dt className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Área</dt>
+                                            <dd className="flex items-center gap-2 text-foreground"><Building2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" /> {viewUser.area || "—"}</dd>
+                                        </div>
+                                        <div className="flex flex-col gap-1">
+                                            <dt className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Puesto</dt>
+                                            <dd className="flex items-center gap-2 text-foreground"><ShieldCheck className="h-3.5 w-3.5 shrink-0 text-muted-foreground" /> {viewUser.position || "—"}</dd>
+                                        </div>
+                                        <div className="flex flex-col gap-1">
+                                            <dt className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Sede</dt>
+                                            <dd className="flex items-center gap-2 text-foreground"><Building2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" /> {viewUser.sede || "—"}</dd>
+                                        </div>
+                                        {viewUser.ubicacion && (
+                                            <div className="flex flex-col gap-1">
+                                                <dt className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Ubicación</dt>
+                                                <dd className="flex items-center gap-2 text-foreground"><Building2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" /> {viewUser.ubicacion}</dd>
+                                            </div>
+                                        )}
+                                        <div className="flex flex-col gap-1">
+                                            <dt className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Rol(es)</dt>
+                                            <dd className="flex flex-wrap gap-1.5">
+                                                {viewUser.roles?.length ? viewUser.roles.map((r) => (
+                                                    <Badge key={r.id} variant="secondary" className="text-xs">{r.name}</Badge>
+                                                )) : "—"}
+                                            </dd>
+                                        </div>
+                                    </dl>
+                                </div>
+                            </div>
+                            <DialogFooter className="shrink-0 flex flex-row gap-3 px-6 py-4 border-t border-border bg-muted/30">
+                                <Button type="button" variant="outline" onClick={() => { setViewOpen(false); setViewUser(null); }} className="min-w-0">
+                                    Cerrar
+                                </Button>
+                                <Button type="button" variant="default" onClick={() => { setViewOpen(false); setViewUser(null); setSelectedUser(viewUser); setApproveMode(false); setEditOpen(true); }} className="min-w-0">
+                                    Ir a editar
+                                </Button>
+                            </DialogFooter>
+                        </>
+                    )}
+                </DialogContent>
+            </Dialog>
+
             <Dialog open={createOpen || editOpen} onOpenChange={(open) => { if(!open) { setCreateOpen(false); setEditOpen(false); setApproveMode(false); } }}>
-                <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
-                    <DialogHeader className="pb-4 border-b">
-                        <DialogTitle className="text-xl flex items-center gap-2">
+                <DialogContent className="sm:max-w-[720px] max-h-[90vh] flex flex-col overflow-hidden border-border bg-background text-foreground shadow-xl p-0 gap-0">
+                    <DialogHeader className="shrink-0 px-6 pr-10 pt-6 pb-4 border-b border-border space-y-1.5 text-left">
+                        <DialogTitle className="text-xl text-foreground">
                             {editOpen ? "Editar Perfil" : "Nuevo Colaborador"}
                         </DialogTitle>
-                        <DialogDescription>
+                        <DialogDescription className="text-muted-foreground text-sm">
                             Ingrese los datos del usuario.
                         </DialogDescription>
                     </DialogHeader>
 
                     {(createOpen || (editOpen && selectedUser)) && (
-                        <UserForm
-                            key={editOpen ? selectedUser.id : 'new'}
-                            isEdit={editOpen}
-                            catalogs={catalogs}
-                            onSubmit={editOpen ? handleEditSubmit : handleCreateSubmit}
-                            onCancel={() => { setCreateOpen(false); setEditOpen(false); }}
-                            defaultValues={editOpen ? {
-                                ...selectedUser,
-                                email: selectedUser.email ?? "",
-                                role_id: resolveRoleId(selectedUser.roles, catalogs.roles),
-                                password: ""
-                            } : undefined}
-                        />
+                        <div className="flex-1 min-h-0 overflow-y-auto">
+                            <div className="px-6 py-5">
+                                <UserForm
+                                    key={editOpen ? selectedUser.id : 'new'}
+                                    isEdit={editOpen}
+                                    catalogs={catalogs}
+                                    onSubmit={editOpen ? handleEditSubmit : handleCreateSubmit}
+                                    onCancel={() => { setCreateOpen(false); setEditOpen(false); }}
+                                    defaultValues={editOpen ? {
+                                        ...selectedUser,
+                                        first_name: selectedUser.first_name ?? "",
+                                        paternal_last_name: selectedUser.paternal_last_name ?? "",
+                                        maternal_last_name: selectedUser.maternal_last_name ?? "",
+                                        email: selectedUser.email ?? "",
+                                        phone: selectedUser.phone ?? "",
+                                        role_id: resolveRoleId(selectedUser.roles, catalogs.roles),
+                                        password: ""
+                                    } : undefined}
+                                />
+                            </div>
+                        </div>
                     )}
                 </DialogContent>
             </Dialog>

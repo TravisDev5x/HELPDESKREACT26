@@ -31,7 +31,7 @@ import {
     LogOut, Sun, Moon, ChevronsLeft, ChevronsRight, ChevronDown,
     ChevronRight, Bell, BellOff, Layers, Shield, Maximize2,
     Minimize2, Square, SquareDashed, MoreHorizontal, Monitor, Check, CircleDot,
-    CalendarDays, BookOpen, UserCheck, Upload, GitMerge, FileSpreadsheet, FileCheck
+    CalendarDays, BookOpen, UserCheck, Upload, GitMerge, FileSpreadsheet, FileCheck, Clock, Link2
 } from 'lucide-react'
 
 // ----------------------------------------------------------------------
@@ -233,6 +233,24 @@ function Sidebar({ collapsed, onToggle, nav, sidebarPosition = 'left' }) {
             return next
         })
     }
+    const [timedeskOpen, setTimedeskOpen] = useState(() => {
+        if (typeof window === 'undefined') return true
+        try {
+            const v = localStorage.getItem('sidebar-timedesk-open')
+            return v !== '0'
+        } catch {
+            return true
+        }
+    })
+    const toggleTimedeskOpen = () => {
+        setTimedeskOpen(prev => {
+            const next = !prev
+            try {
+                localStorage.setItem('sidebar-timedesk-open', next ? '1' : '0')
+            } catch { /* ignore */ }
+            return next
+        })
+    }
 
     const [toggleBtnTooltipOpen, setToggleBtnTooltipOpen] = useState(false)
 
@@ -288,7 +306,8 @@ function Sidebar({ collapsed, onToggle, nav, sidebarPosition = 'left' }) {
                     {nav.map((section, index) => {
                         const isCatalogs = section.label === t('nav.catalogs')
                         const isSigua = section.label === 'SIGUA'
-                        const showSection = (!isCatalogs || catalogsOpen) && (!isSigua || siguaOpen)
+                        const isTimeDesk = section.label === t('nav.timedesk')
+                        const showSection = (!isCatalogs || catalogsOpen) && (!isSigua || siguaOpen) && (!isTimeDesk || timedeskOpen)
 
                         return (
                             <div key={index} className="space-y-1">
@@ -311,6 +330,14 @@ function Sidebar({ collapsed, onToggle, nav, sidebarPosition = 'left' }) {
                                                 {section.label}
                                                 <ChevronDown className={cn("h-3 w-3 transition-transform opacity-0 group-hover:opacity-100", !siguaOpen && "-rotate-90")} />
                                             </button>
+                                        ) : isTimeDesk ? (
+                                            <button
+                                                onClick={toggleTimedeskOpen}
+                                                className="flex w-full items-center justify-between text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50 hover:text-foreground transition-colors"
+                                            >
+                                                {section.label}
+                                                <ChevronDown className={cn("h-3 w-3 transition-transform opacity-0 group-hover:opacity-100", !timedeskOpen && "-rotate-90")} />
+                                            </button>
                                         ) : (
                                             <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">
                                                 {section.label}
@@ -325,6 +352,11 @@ function Sidebar({ collapsed, onToggle, nav, sidebarPosition = 'left' }) {
                                     </div>
                                 )}
                                 {collapsed && isSigua && (
+                                    <div className="flex justify-center py-2">
+                                        <MoreHorizontal className="h-4 w-4 text-muted-foreground/30" />
+                                    </div>
+                                )}
+                                {collapsed && isTimeDesk && (
                                     <div className="flex justify-center py-2">
                                         <MoreHorizontal className="h-4 w-4 text-muted-foreground/30" />
                                     </div>
@@ -517,10 +549,13 @@ export default function AppLayout() {
     const canSeeTicketsModule = can('tickets.manage_all') || can('tickets.view_area')
     /* Mis tickets en sidebar solo para agentes/admins (quienes ven cola); el solicitante solo usa Inicio con todo completo */
     const canSeeMyTickets = (can('tickets.create') || can('tickets.view_own')) && (can('tickets.manage_all') || can('tickets.view_area'))
+    const canSeeAttendance = can('attendances.view_own') || can('attendances.record_own')
+    const canSeeTimeDesk = can('attendances.manage') || can('attendances.view_all')
 
     const NAV = React.useMemo(() => {
         const generalItems = [
             { to: '/', label: t('nav.home'), icon: LayoutDashboard, emphasis: true },
+            ...(canSeeAttendance ? [{ to: '/attendance', label: t('nav.attendance'), icon: Clock, emphasis: true }] : []),
             { to: '/calendario', label: t('nav.calendar'), icon: CalendarDays, emphasis: true },
             ...(canSeeMyTickets ? [{ to: '/mis-tickets', label: t('nav.myTickets'), icon: Ticket, emphasis: true }] : []),
             ...(canSeeTicketsModule ? [{ to: '/tickets', label: t('nav.tickets'), icon: Ticket, emphasis: true }] : []),
@@ -542,9 +577,26 @@ export default function AppLayout() {
         if (can('sigua.dashboard') || can('sigua.cuentas.manage') || can('sigua.importar')) siguaChildren.push({ to: '/sigua/configuracion', label: 'Configuración', icon: Settings })
         if (can('sigua.reportes')) siguaChildren.push({ to: '/sigua/reportes', label: 'Reportes', icon: FileSpreadsheet })
 
+        const timedeskChildren = []
+        if (canSeeTimeDesk) {
+            timedeskChildren.push({ to: '/timedesk', label: t('timedesk.dashboard'), icon: LayoutDashboard })
+            timedeskChildren.push({ to: '/timedesk/employees', label: 'Directorio de Empleados', icon: Users })
+            if (can('attendances.manage')) timedeskChildren.push({ to: '/timedesk/termination-reasons', label: 'Catálogo de Motivos de Baja', icon: Tags })
+            if (canSeeCatalogs) timedeskChildren.push({ to: '/timedesk/schedules', label: t('timedesk.catalogSchedules'), icon: Clock })
+            if (can('attendances.manage')) timedeskChildren.push({ to: '/timedesk/schedule-assignments', label: t('timedesk.assignments'), icon: Link2 })
+        }
+
         const sections = [
             { label: t('nav.general'), items: generalItems },
         ]
+        if (canSeeTimeDesk && timedeskChildren.length > 0) {
+            sections.push({
+                label: t('nav.timedesk'),
+                items: [
+                    { label: t('nav.timedesk'), icon: Clock, emphasis: false, children: timedeskChildren },
+                ],
+            })
+        }
         if (canSeeSigua && siguaChildren.length > 0) {
             sections.push({
                 label: 'SIGUA',
@@ -583,6 +635,7 @@ export default function AppLayout() {
                         { to: '/positions', label: t('nav.positions'), icon: BadgeCheck },
                         { to: '/sedes', label: t('nav.sedes'), icon: MapPinHouse },
                         { to: '/ubicaciones', label: t('nav.ubicaciones'), icon: MapPinned },
+                        { to: '/schedules', label: t('nav.schedules'), icon: Clock },
                     ],
                 },
                 {
@@ -603,7 +656,7 @@ export default function AppLayout() {
             ],
         })
         return sections
-    }, [t, can, canSeeCatalogs, canSeeUsers, canSeeSigua, canSeeIncidents, canSeeTicketsModule, canSeeMyTickets])
+    }, [t, can, canSeeCatalogs, canSeeUsers, canSeeSigua, canSeeIncidents, canSeeTicketsModule, canSeeMyTickets, canSeeAttendance, canSeeTimeDesk])
 
     const titleMap = {
         '/': t('nav.home'),
@@ -623,6 +676,12 @@ export default function AppLayout() {
         '/tickets/new': t('section.tickets'),
         '/incidents': t('section.incidents'),
         '/profile': t('layout.profile'),
+        '/attendance': t('nav.attendance'),
+        '/schedules': t('nav.schedules'),
+        '/schedules/assignments': t('nav.scheduleAssignments'),
+        '/timedesk': t('timedesk.dashboard'),
+        '/timedesk/schedules': t('timedesk.catalogSchedules'),
+        '/timedesk/schedule-assignments': t('timedesk.assignments'),
         '/sigua': 'SIGUA',
         '/sigua/cuentas': 'SIGUA · Cuentas',
         '/sigua/ca01': 'SIGUA · CA-01',

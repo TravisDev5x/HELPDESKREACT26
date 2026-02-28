@@ -21,7 +21,9 @@ class ProfileController extends Controller
         $user = Auth::user();
 
         $request->validate([
-            'name'   => 'required|string|max:255',
+            'first_name' => 'required|string|max:255',
+            'paternal_last_name' => 'required|string|max:255',
+            'maternal_last_name' => 'nullable|string|max:255',
             'email'  => 'required|email|unique:users,email,' . $user->id,
             'phone'  => 'nullable|string|max:20',
             'avatar' => 'nullable|image|max:5120',
@@ -73,7 +75,9 @@ class ProfileController extends Controller
             $user->avatar_path = $path;
         }
 
-        $user->name  = $request->name;
+        $user->first_name = $request->first_name;
+        $user->paternal_last_name = $request->paternal_last_name;
+        $user->maternal_last_name = $request->maternal_last_name;
         $user->email = $request->email;
         $user->phone = $request->phone;
         if ($request->filled('theme')) {

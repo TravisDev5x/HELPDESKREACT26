@@ -47,5 +47,8 @@ Route::get('/login', fn () => response()->view('app')->withHeaders($spaHeaders))
 // ==========================
 // SPA (React)
 // ==========================
+// Rutas /timedesk, /timedesk/schedules, /timedesk/schedule-assignments son manejadas
+// por el router del frontend (Main.jsx). Protección por permisos attendances.manage
+// o attendances.view_all en el cliente y en la API bajo /api/timedesk/*.
 // SIEMPRE AL FINAL
 Route::get('/{any}', fn () => response()->view('app')->withHeaders($spaHeaders))->where('any', '^(?!api).*');

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Mail\VerifyEmail;
 use App\Models\User;
 use App\Models\Role;
+use App\Models\EmployeeProfile;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -20,17 +21,21 @@ class UserController extends Controller
      */
     public function index(Request $request)
     {
-        $query = User::with(['campaign', 'area', 'position', 'sede', 'ubicacion', 'roles']);
+        $query = User::with(['campaign', 'area', 'position', 'sede', 'ubicacion', 'roles', 'employeeProfile.terminationReason']);
 
         if ($request->input('status') === 'only') {
             $query->onlyTrashed();
         }
 
         if ($search = $request->input('search')) {
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                    ->orWhere('employee_number', 'like', "%{$search}%")
-                    ->orWhere('email', 'like', "%{$search}%");
+            $term = "%{$search}%";
+            $query->where(function ($q) use ($term) {
+                $q->where('name', 'like', $term)
+                    ->orWhere('first_name', 'like', $term)
+                    ->orWhere('paternal_last_name', 'like', $term)
+                    ->orWhere('maternal_last_name', 'like', $term)
+                    ->orWhere('employee_number', 'like', $term)
+                    ->orWhere('email', 'like', $term);
             });
         }
 
@@ -52,6 +57,9 @@ class UserController extends Controller
                     'id' => $user->id,
                     'employee_number' => $user->employee_number,
                     'name' => $user->name,
+                    'first_name' => $user->first_name,
+                    'paternal_last_name' => $user->paternal_last_name,
+                    'maternal_last_name' => $user->maternal_last_name,
                     'email' => $user->email,
                     'phone' => $user->phone,
                     'campaign' => $user->campaign->name ?? 'Sin Asignar',
@@ -64,6 +72,14 @@ class UserController extends Controller
                     'is_blacklisted' => $user->is_blacklisted,
                     'roles' => $user->roles->map(fn ($r) => ['id' => $r->id, 'name' => $r->name]),
                     'deleted_at' => $user->deleted_at,
+                    'employee_profile' => $user->relationLoaded('employeeProfile') && $user->employeeProfile
+                        ? [
+                            'termination_reason_id' => $user->employeeProfile->termination_reason_id,
+                            'termination_reason' => $user->employeeProfile->terminationReason?->name,
+                            'termination_date' => $user->employeeProfile->termination_date?->format('Y-m-d'),
+                            'hire_date' => $user->employeeProfile->hire_date?->format('Y-m-d'),
+                        ]
+                        : null,
                 ];
             });
 
@@ -76,10 +92,12 @@ class UserController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users,email',
+            'first_name' => 'required|string|max:255',
+            'paternal_last_name' => 'required|string|max:255',
+            'maternal_last_name' => 'nullable|string|max:255',
+            'email' => 'nullable|email|max:255|unique:users,email',
             'employee_number' => 'required|unique:users,employee_number',
-            'phone' => 'required|digits:10',
+            'phone' => 'nullable|string|size:10|regex:/^\d{10}$/',
             'role_id' => 'required|exists:roles,id,deleted_at,NULL',
             'password' => [
                 'required',
@@ -124,10 +142,12 @@ class UserController extends Controller
         }
 
         $user = User::create([
-            'name' => $request->name,
-            'email' => $request->email,
+            'first_name' => $request->first_name,
+            'paternal_last_name' => $request->paternal_last_name,
+            'maternal_last_name' => $request->maternal_last_name,
+            'email' => $request->filled('email') ? $request->email : null,
             'employee_number' => $request->employee_number,
-            'phone' => $request->phone,
+            'phone' => $request->filled('phone') ? $request->phone : null,
             'password' => Hash::make($request->password),
             'campaign_id' => $campaignId,
             'area_id' => $areaId,
@@ -146,10 +166,12 @@ class UserController extends Controller
     public function update(Request $request, User $user)
     {
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'nullable|email|unique:users,email,' . $user->id,
+            'first_name' => 'required|string|max:255',
+            'paternal_last_name' => 'required|string|max:255',
+            'maternal_last_name' => 'nullable|string|max:255',
+            'email' => 'nullable|email|max:255|unique:users,email,' . $user->id,
             'employee_number' => 'required|unique:users,employee_number,' . $user->id,
-            'phone' => 'required|digits:10',
+            'phone' => 'nullable|string|size:10|regex:/^\d{10}$/',
             'role_id' => 'required|exists:roles,id,deleted_at,NULL',
             'status' => 'sometimes|in:pending_email,pending_admin,active,blocked',
             'password' => [
@@ -190,7 +212,9 @@ class UserController extends Controller
 
         $originalEmail = $user->email;
 
-        $user->fill($request->except(['campaign', 'area', 'position', 'password', 'role_id']));
+        $user->fill($request->except(['campaign', 'area', 'position', 'password', 'role_id', 'name']));
+        $user->email = $request->filled('email') ? $request->email : null;
+        $user->phone = $request->filled('phone') ? $request->phone : null;
 
         if ($request->filled('password')) {
             $user->password = Hash::make($request->password);
@@ -266,8 +290,19 @@ class UserController extends Controller
         return Role::where('name', $role->name)->where('guard_name', 'web')->first() ?? $role;
     }
 
-    public function destroy(User $user)
+    public function destroy(Request $request, User $user)
     {
+        $terminationReasonId = $request->input('termination_reason_id');
+        $terminationDate = $request->input('termination_date');
+        $reason = $request->input('reason');
+
+        if ($terminationReasonId !== null || $terminationDate !== null || $reason !== null) {
+            $this->syncEmployeeProfileForTermination($user, $terminationReasonId, $terminationDate);
+            if ($reason !== null && strlen($reason) >= 5) {
+                $user->update(['deletion_reason' => $reason]);
+            }
+        }
+
         $user->delete();
         return response()->json(['message' => 'Usuario eliminado']);
     }
@@ -277,13 +312,44 @@ class UserController extends Controller
         $request->validate([
             'ids' => 'required|array',
             'ids.*' => 'exists:users,id',
-            'reason' => 'required|string|min:5'
+            'reason' => 'required|string|min:5',
+            'termination_reason_id' => 'nullable|exists:termination_reasons,id',
+            'termination_date' => 'nullable|date',
         ]);
 
-        User::whereIn('id', $request->ids)->update(['deletion_reason' => $request->reason]);
+        $reason = $request->reason;
+        $terminationReasonId = $request->input('termination_reason_id');
+        $terminationDate = $request->input('termination_date');
+
+        $users = User::whereIn('id', $request->ids)->get();
+        foreach ($users as $user) {
+            if ($terminationReasonId !== null || $terminationDate !== null) {
+                $this->syncEmployeeProfileForTermination($user, $terminationReasonId, $terminationDate);
+            }
+        }
+
+        User::whereIn('id', $request->ids)->update(['deletion_reason' => $reason]);
         User::whereIn('id', $request->ids)->delete();
 
         return response()->json(['message' => 'Usuarios eliminados correctamente']);
+    }
+
+    /**
+     * Crea o actualiza el EmployeeProfile del usuario con motivo y fecha de baja (RH).
+     */
+    protected function syncEmployeeProfileForTermination(User $user, ?int $terminationReasonId, ?string $terminationDate): void
+    {
+        $attrs = [];
+        if ($terminationReasonId !== null) {
+            $attrs['termination_reason_id'] = $terminationReasonId;
+        }
+        if ($terminationDate !== null) {
+            $attrs['termination_date'] = $terminationDate;
+        }
+        if ($attrs === []) {
+            return;
+        }
+        $user->employeeProfile()->updateOrCreate(['user_id' => $user->id], $attrs);
     }
 
     public function toggleBlacklist(Request $request)

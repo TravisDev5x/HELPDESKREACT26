@@ -1,7 +1,11 @@
 import axios from "axios";
 
-// Cliente separado sin interceptores para obtener el token CSRF
-const csrfClient = axios.create({ withCredentials: true });
+// Cliente para obtener la cookie CSRF (misma base que la app para que la cookie se envíe después)
+const csrfClient = axios.create({
+    baseURL: "/",
+    withCredentials: true,
+    headers: { Accept: "application/json" },
+});
 let csrfPromise = null;
 
 const ensureCsrf = () => {
@@ -37,6 +41,9 @@ instance.interceptors.response.use(
     (response) => response,
     (error) => {
         const status = error?.response?.status;
+        if (status === 419) {
+            csrfPromise = null; // permitir obtener de nuevo la cookie CSRF en el siguiente intento
+        }
         if (status === 401 || status === 419) {
             window.dispatchEvent(new CustomEvent("navigate-to-login"));
         }

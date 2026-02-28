@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import axios from "@/lib/axios";
 import { passwordWithConfirmationSchema } from "@/lib/passwordSchema";
 import { useTheme } from "@/hooks/useTheme";
@@ -10,9 +10,15 @@ import { Link } from "react-router-dom";
 
 export default function Register() {
     const { isDark, toggleTheme } = useTheme();
+    // Asegurar cookie CSRF al cargar la página (evita "CSRF token mismatch" al enviar el formulario)
+    useEffect(() => {
+        axios.get("/sanctum/csrf-cookie", { withCredentials: true }).catch(() => {});
+    }, []);
     const [form, setForm] = useState({
         employee_number: "",
-        name: "",
+        first_name: "",
+        paternal_last_name: "",
+        maternal_last_name: "",
         email: "",
         phone: "",
         password: "",
@@ -24,7 +30,8 @@ export default function Register() {
 
     const validate = () => {
         if (!form.employee_number.trim()) return "El número de empleado es obligatorio.";
-        if (!form.name.trim()) return "El nombre es obligatorio.";
+        if (!form.first_name.trim()) return "El nombre(s) es obligatorio.";
+        if (!form.paternal_last_name.trim()) return "El apellido paterno es obligatorio.";
         const passwordValidation = passwordWithConfirmationSchema.safeParse({
             password: form.password,
             password_confirmation: form.password_confirmation,
@@ -55,14 +62,19 @@ export default function Register() {
         try {
             const { data } = await axios.post("/api/register", {
                 employee_number: form.employee_number.trim(),
-                name: form.name.trim(),
+                first_name: form.first_name.trim(),
+                paternal_last_name: form.paternal_last_name.trim(),
+                maternal_last_name: form.maternal_last_name.trim() || null,
                 email: form.email.trim() || null,
                 phone: form.phone.trim() || null,
                 password: form.password,
                 password_confirmation: form.password_confirmation,
             });
             setSuccess(data?.message || "Registro creado correctamente.");
-            setForm({ employee_number: "", name: "", email: "", phone: "", password: "", password_confirmation: "" });
+            setForm({
+                employee_number: "", first_name: "", paternal_last_name: "", maternal_last_name: "",
+                email: "", phone: "", password: "", password_confirmation: "",
+            });
         } catch (err) {
             const status = err?.response?.status;
             const data = err?.response?.data;
@@ -118,10 +130,29 @@ export default function Register() {
                         </div>
 
                         <div className="space-y-2">
-                            <Label>Nombre completo</Label>
+                            <Label>Nombre(s)</Label>
                             <Input
-                                value={form.name}
-                                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                                value={form.first_name}
+                                onChange={(e) => setForm({ ...form, first_name: e.target.value })}
+                                placeholder="Ej. Juan Carlos"
+                                disabled={loading}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Apellido paterno</Label>
+                            <Input
+                                value={form.paternal_last_name}
+                                onChange={(e) => setForm({ ...form, paternal_last_name: e.target.value })}
+                                placeholder="Ej. Pérez"
+                                disabled={loading}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Apellido materno (opcional)</Label>
+                            <Input
+                                value={form.maternal_last_name}
+                                onChange={(e) => setForm({ ...form, maternal_last_name: e.target.value })}
+                                placeholder="Ej. García"
                                 disabled={loading}
                             />
                         </div>

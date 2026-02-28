@@ -16,6 +16,13 @@ use App\Http\Controllers\Api\PermissionController;
 use App\Http\Controllers\Api\RolePermissionController;
 use App\Http\Controllers\Api\SessionMonitorController;
 use App\Http\Controllers\Api\UbicacionController;
+use App\Http\Controllers\Api\AttendanceController;
+use App\Http\Controllers\Api\ScheduleController;
+use App\Http\Controllers\Api\ScheduleManagerController;
+use App\Http\Controllers\Api\MyScheduleController;
+use App\Http\Controllers\Api\TimeDeskController;
+use App\Http\Controllers\Api\TerminationReasonController;
+use App\Http\Controllers\Api\EmployeeImportExportController;
 
 /*
 |--------------------------------------------------------------------------
@@ -57,6 +64,9 @@ Route::middleware(['auth:sanctum','locale','perm:users.manage'])->group(function
 
     Route::get('sessions', [SessionMonitorController::class, 'index'])
         ->middleware('throttle:30,1');
+
+    Route::post('sessions/logout-user', [SessionMonitorController::class, 'logoutUser'])
+        ->middleware('throttle:10,1');
 
     Route::post('users/mass-delete', [UserController::class, 'massDestroy'])
         ->middleware('throttle:5,1');
@@ -128,6 +138,8 @@ Route::middleware(['auth:sanctum','locale','perm:catalogs.manage'])->group(funct
         ->only(['index', 'store', 'update', 'destroy']);
     Route::apiResource('incident-statuses', \App\Http\Controllers\Api\IncidentStatusController::class)
         ->only(['index', 'store', 'update', 'destroy']);
+    Route::apiResource('schedules', ScheduleController::class)
+        ->only(['index', 'show', 'store', 'update', 'destroy']);
 });
 
 // Mis Tickets: solo solicitante (requester_id = user). Sin permisos operativos. Desacoplado del módulo Tickets.
@@ -224,6 +236,44 @@ Route::get('catalogs', [CatalogController::class, 'index'])
 // ==========================
 
 Route::middleware(['auth:sanctum','locale'])->group(function () {
+
+    Route::middleware('perm:attendances.record_own')->group(function () {
+        Route::get('attendance/status', [AttendanceController::class, 'status']);
+        Route::post('attendance/punch', [AttendanceController::class, 'registerPunch']);
+    });
+
+    // Mi horario (empleado): jerarquía Usuario > Área > Campaña > Por defecto
+    Route::middleware('perm:attendances.view_own')->group(function () {
+        Route::get('my-schedule', [MyScheduleController::class, 'show']);
+    });
+
+    // TimeDesk: submódulo de horarios y asistencias (attendances.manage o attendances.view_all)
+    Route::middleware('perm:attendances.manage|attendances.view_all')->prefix('timedesk')->group(function () {
+        Route::get('dashboard', [TimeDeskController::class, 'dashboard']);
+        // Catálogo de motivos de baja (RH): listado para selects y vista de catálogo
+        Route::get('termination-reasons', [TerminationReasonController::class, 'index']);
+        // Directorio de empleados (mismo listado que users, para RH sin users.manage)
+        Route::get('employees', [UserController::class, 'index']);
+    });
+
+    // TimeDesk: solo quien gestiona puede crear/editar/eliminar motivos de baja e importar/exportar
+    Route::middleware('perm:attendances.manage')->prefix('timedesk')->group(function () {
+        Route::post('termination-reasons', [TerminationReasonController::class, 'store']);
+        Route::put('termination-reasons/{termination_reason}', [TerminationReasonController::class, 'update']);
+        Route::delete('termination-reasons/{termination_reason}', [TerminationReasonController::class, 'destroy']);
+        // Import/Export directorio empleados (formato maestro Excel/CSV)
+        Route::post('employees/import', [EmployeeImportExportController::class, 'import']);
+        Route::post('employees/import-errors-report', [EmployeeImportExportController::class, 'downloadImportErrors']);
+        Route::get('employees/export/activos', [EmployeeImportExportController::class, 'exportActivos']);
+        Route::get('employees/export/bajas', [EmployeeImportExportController::class, 'exportBajas']);
+    });
+
+    // Gestión de asignaciones de horarios (RH/Admin)
+    Route::middleware('perm:attendances.manage')->prefix('schedule-manager')->group(function () {
+        Route::get('catalogs', [ScheduleManagerController::class, 'catalogs']);
+        Route::get('assignments', [ScheduleManagerController::class, 'index']);
+        Route::post('assign', [ScheduleManagerController::class, 'assign']);
+    });
 
     Route::get('profile', [ProfileController::class, 'show']);
     Route::post('profile', [ProfileController::class, 'update']);

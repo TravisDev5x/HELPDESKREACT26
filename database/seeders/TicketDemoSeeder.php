@@ -201,10 +201,12 @@ class TicketDemoSeeder extends Seeder
             $user = User::updateOrCreate(
                 ['email' => $attrs['email']],
                 array_merge([
-                    'name' => $attrs['name'],
+                    'first_name' => $attrs['first_name'],
+                    'paternal_last_name' => $attrs['paternal_last_name'],
+                    'maternal_last_name' => $attrs['maternal_last_name'] ?? null,
                     'employee_number' => $attrs['employee_number'],
                     'phone' => $attrs['phone'],
-                    // Deja que el cast "hashed" aplique la configuraciÃ³n actual
+                    // Deja que el cast "hashed" aplique la configuración actual
                     'password' => 'Password123!',
                     'campaign_id' => $campaign?->id,
                     'status' => 'active',
@@ -217,7 +219,9 @@ class TicketDemoSeeder extends Seeder
 
         $users = [];
         $users['admin'] = $makeUser([
-            'name' => 'Admin Global',
+            'first_name' => 'Admin',
+            'paternal_last_name' => 'Global',
+            'maternal_last_name' => null,
             'email' => 'admin@demo.com',
             'employee_number' => 'A0001',
             'phone' => '5500000001',
@@ -230,7 +234,9 @@ class TicketDemoSeeder extends Seeder
         ], 'admin');
 
         $users['usuario_fisico'] = $makeUser([
-            'name' => 'Ana Usuario',
+            'first_name' => 'Ana',
+            'paternal_last_name' => 'Usuario',
+            'maternal_last_name' => null,
             'email' => 'ana@demo.com',
             'employee_number' => 'U1001',
             'phone' => '5511111111',
@@ -243,7 +249,9 @@ class TicketDemoSeeder extends Seeder
         ], 'usuario');
 
         $users['usuario_remoto'] = $makeUser([
-            'name' => 'Luis Remoto',
+            'first_name' => 'Luis',
+            'paternal_last_name' => 'Remoto',
+            'maternal_last_name' => null,
             'email' => 'luis@demo.com',
             'employee_number' => 'U1002',
             'phone' => '5511111112',
@@ -256,7 +264,9 @@ class TicketDemoSeeder extends Seeder
         ], 'usuario');
 
         $users['agente_soporte'] = $makeUser([
-            'name' => 'Carlos Soporte',
+            'first_name' => 'Carlos',
+            'paternal_last_name' => 'Soporte',
+            'maternal_last_name' => null,
             'email' => 'soporte@demo.com',
             'employee_number' => 'S2001',
             'phone' => '5511111113',
@@ -269,7 +279,9 @@ class TicketDemoSeeder extends Seeder
         ], 'agente_soporte');
 
         $users['supervisor'] = $makeUser([
-            'name' => 'Sofía Supervisor',
+            'first_name' => 'Sofía',
+            'paternal_last_name' => 'Supervisor',
+            'maternal_last_name' => null,
             'email' => 'supervisor@demo.com',
             'employee_number' => 'S2002',
             'phone' => '5511111114',
@@ -282,7 +294,9 @@ class TicketDemoSeeder extends Seeder
         ], 'supervisor_soporte');
 
         $users['agente_infra'] = $makeUser([
-            'name' => 'Ingrid Infra',
+            'first_name' => 'Ingrid',
+            'paternal_last_name' => 'Infra',
+            'maternal_last_name' => null,
             'email' => 'infra@demo.com',
             'employee_number' => 'I3001',
             'phone' => '5511111115',
@@ -295,7 +309,9 @@ class TicketDemoSeeder extends Seeder
         ], 'agente_infraestructura');
 
         $users['agente_redes'] = $makeUser([
-            'name' => 'Rafael Redes',
+            'first_name' => 'Rafael',
+            'paternal_last_name' => 'Redes',
+            'maternal_last_name' => null,
             'email' => 'redes@demo.com',
             'employee_number' => 'R4001',
             'phone' => '5511111116',
@@ -308,7 +324,9 @@ class TicketDemoSeeder extends Seeder
         ], 'agente_infraestructura');
 
         $users['agente_apps'] = $makeUser([
-            'name' => 'Ana Apps',
+            'first_name' => 'Ana',
+            'paternal_last_name' => 'Apps',
+            'maternal_last_name' => null,
             'email' => 'apps@demo.com',
             'employee_number' => 'A5001',
             'phone' => '5511111117',
@@ -321,7 +339,9 @@ class TicketDemoSeeder extends Seeder
         ], 'agente_soporte');
 
         $users['agente_seg'] = $makeUser([
-            'name' => 'Sergio Seguridad',
+            'first_name' => 'Sergio',
+            'paternal_last_name' => 'Seguridad',
+            'maternal_last_name' => null,
             'email' => 'seguridad@demo.com',
             'employee_number' => 'S6001',
             'phone' => '5511111118',

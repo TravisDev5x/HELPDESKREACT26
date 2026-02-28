@@ -7,6 +7,7 @@ import { I18nProvider } from "@/i18n/I18nProvider";
 
 // Layout (no lazy: se necesita de inmediato para la shell)
 import AppLayout from "@/layouts/AppLayout";
+import { TimeDeskGuard } from "@/components/TimeDeskGuard";
 
 // Vistas privadas (lazy)
 const Dashboard = lazy(() => import("@/Pages/Dashboard"));
@@ -33,6 +34,12 @@ const Settings = lazy(() => import("@/Pages/Settings"));
 const Sessions = lazy(() => import("@/Pages/Sessions"));
 const Permissions = lazy(() => import("@/Pages/Permissions"));
 const Profile = lazy(() => import("@/Pages/Profile"));
+const Attendance = lazy(() => import("@/Pages/Attendance"));
+const Schedules = lazy(() => import("@/Pages/Schedules"));
+const ScheduleAssignmentManager = lazy(() => import("@/Pages/ScheduleAssignmentManager"));
+const TimeDeskDashboard = lazy(() => import("@/Pages/TimeDesk/Dashboard"));
+const TimeDeskEmployees = lazy(() => import("@/Pages/TimeDesk/Employees/Index"));
+const TimeDeskTerminationReasons = lazy(() => import("@/Pages/TimeDesk/TerminationReasons/Index"));
 const SiguaDashboard = lazy(() => import("@/Pages/Sigua/SiguaDashboard"));
 const SiguaCuentas = lazy(() => import("@/Pages/Sigua/SiguaCuentas"));
 const SiguaCuentaDetalle = lazy(() => import("@/Pages/Sigua/SiguaCuentaDetalle"));
@@ -158,6 +165,16 @@ export default function Main() {
                                     <Route path="/sessions" element={<Sessions />} />
                                     <Route path="/permissions" element={<Permissions />} />
                                     <Route path="/profile" element={<Profile />} />
+                                    <Route path="/attendance" element={<Attendance />} />
+                                    <Route path="/schedules" element={<Schedules />} />
+                                    <Route path="/schedules/assignments" element={<ScheduleAssignmentManager />} />
+                                    <Route element={<TimeDeskGuard />}>
+                                        <Route path="/timedesk" element={<TimeDeskDashboard />} />
+                                        <Route path="/timedesk/employees" element={<TimeDeskEmployees />} />
+                                        <Route path="/timedesk/termination-reasons" element={<TimeDeskTerminationReasons />} />
+                                        <Route path="/timedesk/schedules" element={<Schedules />} />
+                                        <Route path="/timedesk/schedule-assignments" element={<ScheduleAssignmentManager />} />
+                                    </Route>
                                     <Route path="/sigua" element={<SiguaDashboard />} />
                                     <Route path="/sigua/cuentas" element={<SiguaCuentas />} />
                                     <Route path="/sigua/cuentas/:id" element={<SiguaCuentaDetalle />} />

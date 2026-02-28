@@ -60,6 +60,7 @@ class CatalogController extends Controller
                 'incident_types' => DB::table('incident_types')->orderBy('name')->get(['id','name','code','is_active']),
                 'incident_severities' => DB::table('incident_severities')->orderBy('level')->orderBy('name')->get(['id','name','code','level','is_active']),
                 'incident_statuses' => DB::table('incident_statuses')->orderBy('name')->get(['id','name','code','is_active','is_final']),
+                'schedules' => DB::table('schedules')->where('is_active', true)->orderBy('name')->get(['id', 'name']),
                 'roles'     => DB::table('roles')
                     ->whereNull('deleted_at')
                     ->whereIn('guard_name', $guards)

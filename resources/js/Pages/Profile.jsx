@@ -25,7 +25,9 @@ export const AVAILABILITY_OPTIONS = [
 
 //validaciones Zod
 const profileSchema = z.object({
-    name: z.string().min(2, "Mínimo 2 caracteres"),
+    first_name: z.string().min(2, "Nombre(s) mínimo 2 caracteres"),
+    paternal_last_name: z.string().min(2, "Apellido paterno mínimo 2 caracteres"),
+    maternal_last_name: z.string().max(255).optional().or(z.literal("")),
     email: z.string().email("Correo electrónico inválido"),
     phone: z.string().optional(),
     availability: z.enum(["available", "busy", "disconnected"]).optional(),
@@ -51,7 +53,9 @@ export default function Profile() {
     const formProfile = useForm({
         resolver: zodResolver(profileSchema),
         defaultValues: {
-            name: user?.name || "",
+            first_name: user?.first_name || "",
+            paternal_last_name: user?.paternal_last_name || "",
+            maternal_last_name: user?.maternal_last_name || "",
             email: user?.email || "",
             phone: user?.phone || "",
             availability: user?.availability || "disconnected",
@@ -90,7 +94,9 @@ export default function Profile() {
     useEffect(() => {
         if (!user) return;
         formProfile.reset({
-            name: user.name || "",
+            first_name: user.first_name || "",
+            paternal_last_name: user.paternal_last_name || "",
+            maternal_last_name: user.maternal_last_name || "",
             email: user.email || "",
             phone: user.phone || "",
             availability: user.availability || "disconnected",
@@ -118,7 +124,9 @@ export default function Profile() {
 
         try {
             const formData = new FormData();
-            formData.append("name", values.name);
+            formData.append("first_name", values.first_name);
+            formData.append("paternal_last_name", values.paternal_last_name);
+            formData.append("maternal_last_name", values.maternal_last_name ?? "");
             formData.append("email", values.email);
             formData.append("phone", values.phone || "");
             if (values.availability) {
@@ -240,14 +248,44 @@ export default function Profile() {
                                 <div className="space-y-3">
                                     <FormField
                                         control={formProfile.control}
-                                        name="name"
+                                        name="first_name"
                                         render={({ field }) => (
                                             <FormItem>
                                                 <FormLabel className="text-[10px] font-black uppercase">
-                                                    Nombre Completo
+                                                    Nombre(s)
                                                 </FormLabel>
                                                 <FormControl>
-                                                    <Input {...field} className="bg-muted/20" />
+                                                    <Input {...field} className="bg-muted/20" placeholder="Ej. Juan Carlos" />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={formProfile.control}
+                                        name="paternal_last_name"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel className="text-[10px] font-black uppercase">
+                                                    Apellido Paterno
+                                                </FormLabel>
+                                                <FormControl>
+                                                    <Input {...field} className="bg-muted/20" placeholder="Ej. Pérez" />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={formProfile.control}
+                                        name="maternal_last_name"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel className="text-[10px] font-black uppercase">
+                                                    Apellido Materno (opcional)
+                                                </FormLabel>
+                                                <FormControl>
+                                                    <Input {...field} className="bg-muted/20" placeholder="Ej. García" />
                                                 </FormControl>
                                                 <FormMessage />
                                             </FormItem>

@@ -46,7 +46,9 @@ class AdminUserSeeder extends Seeder
 
         $user = User::create([
             'employee_number' => $employeeNumber,
-            'name' => 'Administrador',
+            'first_name' => 'Administrador',
+            'paternal_last_name' => 'Sistema',
+            'maternal_last_name' => null,
             'email' => $email,
             'phone' => null,
             'password' => Hash::make($password),

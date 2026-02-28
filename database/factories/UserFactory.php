@@ -20,7 +20,9 @@ class UserFactory extends Factory
     public function definition(): array
     {
         return [
-            'name' => fake()->name(),
+            'first_name' => fake()->firstName(),
+            'paternal_last_name' => fake()->lastName(),
+            'maternal_last_name' => fake()->boolean(70) ? fake()->lastName() : null,
             'email' => fake()->unique()->safeEmail(),
             
             // Generamos un número de empleado tipo "19674"
