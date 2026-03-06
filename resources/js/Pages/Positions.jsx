@@ -20,12 +20,15 @@ import {
 } from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { notify } from "@/lib/notify";
+import { TablePagination } from "@/components/ui/table-pagination";
 import { handleAuthError, getApiErrorMessage } from "@/lib/apiErrors";
 import { clearCatalogCache } from "@/lib/catalogCache";
 
 const emptyForm = { name: "", is_active: true };
+const PER_PAGE_OPTIONS = ["10", "15", "25", "50", "100"];
 
 export default function Positions() {
     const [positions, setPositions] = useState([]);
@@ -34,6 +37,8 @@ export default function Positions() {
     const [saving, setSaving] = useState(false);
     const [form, setForm] = useState(emptyForm);
     const [editing, setEditing] = useState(null);
+    const [perPage, setPerPage] = useState(() => localStorage.getItem("positions.perPage") || "10");
+    const [page, setPage] = useState(1);
 
     const canSave = useMemo(() => form.name.trim().length >= 3, [form.name]);
 
@@ -123,6 +128,23 @@ export default function Positions() {
             }
         }
     };
+
+    const total = positions.length;
+    const lastPage = Math.max(1, Math.ceil(total / Number(perPage)));
+    const currentPage = Math.min(page, lastPage);
+    const paginatedList = useMemo(() => positions.slice((currentPage - 1) * Number(perPage), currentPage * Number(perPage)), [positions, currentPage, perPage]);
+    useEffect(() => { if (currentPage !== page) setPage(currentPage); }, [currentPage, page]);
+    useEffect(() => { localStorage.setItem("positions.perPage", perPage); }, [perPage]);
+    const goToPage = (p) => setPage(Math.max(1, Math.min(p, lastPage)));
+    const from = total === 0 ? 0 : (currentPage - 1) * Number(perPage) + 1;
+    const to = Math.min(currentPage * Number(perPage), total);
+    const pageNumbers = useMemo(() => {
+        if (lastPage <= 7) return Array.from({ length: lastPage }, (_, i) => i + 1);
+        const pages = [1]; if (currentPage > 3) pages.push("…");
+        for (let i = Math.max(2, currentPage - 1); i <= Math.min(lastPage - 1, currentPage + 1); i++) { if (!pages.includes(i)) pages.push(i); }
+        if (currentPage < lastPage - 2) pages.push("…"); if (lastPage > 1) pages.push(lastPage);
+        return pages;
+    }, [lastPage, currentPage]);
 
     return (
         <div className="space-y-6">
@@ -215,7 +237,7 @@ export default function Positions() {
                                 </TableCell>
                             </TableRow>
                         ) : (
-                            positions.map((position) => (
+                            paginatedList.map((position) => (
                                 <TableRow key={position.id}>
                                     <TableCell className="font-medium">{position.id}</TableCell>
                                     <TableCell>{position.name}</TableCell>
@@ -248,6 +270,19 @@ export default function Positions() {
                         )}
                     </TableBody>
                 </Table>
+                {!loading && positions.length > 0 && (
+                    <TablePagination
+                        total={total}
+                        from={from}
+                        to={to}
+                        currentPage={currentPage}
+                        lastPage={lastPage}
+                        perPage={perPage}
+                        perPageOptions={PER_PAGE_OPTIONS}
+                        onPerPageChange={setPerPage}
+                        onPageChange={(p) => setPage(p)}
+                    />
+                )}
             </div>
         </div>
     );

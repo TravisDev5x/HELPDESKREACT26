@@ -29,8 +29,8 @@ export function DataTable({
     });
 
     return (
-        <Table>
-            <TableHeader className="bg-muted/30">
+        <Table className="[&_thead]:bg-muted/50">
+            <TableHeader>
                 {table.getHeaderGroups().map((headerGroup) => (
                     <TableRow key={headerGroup.id}>
                         {headerGroup.headers.map((header) => (
@@ -77,11 +77,11 @@ export function DataTable({
                         </TableRow>
                     ))
                 ) : data.length === 0 ? (
-                    <TableRow>
-                        <TableCell colSpan={emptyColSpan} className="h-32 text-center">
-                            <div className="flex flex-col items-center justify-center text-muted-foreground">
-                                <div className="bg-muted p-3 rounded-full mb-2">
-                                    <Search className="h-6 w-6 opacity-50" />
+                    <TableRow className="hover:bg-transparent">
+                        <TableCell colSpan={emptyColSpan} className="h-40 text-center py-10">
+                            <div className="flex flex-col items-center justify-center text-muted-foreground gap-2">
+                                <div className="bg-muted/60 p-3 rounded-full">
+                                    <Search className="h-6 w-6 opacity-60" />
                                 </div>
                                 <p className="text-sm font-medium">{emptyMessage}</p>
                             </div>

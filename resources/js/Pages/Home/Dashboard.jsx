@@ -179,6 +179,7 @@ export default function HomeDashboard() {
           <div className="flex items-center gap-4">
             <UserAvatar
               name={userName}
+              avatarUrl={user?.avatar_url}
               avatarPath={user?.avatar_path}
               size={48}
               className="h-12 w-12 shrink-0 border-2 border-border"

@@ -38,7 +38,7 @@ const passwordSchema = passwordWithConfirmationSchema.extend({
 });
 
 export default function Profile() {
-    const { user, updateUserPrefs } = useAuth();
+    const { user, updateUserPrefs, refreshUser } = useAuth();
 
     const [profileLoading, setProfileLoading] = useState(false);
     const [passwordLoading, setPasswordLoading] = useState(false);
@@ -113,7 +113,7 @@ export default function Profile() {
     // Permitir reintento cuando cambia la URL del avatar (ej. tras subir uno nuevo)
     useEffect(() => {
         setAvatarImgError(false);
-    }, [user?.avatar_path]);
+    }, [user?.avatar_path, user?.avatar_url]);
 
     /* =========================
        GUARDAR PERFIL + AVATAR
@@ -142,6 +142,8 @@ export default function Profile() {
 
             if (res?.data?.user) {
                 updateUserPrefs(res.data.user);
+                // Refrescar usuario desde el servidor para que Sidebar y toda la app vean el nuevo avatar_path
+                await refreshUser();
             }
             setPreview(null);
             if (fileInputRef.current) fileInputRef.current.value = "";
@@ -213,9 +215,9 @@ export default function Profile() {
                                         onClick={() => fileInputRef.current?.click()}
                                     >
                                         <Avatar className="h-24 w-24 border-2 border-primary/20 group-hover:border-primary transition-colors">
-                                            {(preview || (user?.avatar_path && !avatarImgError)) && (
+                                            {(preview || ((user?.avatar_url || user?.avatar_path) && !avatarImgError)) && (
                                                 <AvatarImage
-                                                    src={preview || `/storage/${user.avatar_path}`}
+                                                    src={preview || user?.avatar_url || (user?.avatar_path ? `/storage/${user.avatar_path.replace(/^\/+/, '')}` : null)}
                                                     alt={user?.name}
                                                     className="object-cover"
                                                     onError={() => setAvatarImgError(true)}

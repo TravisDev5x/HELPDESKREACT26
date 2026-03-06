@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react'
-import { NavLink } from 'react-router-dom'
+import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
+import axios from '@/lib/axios'
 import { useSidebarPosition } from '@/context/SidebarPositionContext'
 import { useI18n } from '@/hooks/useI18n'
 import { cn } from '@/lib/utils'
@@ -21,6 +22,7 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { UserAvatar } from '@/components/user-avatar'
 
 import {
     Home,
@@ -35,6 +37,10 @@ import {
     Settings,
     Menu,
     ChevronDown,
+    Check,
+    CircleDot,
+    ChevronsUpDown,
+    LogOut,
     MoreHorizontal,
     LayoutDashboard,
     UserCircle,
@@ -216,8 +222,9 @@ const SectionTitle = ({ children, collapsed, showSeparatorWhenCollapsed }) => {
 // COMPONENTE: Sidebar
 // ----------------------------------------------------------------------
 export function Sidebar({ collapsed, onToggle }) {
-    const { user } = useAuth()
+    const { user, logout, updateUserPrefs } = useAuth()
     const { t } = useI18n()
+    const navigate = useNavigate()
     const { position: sidebarPosition } = useSidebarPosition()
     const tooltipSide = sidebarPosition === 'right' ? 'left' : 'right'
     const dropdownSide = sidebarPosition === 'right' ? 'left' : 'right'
@@ -543,6 +550,107 @@ export function Sidebar({ collapsed, onToggle }) {
                         ))}
                     </nav>
             </ScrollArea>
+
+                {/* Footer: usuario actual (avatar, nombre, email, menú) — añadido para bloque inferior tipo shadcn */}
+                <div
+                    className={cn(
+                        'flex shrink-0 border-t border-border/50 p-2',
+                        'transition-[padding] duration-350 ease-[cubic-bezier(0.32,0.72,0,1)]',
+                        collapsed ? 'justify-center px-2' : 'px-3'
+                    )}
+                >
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button
+                                variant="ghost"
+                                className={cn(
+                                    'w-full h-auto rounded-lg py-2 transition-colors',
+                                    'text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground',
+                                    'data-[state=open]:bg-accent data-[state=open]:text-accent-foreground',
+                                    collapsed ? 'justify-center p-2' : 'justify-start gap-3 px-3'
+                                )}
+                            >
+                                <UserAvatar
+                                    name={user?.name}
+                                    avatarUrl={user?.avatar_url}
+                                    avatarPath={user?.avatar_path}
+                                    size={collapsed ? 32 : 36}
+                                    className="shrink-0 shadow-sm"
+                                    status={user?.availability === 'available' ? 'online' : user?.availability === 'busy' ? 'busy' : 'offline'}
+                                />
+                                {!collapsed && (
+                                    <div className="flex min-w-0 flex-1 flex-col items-start text-left">
+                                        <span className="truncate w-full text-sm font-medium leading-tight text-foreground">
+                                            {user?.name || 'Usuario'}
+                                        </span>
+                                        <span className="truncate w-full text-xs leading-tight text-muted-foreground">
+                                            {user?.email || ''}
+                                        </span>
+                                    </div>
+                                )}
+                                {!collapsed && <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />}
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent
+                            side={sidebarPosition === 'right' ? 'left' : 'right'}
+                            align="end"
+                            className="w-56 bg-background/80 backdrop-blur-md border-border/60 shadow-lg"
+                        >
+                            <div className="flex items-center gap-2 p-2">
+                                <UserAvatar
+                                    name={user?.name}
+                                    avatarUrl={user?.avatar_url}
+                                    avatarPath={user?.avatar_path}
+                                    size={32}
+                                    status={user?.availability === 'available' ? 'online' : user?.availability === 'busy' ? 'busy' : 'offline'}
+                                />
+                                <div className="flex flex-col space-y-0.5 min-w-0">
+                                    <p className="text-sm font-medium leading-none truncate">{user?.name}</p>
+                                    <p className="text-xs text-muted-foreground leading-none truncate w-40">{user?.email}</p>
+                                </div>
+                            </div>
+                            <DropdownMenuSeparator className="bg-border/50" />
+                            <DropdownMenuLabel className="text-[10px] font-bold uppercase text-muted-foreground flex items-center gap-1.5 py-1.5">
+                                <CircleDot className="h-3 w-3" />
+                                Estado
+                            </DropdownMenuLabel>
+                            {[
+                                { value: 'available', label: 'Disponible' },
+                                { value: 'busy', label: 'Ocupado' },
+                                { value: 'disconnected', label: 'Desconectado' },
+                            ].map((opt) => {
+                                const isActive = (user?.availability || 'disconnected') === opt.value
+                                return (
+                                    <DropdownMenuItem
+                                        key={opt.value}
+                                        onClick={() => {
+                                            axios.put('/api/profile/preferences', { availability: opt.value })
+                                                .then(() => updateUserPrefs({ availability: opt.value }))
+                                                .catch(() => {})
+                                        }}
+                                        className="cursor-pointer gap-2"
+                                    >
+                                        {isActive ? <Check className="h-4 w-4 shrink-0 text-primary" /> : <span className="w-4 shrink-0" />}
+                                        <span>{opt.label}</span>
+                                    </DropdownMenuItem>
+                                )
+                            })}
+                            <DropdownMenuSeparator className="bg-border/50" />
+                            <DropdownMenuItem onClick={() => navigate('/profile')} className="cursor-pointer gap-2">
+                                <UserCircle className="h-4 w-4 shrink-0" />
+                                <span>{t('layout.profile')}</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator className="bg-border/50" />
+                            <DropdownMenuItem
+                                onClick={logout}
+                                className="cursor-pointer text-red-600 focus:text-red-600 focus:bg-red-50 dark:focus:bg-red-950/20 gap-2"
+                            >
+                                <LogOut className="h-4 w-4 shrink-0" />
+                                <span>{t('layout.logout')}</span>
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                </div>
             </div>
         </TooltipProvider>
     )

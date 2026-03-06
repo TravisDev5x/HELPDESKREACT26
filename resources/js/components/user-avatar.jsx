@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 
@@ -10,12 +10,26 @@ const STATUS_DOT = {
 };
 
 /**
+ * Construye la URL pública del avatar.
+ * Prefiere avatarUrl (URL absoluta desde el backend). Si no, usa avatarPath con origen actual.
+ */
+function buildAvatarSrc(avatarUrl, avatarPath) {
+    const url = avatarUrl && String(avatarUrl).trim();
+    if (url && (url.startsWith("http://") || url.startsWith("https://"))) return url;
+    const path = avatarPath && String(avatarPath).trim();
+    if (!path) return null;
+    const rel = path.replace(/^\/+/, "").replace(/^storage\/+/, "");
+    return rel ? `/storage/${rel}` : null;
+}
+
+/**
  * Avatar de usuario usando shadcn Avatar.
- * Si la imagen falla (corrupta, 404, CORS, etc.) se muestra el fallback con iniciales
- * y se deja de intentar cargar la imagen para evitar errores repetidos.
+ * Si la imagen falla (corrupta, 404, CORS, etc.) se muestra el fallback con iniciales.
+ * Al cambiar avatarPath (ej. tras subir nueva foto) se reintenta cargar la imagen.
  *
  * @param {string} [name] - Nombre del usuario (para iniciales)
- * @param {string|null} [avatarPath] - Ruta relativa del avatar (ej: "avatars/xyz.jpg")
+ * @param {string|null} [avatarUrl] - URL absoluta del avatar (preferido; la devuelve el backend)
+ * @param {string|null} [avatarPath] - Ruta relativa del avatar si no hay avatarUrl (ej: "avatars/xyz.jpg")
  * @param {string} [className] - Clases para el Avatar
  * @param {string} [fallbackClassName] - Clases para el fallback
  * @param {number} [size] - Tamaño en píxeles (por defecto 36)
@@ -23,6 +37,7 @@ const STATUS_DOT = {
  */
 export function UserAvatar({
     name,
+    avatarUrl,
     avatarPath,
     className,
     fallbackClassName,
@@ -30,9 +45,13 @@ export function UserAvatar({
     status,
 }) {
     const [imgError, setImgError] = useState(false);
-    const path = avatarPath && String(avatarPath).trim();
-    const src = path ? `/storage/${path}` : null;
+    const src = buildAvatarSrc(avatarUrl, avatarPath);
     const showImage = Boolean(src && !imgError);
+
+    // Reintentar imagen cuando cambia la ruta (ej. tras subir nueva foto de perfil)
+    useEffect(() => {
+        setImgError(false);
+    }, [avatarUrl, avatarPath]);
 
     const handleError = useCallback(() => {
         setImgError(true);

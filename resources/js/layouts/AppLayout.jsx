@@ -10,7 +10,6 @@ import { cn } from '@/lib/utils'
 // --- SHADCN COMPONENTS (Asegurados) ---
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
-import { UserAvatar } from '@/components/user-avatar'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
@@ -28,10 +27,10 @@ import { Sidebar } from '@/components/Sidebar'
 import {
     LayoutDashboard, Users, ShieldCheck, Megaphone, Network, BadgeCheck,
     Building2, MapPinHouse, MapPinned, SignalHigh, Workflow, Tags,
-    KeyRound, Ticket, AlertTriangle, Settings, Menu, UserCircle,
+    KeyRound, Ticket, AlertTriangle, Settings, Menu,
     LogOut, Sun, Moon, ChevronsLeft, ChevronsRight, ChevronDown,
     ChevronRight, Bell, BellOff, Layers, Shield, Maximize2,
-    Minimize2, Square, SquareDashed, MoreHorizontal, Monitor, Check, CircleDot,
+    Minimize2, Square, SquareDashed, MoreHorizontal, Monitor,
     CalendarDays, BookOpen, UserCheck, Upload, GitMerge, FileSpreadsheet, FileCheck, FileText, Clock, Link2, Grid3X3,
     Activity, LogIn
 } from 'lucide-react'
@@ -44,7 +43,7 @@ export default function AppLayout() {
     const navigate = useNavigate()
     const themeContext = useTheme()
     const { t } = useI18n()
-    const { user, logout, refreshUser, updateUserPrefs } = useAuth()
+    const { user, logout, refreshUser } = useAuth()
     const [notifications, setNotifications] = useState([])
     const [unreadCount, setUnreadCount] = useState(0)
     const [notifOpen, setNotifOpen] = useState(false)
@@ -69,6 +68,22 @@ export default function AppLayout() {
     const [hoverPreviewEnabled, setHoverPreviewEnabled] = useState(() => user?.sidebar_hover_preview ?? true)
     const hoverTempExpandRef = useRef(false)
     const { position: sidebarPosition } = useSidebarPosition()
+
+    // Scroll del área de contenido: opacidad del fade superior (0 = sin efecto, 1 = fade visible)
+    const mainScrollRef = useRef(null)
+    const [scrollFadeOpacity, setScrollFadeOpacity] = useState(0)
+    useEffect(() => {
+        const el = mainScrollRef.current
+        if (!el) return
+        const onScroll = () => {
+            const top = el.scrollTop
+            const opacity = top <= 0 ? 0 : Math.min(1, top / 32)
+            setScrollFadeOpacity(opacity)
+        }
+        onScroll()
+        el.addEventListener('scroll', onScroll, { passive: true })
+        return () => el.removeEventListener('scroll', onScroll)
+    }, [pathname])
 
     // Efectos de Sincronización
     useEffect(() => {
@@ -277,9 +292,12 @@ export default function AppLayout() {
                 <aside
                     className={cn(
                         "hidden md:flex flex-col z-40 overflow-hidden flex-shrink-0",
-                        "transition-[width] duration-350 ease-[cubic-bezier(0.32,0.72,0,1)]",
+                        "will-change-[width]",
                         (collapsed || focused) ? "w-[72px]" : "w-64"
                     )}
+                    style={{
+                        transition: "width 350ms cubic-bezier(0.32, 0.72, 0, 1)",
+                    }}
                     onMouseEnter={() => {
                         if (hoverPreviewEnabled && collapsed && !focused) {
                             hoverTempExpandRef.current = true
@@ -312,7 +330,7 @@ export default function AppLayout() {
 
                     {/* --- HEADER --- */}
                     <header
-                        className="sticky top-0 z-30 flex h-16 shrink-0 items-center gap-x-4 border-b border-border/40 bg-background/80 px-4 shadow-sm backdrop-blur-xl transition-all md:px-6"
+                        className="sticky top-0 z-30 flex h-16 shrink-0 items-center gap-x-4 bg-background/80 px-4 backdrop-blur-xl transition-all md:px-6"
                         data-sidebar-position={sidebarPosition}
                     >
                         <div className="md:hidden">
@@ -453,76 +471,21 @@ export default function AppLayout() {
                                     </ScrollArea>
                                 </DropdownMenuContent>
                             </DropdownMenu>
-
-                            {/* User Menu Header (Mobile/Quick Access) */}
-                            <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="rounded-full h-9 w-9 ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ml-1">
-                                        <UserAvatar
-                                            name={user?.name}
-                                            avatarPath={user?.avatar_path}
-                                            size={36}
-                                            className="shadow-sm"
-                                            status={user?.availability === 'available' ? 'online' : user?.availability === 'busy' ? 'busy' : 'offline'}
-                                        />
-                                    </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="w-56 mt-1 bg-background/80 backdrop-blur-md border-border/60 shadow-lg">
-                                    <div className="flex items-center gap-2 p-2">
-                                        <UserAvatar
-                                            name={user?.name}
-                                            avatarPath={user?.avatar_path}
-                                            size={32}
-                                            status={user?.availability === 'available' ? 'online' : user?.availability === 'busy' ? 'busy' : 'offline'}
-                                        />
-                                        <div className="flex flex-col space-y-0.5 min-w-0">
-                                            <p className="text-sm font-medium leading-none truncate">{user?.name}</p>
-                                            <p className="text-xs text-muted-foreground leading-none truncate w-40">{user?.email}</p>
-                                        </div>
-                                    </div>
-                                    <DropdownMenuSeparator className="bg-border/50" />
-                                    <DropdownMenuLabel className="text-[10px] font-bold uppercase text-muted-foreground flex items-center gap-1.5 py-1.5">
-                                        <CircleDot className="h-3 w-3" />
-                                        Estado
-                                    </DropdownMenuLabel>
-                                    {[
-                                        { value: 'available', label: 'Disponible' },
-                                        { value: 'busy', label: 'Ocupado' },
-                                        { value: 'disconnected', label: 'Desconectado' },
-                                    ].map((opt) => {
-                                        const isActive = (user?.availability || 'disconnected') === opt.value
-                                        return (
-                                            <DropdownMenuItem
-                                                key={opt.value}
-                                                onClick={() => {
-                                                    axios.put('/api/profile/preferences', { availability: opt.value })
-                                                        .then(() => updateUserPrefs({ availability: opt.value }))
-                                                        .catch(() => {})
-                                                }}
-                                                className="cursor-pointer gap-2"
-                                            >
-                                                {isActive ? <Check className="h-4 w-4 shrink-0 text-primary" /> : <span className="w-4 shrink-0" />}
-                                                <span>{opt.label}</span>
-                                            </DropdownMenuItem>
-                                        )
-                                    })}
-                                    <DropdownMenuSeparator className="bg-border/50" />
-                                    <DropdownMenuItem onClick={() => navigate('/profile')} className="cursor-pointer">
-                                        <UserCircle className="mr-2 h-4 w-4" />
-                                        <span>{t('layout.profile')}</span>
-                                    </DropdownMenuItem>
-                                    <DropdownMenuSeparator className="bg-border/50" />
-                                    <DropdownMenuItem onClick={logout} className="text-red-600 focus:text-red-600 focus:bg-red-50 dark:focus:bg-red-950/20 cursor-pointer">
-                                        <LogOut className="mr-2 h-4 w-4" />
-                                        <span>{t('layout.logout')}</span>
-                                    </DropdownMenuItem>
-                                </DropdownMenuContent>
-                            </DropdownMenu>
                         </div>
                     </header>
 
                     {/* --- OUTLET AREA --- */}
-                    <main className="flex-1 overflow-y-auto bg-muted/10 relative" tabIndex={-1}>
+                    <main
+                        ref={mainScrollRef}
+                        className="flex-1 overflow-y-auto bg-muted/10 relative"
+                        tabIndex={-1}
+                    >
+                        {/* Fade + blur superior al hacer scroll (no afecta z-index del sidebar/navbar) */}
+                        <div
+                            aria-hidden="true"
+                            className="layout-scroll-fade pointer-events-none sticky top-0 left-0 right-0 z-20 h-14 transition-opacity duration-200 ease-out"
+                            style={{ opacity: scrollFadeOpacity }}
+                        />
                         {/* Fondo Decorativo */}
                         <div className="absolute inset-0 -z-10 h-full w-full bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:32px_32px]" />
 

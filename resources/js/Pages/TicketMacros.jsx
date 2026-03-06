@@ -25,8 +25,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { notify } from "@/lib/notify";
 import { handleAuthError, getApiErrorMessage } from "@/lib/apiErrors";
 import { clearCatalogCache } from "@/lib/catalogCache";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { TablePagination } from "@/components/ui/table-pagination";
 
 const emptyForm = { name: "", content: "", category: "", is_active: true };
+const PER_PAGE_OPTIONS = ["10", "15", "25", "50", "100"];
 
 export default function TicketMacros() {
     const [list, setList] = useState([]);
@@ -35,6 +38,8 @@ export default function TicketMacros() {
     const [saving, setSaving] = useState(false);
     const [form, setForm] = useState(emptyForm);
     const [editing, setEditing] = useState(null);
+    const [perPage, setPerPage] = useState(() => localStorage.getItem("ticketMacros.perPage") || "10");
+    const [page, setPage] = useState(1);
 
     const canSave = useMemo(
         () => form.name.trim().length >= 2 && form.content.trim().length >= 1,
@@ -111,6 +116,23 @@ export default function TicketMacros() {
             setSaving(false);
         }
     };
+
+    const total = list.length;
+    const lastPage = Math.max(1, Math.ceil(total / Number(perPage)));
+    const currentPage = Math.min(page, lastPage);
+    const paginatedList = useMemo(() => list.slice((currentPage - 1) * Number(perPage), currentPage * Number(perPage)), [list, currentPage, perPage]);
+    useEffect(() => { if (currentPage !== page) setPage(currentPage); }, [currentPage, page]);
+    useEffect(() => { localStorage.setItem("ticketMacros.perPage", perPage); }, [perPage]);
+    const goToPage = (p) => setPage(Math.max(1, Math.min(p, lastPage)));
+    const from = total === 0 ? 0 : (currentPage - 1) * Number(perPage) + 1;
+    const to = Math.min(currentPage * Number(perPage), total);
+    const pageNumbers = useMemo(() => {
+        if (lastPage <= 7) return Array.from({ length: lastPage }, (_, i) => i + 1);
+        const pages = [1]; if (currentPage > 3) pages.push("…");
+        for (let i = Math.max(2, currentPage - 1); i <= Math.min(lastPage - 1, currentPage + 1); i++) { if (!pages.includes(i)) pages.push(i); }
+        if (currentPage < lastPage - 2) pages.push("…"); if (lastPage > 1) pages.push(lastPage);
+        return pages;
+    }, [lastPage, currentPage]);
 
     const toggleActive = async (macro) => {
         const next = !macro.is_active;
@@ -235,7 +257,7 @@ export default function TicketMacros() {
                                 </TableCell>
                             </TableRow>
                         ) : (
-                            list.map((macro) => (
+                            paginatedList.map((macro) => (
                                 <TableRow key={macro.id}>
                                     <TableCell className="font-medium">{macro.name}</TableCell>
                                     <TableCell className="text-muted-foreground">{macro.category || "—"}</TableCell>
@@ -260,6 +282,19 @@ export default function TicketMacros() {
                         )}
                     </TableBody>
                 </Table>
+                {!loading && list.length > 0 && (
+                    <TablePagination
+                        total={total}
+                        from={from}
+                        to={to}
+                        currentPage={currentPage}
+                        lastPage={lastPage}
+                        perPage={perPage}
+                        perPageOptions={PER_PAGE_OPTIONS}
+                        onPerPageChange={setPerPage}
+                        onPageChange={(p) => setPage(p)}
+                    />
+                )}
             </div>
         </div>
     );

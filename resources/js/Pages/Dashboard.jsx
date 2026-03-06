@@ -331,6 +331,7 @@ function DashboardWelcome({ user, children, actions }) {
             <div className="flex flex-wrap items-center gap-4">
                 <UserAvatar
                     name={user?.name}
+                    avatarUrl={user?.avatar_url}
                     avatarPath={user?.avatar_path}
                     size={48}
                     className="shrink-0"

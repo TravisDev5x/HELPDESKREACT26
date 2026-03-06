@@ -26,6 +26,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import type { EmpleadoRh, Sistema } from "@/types/sigua";
 import { AlertTriangle, Check, X, Search, Loader2, User } from "lucide-react";
+import { TablePagination } from "@/components/ui/table-pagination";
 
 export default function SiguaEmpleados() {
   const { can } = useAuth();
@@ -190,20 +191,20 @@ export default function SiguaEmpleados() {
           </div>
         )}
 
-        {meta && meta.last_page > 1 && (
-          <div className="border-t px-4 py-3 flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">
-              Pág. {meta.current_page} de {meta.last_page} ({meta.total} registros)
-            </span>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-                Anterior
-              </Button>
-              <Button variant="outline" size="sm" disabled={page >= meta.last_page} onClick={() => setPage((p) => p + 1)}>
-                Siguiente
-              </Button>
-            </div>
-          </div>
+        {meta && (
+          <TablePagination
+            total={meta.total}
+            from={meta.total === 0 ? 0 : (meta.current_page - 1) * 20 + 1}
+            to={meta.total === 0 ? 0 : Math.min(meta.current_page * 20, meta.total)}
+            currentPage={meta.current_page}
+            lastPage={meta.last_page}
+            perPage="20"
+            perPageOptions={["10", "15", "25", "50", "100"]}
+            onPerPageChange={() => {}}
+            onPageChange={(p) => setPage(p)}
+            showPerPage={false}
+            loading={loading}
+          />
         )}
       </Card>
     </div>

@@ -153,7 +153,7 @@ export default function Sessions() {
                                             <TableRow key={`${s.user_id}-${s.last_activity}-${s.ip_address}`}>
                                                 <TableCell>
                                                     <div className="flex items-center gap-3">
-                                                        <UserAvatar name={s.name} avatarPath={s.avatar_path} size={36} status="online" />
+                                                        <UserAvatar name={s.name} avatarUrl={s.avatar_url} avatarPath={s.avatar_path} size={36} status="online" />
                                                         <div className="flex flex-col gap-0.5 min-w-0">
                                                             <span className="font-medium truncate">{s.name}</span>
                                                             <span className="text-xs text-muted-foreground truncate">

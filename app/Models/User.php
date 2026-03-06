@@ -60,6 +60,13 @@ class User extends Authenticatable implements MustVerifyEmail
     ];
 
     /**
+     * Accessors que se incluyen en la serialización JSON (ej. para el frontend).
+     */
+    protected $appends = [
+        'avatar_url',
+    ];
+
+    /**
      * Get the attributes that should be cast.
      */
     protected function casts(): array
@@ -87,6 +94,25 @@ class User extends Authenticatable implements MustVerifyEmail
         $paternal = trim((string) ($this->paternal_last_name ?? ''));
         $maternal = trim((string) ($this->maternal_last_name ?? ''));
         $this->attributes['name'] = trim($first . ' ' . $paternal . ' ' . $maternal) ?: null;
+    }
+
+    /**
+     * URL pública del avatar (para que el frontend cargue la imagen desde el servidor correcto).
+     */
+    protected function avatarUrl(): Attribute
+    {
+        return Attribute::make(
+            get: function () {
+                $path = $this->attributes['avatar_path'] ?? null;
+                if (! is_string($path) || trim($path) === '') {
+                    return null;
+                }
+                $path = ltrim($path, '/');
+                $base = rtrim(config('app.url'), '/');
+
+                return $base.'/storage/'.$path;
+            },
+        );
     }
 
     /**

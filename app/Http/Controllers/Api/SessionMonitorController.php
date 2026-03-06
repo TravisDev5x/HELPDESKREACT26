@@ -55,12 +55,17 @@ class SessionMonitorController extends Controller
             if ($fullName === '') {
                 $fullName = (string) ($row->name_legacy ?? '');
             }
+            $avatarPath = $row->avatar_path ?? null;
+            $avatarUrl = is_string($avatarPath) && trim($avatarPath) !== ''
+                ? rtrim(config('app.url'), '/') . '/storage/' . ltrim($avatarPath, '/')
+                : null;
             return [
                 'user_id' => $row->user_id,
                 'name' => $fullName,
                 'email' => $row->email ?? $row->employee_number,
                 'employee_number' => $row->employee_number,
-                'avatar_path' => $row->avatar_path ?? null,
+                'avatar_path' => $avatarPath,
+                'avatar_url' => $avatarUrl,
                 'availability' => $row->availability ?? 'disconnected',
                 'last_activity' => (int) $row->last_activity,
                 'last_activity_iso' => date('c', (int) $row->last_activity),

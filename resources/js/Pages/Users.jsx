@@ -27,9 +27,9 @@ import {
     SlidersHorizontal, RotateCcw, AlertOctagon,
     Phone, Briefcase, Building2, UserCircle,
     ShieldAlert, AlertTriangle, Filter, X, Loader2, CheckCircle2, Eye,
-    ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
     Ban
 } from "lucide-react";
+import { TablePagination } from "@/components/ui/table-pagination";
 
 // --- SCHEMAS ---
 // Normaliza vacío/null/undefined para campos opcionales (evita "expected string, received null/undefined")
@@ -901,102 +901,18 @@ export default function Users() {
                     renderRowActions={renderRowActions}
                 />
 
-                {/* PAGINACIÓN MEJORADA: tamaño, rango, primera/prev/números/siguiente/última */}
-                <div className="border-t border-border/50 bg-muted/20 px-3 py-2 flex flex-col sm:flex-row items-center justify-between gap-3">
-                    <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-xs text-muted-foreground">Filas</span>
-                        <Select value={perPage} onValueChange={(v) => { setPerPage(v); fetchData(1); }}>
-                            <SelectTrigger className="h-7 w-[62px] text-xs bg-background border-muted-foreground/20"><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                                {["10", "15", "25", "50", "100"].map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}
-                            </SelectContent>
-                        </Select>
-                        <span className="text-xs text-muted-foreground">
-                            {pagination.total === 0
-                                ? "0 registros"
-                                : (() => {
-                                    const from = (pagination.current - 1) * Number(perPage) + 1;
-                                    const to = Math.min(pagination.current * Number(perPage), pagination.total);
-                                    return to >= from ? `${from}–${to} de ${pagination.total}` : `0 de ${pagination.total}`;
-                                })()}
-                        </span>
-                    </div>
-
-                    <div className="flex items-center gap-0.5">
-                        <Button
-                            variant="outline"
-                            size="icon"
-                            className="h-7 w-7"
-                            disabled={pagination.current <= 1 || loading || pagination.total === 0}
-                            onClick={() => fetchData(1)}
-                        >
-                            <ChevronsLeft className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                            variant="outline"
-                            size="icon"
-                            className="h-7 w-7"
-                            disabled={pagination.current <= 1 || loading || pagination.total === 0}
-                            onClick={() => fetchData(pagination.current - 1)}
-                        >
-                            <ChevronLeft className="h-3.5 w-3.5" />
-                        </Button>
-                        {(() => {
-                            const total = Math.max(1, pagination.last);
-                            const cur = pagination.current;
-                            const pages = [];
-                            if (total <= 7) {
-                                for (let i = 1; i <= total; i++) pages.push(i);
-                            } else {
-                                pages.push(1);
-                                if (cur > 3) pages.push("…");
-                                for (let i = Math.max(2, cur - 1); i <= Math.min(total - 1, cur + 1); i++) {
-                                    if (!pages.includes(i)) pages.push(i);
-                                }
-                                if (cur < total - 2) pages.push("…");
-                                if (total > 1) pages.push(total);
-                            }
-                            return (
-                                <div className="flex items-center gap-0.5 mx-1">
-                                    {pages.map((p, i) =>
-                                        p === "…" ? (
-                                            <span key={`ellipsis-${i}`} className="px-1.5 text-xs text-muted-foreground">…</span>
-                                        ) : (
-                                            <Button
-                                                key={p}
-                                                variant={cur === p ? "secondary" : "ghost"}
-                                                size="icon"
-                                                className={`h-7 w-7 min-w-7 text-xs ${cur === p ? "bg-primary/15 text-primary" : ""}`}
-                                                disabled={loading}
-                                                onClick={() => fetchData(p)}
-                                            >
-                                                {p}
-                                            </Button>
-                                        )
-                                    )}
-                                </div>
-                            );
-                        })()}
-                        <Button
-                            variant="outline"
-                            size="icon"
-                            className="h-7 w-7"
-                            disabled={pagination.current >= pagination.last || loading || pagination.total === 0}
-                            onClick={() => fetchData(pagination.current + 1)}
-                        >
-                            <ChevronRight className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                            variant="outline"
-                            size="icon"
-                            className="h-7 w-7"
-                            disabled={pagination.current >= pagination.last || loading || pagination.total === 0}
-                            onClick={() => fetchData(pagination.last)}
-                        >
-                            <ChevronsRight className="h-3.5 w-3.5" />
-                        </Button>
-                    </div>
-                </div>
+                <TablePagination
+                    total={pagination.total}
+                    from={pagination.total === 0 ? 0 : (pagination.current - 1) * Number(perPage) + 1}
+                    to={pagination.total === 0 ? 0 : Math.min(pagination.current * Number(perPage), pagination.total)}
+                    currentPage={pagination.current}
+                    lastPage={pagination.last}
+                    perPage={perPage}
+                    perPageOptions={["10", "15", "25", "50", "100"]}
+                    onPerPageChange={(v) => { setPerPage(v); fetchData(1); }}
+                    onPageChange={(p) => fetchData(p)}
+                    loading={loading}
+                />
             </Card>
 
             <Dialog open={confirmOpen} onOpenChange={(open) => { if (!processing) setConfirmOpen(open); }}>

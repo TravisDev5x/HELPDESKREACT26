@@ -1,14 +1,20 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import axios from "@/lib/axios";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { notify } from "@/lib/notify";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { clearCatalogCache } from "@/lib/catalogCache";
 import { getApiErrorMessage } from "@/lib/apiErrors";
+import { TablePagination } from "@/components/ui/table-pagination";
+import { Pencil } from "lucide-react";
+
+const PER_PAGE_OPTIONS = ["10", "15", "25", "50", "100"];
 
 export default function TicketTipos() {
     const [types, setTypes] = useState([]);
@@ -18,6 +24,11 @@ export default function TicketTipos() {
     const [selectedAreas, setSelectedAreas] = useState([]);
     const [saving, setSaving] = useState(false);
     const [loading, setLoading] = useState(true);
+    const [editing, setEditing] = useState(null);
+    const [editForm, setEditForm] = useState({ name: "", code: "", area_ids: [] });
+    const [savingEdit, setSavingEdit] = useState(false);
+    const [perPage, setPerPage] = useState(() => localStorage.getItem("ticketTipos.perPage") || "10");
+    const [page, setPage] = useState(1);
 
     const load = async () => {
         setLoading(true);
@@ -70,6 +81,36 @@ export default function TicketTipos() {
         }
     };
 
+    const openEdit = (item) => { setEditing(item); setEditForm({ name: item.name || "", code: item.code || "", area_ids: (item.areas || []).map((a) => a.id) }); };
+    const toggleEditArea = (areaId) => { setEditForm((prev) => prev.area_ids.includes(areaId) ? { ...prev, area_ids: prev.area_ids.filter((id) => id !== areaId) } : { ...prev, area_ids: [...prev.area_ids, areaId] }); };
+    const saveEdit = async () => {
+        if (!editing || !editForm.name.trim() || !editForm.code.trim()) return;
+        setSavingEdit(true);
+        try {
+            const { data } = await axios.put(`/api/ticket-types/${editing.id}`, { name: editForm.name.trim(), code: editForm.code.trim(), area_ids: editForm.area_ids, is_active: editing.is_active });
+            setTypes((prev) => prev.map((t) => t.id === data.id ? data : t));
+            clearCatalogCache(); setEditing(null); notify.success("Tipo actualizado");
+        } catch (err) { notify.error(getApiErrorMessage(err, "No se pudo actualizar")); }
+        finally { setSavingEdit(false); }
+    };
+
+    const total = types.length;
+    const lastPage = Math.max(1, Math.ceil(total / Number(perPage)));
+    const currentPage = Math.min(page, lastPage);
+    const paginatedList = useMemo(() => types.slice((currentPage - 1) * Number(perPage), currentPage * Number(perPage)), [types, currentPage, perPage]);
+    useEffect(() => { if (currentPage !== page) setPage(currentPage); }, [currentPage, page]);
+    useEffect(() => { localStorage.setItem("ticketTipos.perPage", perPage); }, [perPage]);
+    const goToPage = (p) => setPage(Math.max(1, Math.min(p, lastPage)));
+    const from = total === 0 ? 0 : (currentPage - 1) * Number(perPage) + 1;
+    const to = Math.min(currentPage * Number(perPage), total);
+    const pageNumbers = useMemo(() => {
+        if (lastPage <= 7) return Array.from({ length: lastPage }, (_, i) => i + 1);
+        const pages = [1]; if (currentPage > 3) pages.push("…");
+        for (let i = Math.max(2, currentPage - 1); i <= Math.min(lastPage - 1, currentPage + 1); i++) { if (!pages.includes(i)) pages.push(i); }
+        if (currentPage < lastPage - 2) pages.push("…"); if (lastPage > 1) pages.push(lastPage);
+        return pages;
+    }, [lastPage, currentPage]);
+
     return (
         <div className="space-y-6">
             <div className="flex items-start justify-between gap-3">
@@ -104,14 +145,15 @@ export default function TicketTipos() {
                                 <TableHead>Código</TableHead>
                                 <TableHead>Áreas responsables</TableHead>
                                 <TableHead className="text-right">Activa</TableHead>
+                                <TableHead className="w-[80px] text-right">Acciones</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {loading ? (
-                                <TableRow><TableCell colSpan={4} className="text-center">Cargando...</TableCell></TableRow>
+                                <TableRow><TableCell colSpan={5} className="text-center">Cargando...</TableCell></TableRow>
                             ) : types.length === 0 ? (
-                                <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground">Sin registros</TableCell></TableRow>
-                            ) : types.map((t) => (
+                                <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">Sin registros</TableCell></TableRow>
+                            ) : paginatedList.map((t) => (
                                 <TableRow key={t.id}>
                                     <TableCell>{t.name}</TableCell>
                                     <TableCell>{t.code}</TableCell>
@@ -119,12 +161,50 @@ export default function TicketTipos() {
                                         {t.areas?.length ? t.areas.map((a) => a.name).join(", ") : "—"}
                                     </TableCell>
                                     <TableCell className="text-right"><Switch checked={t.is_active} onCheckedChange={() => toggleActive(t)} /></TableCell>
+                                    <TableCell className="text-right"><Button variant="ghost" size="sm" className="h-8 gap-1" onClick={() => openEdit(t)}><Pencil className="h-3.5 w-3.5" /> Editar</Button></TableCell>
                                 </TableRow>
                             ))}
                         </TableBody>
                     </Table>
+                    {!loading && types.length > 0 && (
+                        <TablePagination
+                            total={total}
+                            from={from}
+                            to={to}
+                            currentPage={currentPage}
+                            lastPage={lastPage}
+                            perPage={perPage}
+                            perPageOptions={PER_PAGE_OPTIONS}
+                            onPerPageChange={setPerPage}
+                            onPageChange={(p) => setPage(p)}
+                        />
+                    )}
                 </CardContent>
             </Card>
+            <Dialog open={!!editing} onOpenChange={(open) => { if (!savingEdit) setEditing(open ? editing : null); }}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader><DialogTitle>Editar tipo de ticket</DialogTitle></DialogHeader>
+                    <div className="grid gap-4 py-4">
+                        <div className="grid gap-2"><Label>Nombre</Label><Input value={editForm.name} onChange={(e) => setEditForm((prev) => ({ ...prev, name: e.target.value }))} placeholder="Nombre" /></div>
+                        <div className="grid gap-2"><Label>Código</Label><Input value={editForm.code} onChange={(e) => setEditForm((prev) => ({ ...prev, code: e.target.value }))} placeholder="Código" /></div>
+                        <div className="grid gap-2">
+                            <Label>Áreas responsables</Label>
+                            <div className="flex flex-wrap gap-2 border rounded-md p-2 max-h-32 overflow-y-auto">
+                                {areas.map((a) => (
+                                    <label key={a.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                                        <input type="checkbox" checked={editForm.area_ids.includes(a.id)} onChange={() => toggleEditArea(a.id)} className="rounded" />
+                                        {a.name}
+                                    </label>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setEditing(null)} disabled={savingEdit}>Cancelar</Button>
+                        <Button onClick={saveEdit} disabled={savingEdit || !editForm.name.trim() || !editForm.code.trim()}>{savingEdit ? "Guardando…" : "Guardar"}</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

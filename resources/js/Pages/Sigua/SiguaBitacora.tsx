@@ -31,7 +31,8 @@ import { notify } from "@/lib/notify";
 import { downloadBlob } from "@/lib/downloadHelper";
 import { cn } from "@/lib/utils";
 import type { CuentaGenerica, RegistroBitacora, SiguaFilters, Sistema } from "@/types/sigua";
-import { Search, Download, ChevronLeft, ChevronRight, Loader2, AlertTriangle } from "lucide-react";
+import { Search, Download, Loader2, AlertTriangle } from "lucide-react";
+import { TablePagination } from "@/components/ui/table-pagination";
 
 const TURNOS = [
   { value: "matutino", label: "Matutino" },
@@ -394,18 +395,20 @@ export default function SiguaBitacora() {
                   )}
                 </TableBody>
               </Table>
-              {meta && meta.last_page > 1 && (
-                <div className="border-t px-4 py-3 flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground">Pág. {meta.current_page} de {meta.last_page}</span>
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm" disabled={meta.current_page <= 1 || loading} onClick={() => refetch(meta.current_page - 1)}>
-                      <ChevronLeft className="h-4 w-4" /> Anterior
-                    </Button>
-                    <Button variant="outline" size="sm" disabled={meta.current_page >= meta.last_page || loading} onClick={() => refetch(meta.current_page + 1)}>
-                      Siguiente <ChevronRight className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
+              {meta && (
+                <TablePagination
+                  total={meta.total}
+                  from={meta.total === 0 ? 0 : (meta.current_page - 1) * meta.per_page + 1}
+                  to={meta.total === 0 ? 0 : Math.min(meta.current_page * meta.per_page, meta.total)}
+                  currentPage={meta.current_page}
+                  lastPage={meta.last_page}
+                  perPage={String(meta.per_page)}
+                  perPageOptions={["10", "15", "25", "50", "100"]}
+                  onPerPageChange={() => {}}
+                  onPageChange={(p) => refetch(p)}
+                  showPerPage={false}
+                  loading={loading}
+                />
               )}
             </>
           )}
