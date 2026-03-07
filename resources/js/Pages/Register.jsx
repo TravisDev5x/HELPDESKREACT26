@@ -120,7 +120,7 @@ export default function Register() {
     };
 
     return (
-        <div className="flex min-h-screen items-center justify-center text-foreground p-6 relative overflow-hidden">
+        <div className="flex min-h-[100dvh] items-center justify-center text-foreground p-6 pb-[max(2rem,calc(2rem+env(safe-area-inset-bottom)))] overflow-y-auto relative md:min-h-screen md:overflow-hidden md:pb-6">
             {/* Fondo: imagen a pantalla completa */}
             <div
                 className="absolute inset-0 z-0 bg-cover bg-center bg-no-repeat"
@@ -136,16 +136,16 @@ export default function Register() {
                 type="button"
                 variant="ghost"
                 onClick={toggleTheme}
-                className="absolute top-4 right-4 z-10 h-auto text-xs font-semibold text-muted-foreground hover:text-foreground border border-border px-3 py-1 rounded-full bg-background/70 dark:bg-background/60 backdrop-blur-md hover:bg-background/80"
+                className="absolute top-4 right-4 z-10 h-auto min-h-[44px] min-w-[44px] flex items-center justify-center text-xs font-semibold text-muted-foreground hover:text-foreground border border-border px-3 py-2 rounded-full bg-background/70 dark:bg-background/60 backdrop-blur-md hover:bg-background/80 md:py-1"
                 aria-label="Cambiar tema"
             >
                 {isDark ? "Modo claro" : "Modo oscuro"}
             </Button>
-            <Card className="relative z-10 w-[460px] max-h-[90vh] flex flex-col shadow-2xl border-border/80 bg-card/80 dark:bg-card/70 backdrop-blur-md overflow-hidden">
+            <Card className="relative z-10 w-full max-w-[460px] max-h-[90dvh] flex flex-col shadow-2xl border-border/80 bg-card/80 dark:bg-card/70 backdrop-blur-md overflow-hidden">
                 <CardHeader className="shrink-0">
                     <CardTitle className="text-center">Registro de Usuario</CardTitle>
                 </CardHeader>
-                <CardContent className="min-h-0 overflow-y-auto">
+                <CardContent className="min-h-0 overflow-y-auto pb-[max(1rem,env(safe-area-inset-bottom))]">
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <div className="space-y-2">
                             <Label>Número de empleado</Label>
@@ -156,6 +156,7 @@ export default function Register() {
                                 }
                                 autoComplete="username"
                                 disabled={loading}
+                                className="focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:border-transparent"
                             />
                         </div>
 
@@ -166,6 +167,7 @@ export default function Register() {
                                 onChange={(e) => setForm({ ...form, first_name: e.target.value })}
                                 placeholder="Ej. Juan Carlos"
                                 disabled={loading}
+                                className="focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:border-transparent"
                             />
                         </div>
                         <div className="space-y-2">
@@ -175,6 +177,7 @@ export default function Register() {
                                 onChange={(e) => setForm({ ...form, paternal_last_name: e.target.value })}
                                 placeholder="Ej. Pérez"
                                 disabled={loading}
+                                className="focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:border-transparent"
                             />
                         </div>
                         <div className="space-y-2">
@@ -184,6 +187,7 @@ export default function Register() {
                                 onChange={(e) => setForm({ ...form, maternal_last_name: e.target.value })}
                                 placeholder="Ej. García"
                                 disabled={loading}
+                                className="focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:border-transparent"
                             />
                         </div>
 
@@ -195,6 +199,7 @@ export default function Register() {
                                 onChange={(e) => setForm({ ...form, email: e.target.value })}
                                 autoComplete="email"
                                 disabled={loading}
+                                className="focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:border-transparent"
                             />
                         </div>
 
@@ -205,6 +210,7 @@ export default function Register() {
                                 onChange={(e) => setForm({ ...form, phone: e.target.value })}
                                 maxLength={10}
                                 disabled={loading}
+                                className="focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:border-transparent"
                             />
                         </div>
 
@@ -218,7 +224,7 @@ export default function Register() {
                                     onChange={(e) => setForm({ ...form, password: e.target.value })}
                                     autoComplete="new-password"
                                     disabled={loading}
-                                    className="pr-12"
+                                    className="pr-12 focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:border-transparent"
                                 />
                                 <Button
                                     type="button"
@@ -273,7 +279,7 @@ export default function Register() {
                                     onChange={(e) => setForm({ ...form, password_confirmation: e.target.value })}
                                     autoComplete="new-password"
                                     disabled={loading}
-                                    className="pr-12"
+                                    className="pr-12 focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:border-transparent"
                                 />
                                 <Button
                                     type="button"
@@ -310,9 +316,9 @@ export default function Register() {
                         <Button type="submit" className="w-full" disabled={loading}>
                             {loading ? "Registrando..." : "Crear cuenta"}
                         </Button>
-                        <p className="text-center text-xs text-muted-foreground">
-                            ¿Ya tienes cuenta?{" "}
-                            <Link to="/login" className="text-primary hover:underline">
+                        <p className="text-center text-xs text-muted-foreground flex flex-wrap items-center justify-center gap-x-1 gap-y-1">
+                            <span>¿Ya tienes cuenta?</span>
+                            <Link to="/login" className="inline-flex items-center min-h-[44px] py-3 text-primary hover:underline md:min-h-0 md:py-0">
                                 Inicia sesión
                             </Link>
                         </p>

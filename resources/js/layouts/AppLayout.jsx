@@ -4,6 +4,7 @@ import { useAuth } from '@/context/AuthContext'
 import { useSidebarPosition } from '@/context/SidebarPositionContext'
 import { useTheme } from '@/hooks/useTheme'
 import { useI18n } from '@/hooks/useI18n'
+import { useSwipeToClose } from '@/hooks/useSwipeToClose'
 import axios from '@/lib/axios'
 import { cn } from '@/lib/utils'
 
@@ -66,6 +67,8 @@ export default function AppLayout() {
         return localStorage.getItem('layout-focused') === '1'
     })
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+    const mobileSheetRef = useRef(null)
+    useSwipeToClose(mobileSheetRef, () => setMobileMenuOpen(false), mobileMenuOpen, { side: 'left', threshold: 72, velocityThreshold: 0.35 })
     const [forceDeviceView, setForceDeviceView] = useState(() => {
         if (typeof window === 'undefined') return false
         return localStorage.getItem('layout-force-device-view') === '1'
@@ -354,7 +357,14 @@ export default function AppLayout() {
                                         <Menu className="h-5 w-5" />
                                     </Button>
                                 </SheetTrigger>
-                                <SheetContent side="left" className="flex flex-col p-0 w-72 max-w-[85vw]" showCloseButton={false}>
+                                <SheetContent
+                                    ref={mobileSheetRef}
+                                    side="left"
+                                    className="flex flex-col p-0 w-72 max-w-[85vw]"
+                                    showCloseButton={false}
+                                    overlayClassName="sheet-overlay-mobile"
+                                    dataDrawer="mobile"
+                                >
                                     {/* Header fijo con safe area: evita notch y ofrece cierre 44px */}
                                     <div
                                         className="flex shrink-0 items-center justify-between border-b border-border/50 bg-background px-4 py-3"
@@ -451,10 +461,10 @@ export default function AppLayout() {
 
                             <Separator orientation="vertical" className="hidden md:block h-6 mx-1" />
 
-                            {/* Theme Toggle */}
+                            {/* Theme Toggle: área táctil 44px en móvil */}
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full">
+                                    <Button variant="ghost" size="icon" className="h-11 w-11 rounded-full flex items-center justify-center md:h-9 md:w-9">
                                         <Sun className="h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0 text-orange-500" />
                                         <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100 text-blue-500" />
                                     </Button>
@@ -465,10 +475,10 @@ export default function AppLayout() {
                                 </DropdownMenuContent>
                             </DropdownMenu>
 
-                            {/* Notifications */}
+                            {/* Notifications: área táctil 44px en móvil */}
                             <DropdownMenu open={notifOpen} onOpenChange={setNotifOpen}>
                                 <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-9 w-9 relative rounded-full hover:bg-muted/50">
+                                    <Button variant="ghost" size="icon" className="h-11 w-11 relative rounded-full flex items-center justify-center hover:bg-muted/50 md:h-9 md:w-9">
                                         <Bell className={cn("h-5 w-5", unreadCount > 0 ? "text-foreground" : "text-muted-foreground")} />
                                         {unreadCount > 0 && (
                                             <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-destructive-foreground ring-2 ring-background px-1">
@@ -539,7 +549,7 @@ export default function AppLayout() {
                     {/* --- OUTLET AREA --- */}
                     <main
                         ref={mainScrollRef}
-                        className={cn("flex-1 overflow-y-auto bg-muted/10 relative", forceDeviceView ? "pb-24" : "pb-24 md:pb-0")}
+                        className={cn("flex-1 overflow-y-auto bg-muted/10 relative", forceDeviceView ? "pb-32" : "pb-32 md:pb-0")}
                         tabIndex={-1}
                     >
                         {/* Fade + blur superior al hacer scroll (no afecta z-index del sidebar/navbar) */}

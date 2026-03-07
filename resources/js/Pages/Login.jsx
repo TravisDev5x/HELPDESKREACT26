@@ -87,7 +87,7 @@ export default function Login() {
     };
 
     return (
-        <div className="flex h-screen flex-col items-center justify-center text-foreground relative px-4 py-6 overflow-hidden">
+        <div className="flex min-h-[100dvh] flex-col items-center justify-center text-foreground relative px-4 py-6 pb-[max(2rem,calc(2rem+env(safe-area-inset-bottom)))] overflow-y-auto md:min-h-screen md:h-screen md:overflow-hidden md:pb-6">
             {/* Fondo: imagen a pantalla completa */}
             <div
                 className="absolute inset-0 z-0 bg-cover bg-center bg-no-repeat"
@@ -107,12 +107,12 @@ export default function Login() {
                 type="button"
                 variant="ghost"
                 onClick={toggleTheme}
-                className="absolute top-4 right-4 z-10 h-auto text-xs font-semibold text-muted-foreground hover:text-foreground border border-border px-3 py-1 rounded-full bg-background/70 dark:bg-background/60 backdrop-blur-md hover:bg-background/80"
+                className="absolute top-4 right-4 z-10 h-auto min-h-[44px] min-w-[44px] flex items-center justify-center text-xs font-semibold text-muted-foreground hover:text-foreground border border-border px-3 py-2 rounded-full bg-background/70 dark:bg-background/60 backdrop-blur-md hover:bg-background/80 md:py-1"
                 aria-label={t("login.toggleTheme")}
             >
                 {isDark ? t("login.themeLight") : t("login.themeDark")}
             </Button>
-            <Card className="relative z-10 w-full max-w-[400px] shadow-2xl border-border/80 bg-card/90 dark:bg-card/85 backdrop-blur-md">
+            <Card className="relative z-10 w-full max-w-[400px] shadow-2xl border-border/80 bg-card/90 dark:bg-card/85 backdrop-blur-md flex-shrink-0 my-auto md:my-0">
                 <CardHeader className="text-center space-y-1">
                     <CardTitle className="text-xl text-foreground">{t("brand.title")}</CardTitle>
                     <p className="text-sm text-foreground/80 font-medium">{t("brand.subtitle")}</p>
@@ -132,6 +132,7 @@ export default function Login() {
                                 autoComplete="username"
                                 disabled={loading}
                                 aria-invalid={Boolean(error)}
+                                className="focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:border-transparent"
                             />
                         </div>
 
@@ -147,7 +148,7 @@ export default function Login() {
                                     }
                                     autoComplete="current-password"
                                     disabled={loading}
-                                    className="pr-12"
+                                    className="pr-12 focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:border-transparent"
                                     aria-invalid={Boolean(error)}
                                 />
                                 <Button
@@ -169,24 +170,22 @@ export default function Login() {
                             <p className="text-right">
                                 <Link
                                     to="/forgot-password"
-                                    className="text-xs text-primary hover:underline font-medium"
+                                    className="inline-flex items-center justify-end min-h-[44px] py-3 text-xs text-primary hover:underline font-medium md:min-h-0 md:py-0"
                                 >
                                     {t("login.forgotPassword")}
                                 </Link>
                             </p>
                         </div>
 
-                        <div className="flex items-center gap-2">
+                        <label className="flex cursor-pointer items-center gap-2 w-fit" htmlFor="remember">
                             <Checkbox
                                 id="remember"
                                 checked={remember}
                                 onCheckedChange={(v) => setRemember(Boolean(v))}
                                 disabled={loading}
                             />
-                            <Label htmlFor="remember" className="text-sm text-muted-foreground">
-                                {t("login.remember")}
-                            </Label>
-                        </div>
+                            <span className="text-sm text-muted-foreground select-none">{t("login.remember")}</span>
+                        </label>
 
                         {error && (
                             <p className="text-red-500 text-sm" role="alert" aria-live="polite">
@@ -201,27 +200,25 @@ export default function Login() {
                             <span>{loading ? t("login.submitting") : t("login.submit")}</span>
                         </Button>
 
-                        <p className="text-center text-xs text-foreground/80">
-                            {t("login.noAccount")}{" "}
-                            <Link to="/register" className="text-primary hover:underline font-medium">
+                        <p className="text-center text-xs text-foreground/80 flex flex-wrap items-center justify-center gap-x-1 gap-y-1">
+                            <span>{t("login.noAccount")}</span>
+                            <Link to="/register" className="inline-flex items-center min-h-[44px] py-3 text-primary hover:underline font-medium md:min-h-0 md:py-0">
                                 {t("login.register")}
                             </Link>
                         </p>
                     </form>
                 </CardContent>
             </Card>
-            <div className="relative z-10 mt-6 text-center text-xs space-y-1 px-4 py-3 rounded-xl bg-background/85 dark:bg-background/90 backdrop-blur-sm border border-border/50 shadow-lg">
+            <div className="relative z-10 mt-6 text-center text-xs space-y-1 px-4 py-3 pb-[max(1rem,env(safe-area-inset-bottom))] rounded-xl bg-background/85 dark:bg-background/90 backdrop-blur-sm border border-border/50 shadow-lg">
                 <p className="text-foreground font-medium">{t("login.help")}</p>
-                <Button
-                    type="button"
-                    variant="link"
-                    className="h-auto p-0 text-primary hover:underline font-semibold"
-                    asChild
+                <Link
+                    to="/manual"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center justify-center min-h-[44px] py-3 text-primary hover:underline font-semibold md:min-h-0 md:py-0"
                 >
-                    <Link to="/manual" target="_blank" rel="noopener noreferrer">
-                        {t("login.manual")}
-                    </Link>
-                </Button>
+                    {t("login.manual")}
+                </Link>
             </div>
         </div>
     );

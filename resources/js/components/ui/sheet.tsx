@@ -19,7 +19,7 @@ const SheetOverlay = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <SheetPrimitive.Overlay
     className={cn(
-      "fixed inset-0 z-50 bg-black/80  data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+      "fixed inset-0 z-50 bg-black/80 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
       className
     )}
     {...props}
@@ -52,16 +52,21 @@ interface SheetContentProps
     VariantProps<typeof sheetVariants> {
   /** Si es false, no se renderiza el botón cerrar por defecto (útil para drawer con header propio). Por defecto true. */
   showCloseButton?: boolean
+  /** Clases adicionales para el overlay (ej. opacity más suave en móvil). */
+  overlayClassName?: string
+  /** Valor para data-drawer (ej. "mobile") para estilos/animación específicos. */
+  dataDrawer?: string
 }
 
 const SheetContent = React.forwardRef<
   React.ElementRef<typeof SheetPrimitive.Content>,
   SheetContentProps
->(({ side = "right", className, children, showCloseButton = true, ...props }, ref) => (
+>(({ side = "right", className, children, showCloseButton = true, overlayClassName, dataDrawer, ...props }, ref) => (
   <SheetPortal>
-    <SheetOverlay />
+    <SheetOverlay className={overlayClassName} />
     <SheetPrimitive.Content
       ref={ref}
+      data-drawer={dataDrawer}
       className={cn(sheetVariants({ side }), className)}
       {...props}
     >

@@ -51,7 +51,7 @@ export default function ResetPassword() {
     };
 
     return (
-        <div className="flex h-screen flex-col items-center justify-center text-foreground relative px-4 py-6 overflow-hidden">
+        <div className="flex min-h-[100dvh] flex-col items-center justify-center text-foreground relative px-4 py-6 pb-[max(2rem,calc(2rem+env(safe-area-inset-bottom)))] overflow-y-auto md:h-screen md:overflow-hidden md:pb-6">
             {/* Fondo: imagen a pantalla completa (fixed para que siempre cubra el viewport) */}
             <div
                 className="fixed inset-0 z-0 bg-cover bg-center bg-no-repeat bg-muted"
@@ -67,12 +67,12 @@ export default function ResetPassword() {
                 type="button"
                 variant="ghost"
                 onClick={toggleTheme}
-                className="absolute top-4 right-4 z-10 h-auto text-xs font-semibold text-muted-foreground hover:text-foreground border border-border px-3 py-1 rounded-full bg-background/70 dark:bg-background/60 backdrop-blur-md hover:bg-background/80"
+                className="absolute top-4 right-4 z-10 h-auto min-h-[44px] min-w-[44px] flex items-center justify-center text-xs font-semibold text-muted-foreground hover:text-foreground border border-border px-3 py-2 rounded-full bg-background/70 dark:bg-background/60 backdrop-blur-md hover:bg-background/80 md:py-1"
                 aria-label="Cambiar tema"
             >
                 {isDark ? "Modo claro" : "Modo oscuro"}
             </Button>
-            <Card className="relative z-10 w-[420px] shadow-2xl border-border/80 bg-card/80 dark:bg-card/70 backdrop-blur-md">
+            <Card className="relative z-10 w-full max-w-[420px] shadow-2xl border-border/80 bg-card/80 dark:bg-card/70 backdrop-blur-md flex-shrink-0">
                 <CardHeader>
                     <CardTitle className="text-center">Nueva contraseña</CardTitle>
                 </CardHeader>
@@ -80,15 +80,15 @@ export default function ResetPassword() {
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <div className="space-y-2">
                             <Label>Correo</Label>
-                            <Input type="email" value={email} disabled />
+                            <Input type="email" value={email} disabled className="focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:border-transparent" />
                         </div>
                         <div className="space-y-2">
                             <Label>Contraseña nueva</Label>
-                            <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} disabled={loading} />
+                            <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} disabled={loading} className="focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:border-transparent" />
                         </div>
                         <div className="space-y-2">
                             <Label>Confirmar contraseña</Label>
-                            <Input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} disabled={loading} />
+                            <Input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} disabled={loading} className="focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:border-transparent" />
                         </div>
                         {message && <p className="text-green-600 text-sm">{message}</p>}
                         {error && <p className="text-red-500 text-sm">{error}</p>}

@@ -910,6 +910,26 @@ html[data-theme-switching="1"] *::after {
     display: none;
 }
 
+/* Sheet / Drawer móvil: overlay más suave para distinguir el panel lateral */
+.sheet-overlay-mobile {
+    background-color: rgba(0, 0, 0, 0.45);
+}
+@media (min-width: 768px) {
+    .sheet-overlay-mobile {
+        background-color: rgba(0, 0, 0, 0.8);
+    }
+}
+
+/* Sheet drawer móvil: animación más nativa (más corta y ease-out) */
+[data-drawer="mobile"][data-state="open"] {
+    animation-duration: 280ms;
+    animation-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
+}
+[data-drawer="mobile"][data-state="closed"] {
+    animation-duration: 220ms;
+    animation-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
 /* Fade + blur superior del área de contenido al hacer scroll (AppLayout) */
 .layout-scroll-fade {
     background: linear-gradient(

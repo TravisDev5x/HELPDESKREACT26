@@ -57,8 +57,8 @@ export default function ForgotPassword() {
     };
 
     return (
-        <div className="flex h-screen items-center justify-center bg-background text-foreground">
-            <Card className="w-[420px]">
+        <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-background text-foreground px-4 py-6 pb-[max(2rem,calc(2rem+env(safe-area-inset-bottom)))] overflow-y-auto md:h-screen md:overflow-hidden md:pb-6">
+            <Card className="w-full max-w-[420px] flex-shrink-0 pb-[max(1rem,env(safe-area-inset-bottom))] md:pb-6">
                 <CardHeader>
                     <CardTitle className="text-center">Restablecer contraseña</CardTitle>
                 </CardHeader>
@@ -74,6 +74,7 @@ export default function ForgotPassword() {
                                 placeholder="Ej: correo@empresa.com o 12345"
                                 autoComplete="username"
                                 disabled={loading}
+                                className="focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:border-transparent"
                             />
                             <p className="text-xs text-muted-foreground">
                                 Si no tienes correo institucional, escribe tu número de empleado. Un administrador restablecerá tu contraseña y se comunicará contigo por WhatsApp empresarial, teléfono o personalmente.

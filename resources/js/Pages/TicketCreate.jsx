@@ -179,33 +179,90 @@ export default function TicketCreate() {
                                     </SelectContent>
                                 </Select>
                             </div>
+                            {/* Impacto: Select en escritorio, chips en móvil (mismo estado) */}
                             <div className="space-y-2">
-                                <Label htmlFor="impact">Impacto <span className="text-destructive">*</span></Label>
-                                <Select value={form.impact_level_id} onValueChange={(v) => setForm({ ...form, impact_level_id: v })}>
-                                    <SelectTrigger id="impact" className="w-full">
-                                        <SelectValue placeholder="Seleccionar" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {(catalogs.impact_levels || []).map((i) => (
-                                            <SelectItem key={i.id} value={String(i.id)}>{i.name}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                <Label htmlFor="impact" id="impact-label">Impacto <span className="text-destructive">*</span></Label>
+                                <div className="block md:hidden" role="radiogroup" aria-labelledby="impact-label">
+                                    <div className="flex w-full gap-2 flex-wrap">
+                                        {(catalogs.impact_levels || []).map((i) => {
+                                            const isSelected = form.impact_level_id === String(i.id);
+                                            return (
+                                                <button
+                                                    key={i.id}
+                                                    type="button"
+                                                    role="radio"
+                                                    aria-checked={isSelected}
+                                                    id={`impact-chip-${i.id}`}
+                                                    className={cn(
+                                                        "flex-1 min-w-0 min-h-[44px] rounded-lg border text-sm font-medium transition-colors",
+                                                        "flex items-center justify-center px-2 py-2.5",
+                                                        isSelected
+                                                            ? "bg-primary text-primary-foreground border-primary"
+                                                            : "bg-transparent border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                                                    )}
+                                                    onClick={() => setForm((prev) => ({ ...prev, impact_level_id: String(i.id) }))}
+                                                >
+                                                    <span className="truncate">{i.name}</span>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                                <div className="hidden md:block">
+                                    <Select value={form.impact_level_id} onValueChange={(v) => setForm({ ...form, impact_level_id: v })}>
+                                        <SelectTrigger id="impact" className="w-full">
+                                            <SelectValue placeholder="Seleccionar" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {(catalogs.impact_levels || []).map((i) => (
+                                                <SelectItem key={i.id} value={String(i.id)}>{i.name}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
                             </div>
 
-                            {/* Urgencia / Prioridad (calculada) */}
+                            {/* Urgencia: Select en escritorio, chips en móvil (mismo estado) */}
                             <div className="space-y-2">
-                                <Label htmlFor="urgency">Urgencia <span className="text-destructive">*</span></Label>
-                                <Select value={form.urgency_level_id} onValueChange={(v) => setForm({ ...form, urgency_level_id: v })}>
-                                    <SelectTrigger id="urgency" className="w-full">
-                                        <SelectValue placeholder="Seleccionar" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {(catalogs.urgency_levels || []).map((u) => (
-                                            <SelectItem key={u.id} value={String(u.id)}>{u.name}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                <Label htmlFor="urgency" id="urgency-label">Urgencia <span className="text-destructive">*</span></Label>
+                                <div className="block md:hidden" role="radiogroup" aria-labelledby="urgency-label">
+                                    <div className="flex w-full gap-2 flex-wrap">
+                                        {(catalogs.urgency_levels || []).map((u) => {
+                                            const isSelected = form.urgency_level_id === String(u.id);
+                                            return (
+                                                <button
+                                                    key={u.id}
+                                                    type="button"
+                                                    role="radio"
+                                                    aria-checked={isSelected}
+                                                    id={`urgency-chip-${u.id}`}
+                                                    className={cn(
+                                                        "flex-1 min-w-0 min-h-[44px] rounded-lg border text-sm font-medium transition-colors",
+                                                        "flex items-center justify-center px-2 py-2.5",
+                                                        isSelected
+                                                            ? "bg-primary text-primary-foreground border-primary"
+                                                            : "bg-transparent border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                                                    )}
+                                                    onClick={() => setForm((prev) => ({ ...prev, urgency_level_id: String(u.id) }))}
+                                                >
+                                                    <span className="truncate">{u.name}</span>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                                <div className="hidden md:block">
+                                    <Select value={form.urgency_level_id} onValueChange={(v) => setForm({ ...form, urgency_level_id: v })}>
+                                        <SelectTrigger id="urgency" className="w-full">
+                                            <SelectValue placeholder="Seleccionar" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {(catalogs.urgency_levels || []).map((u) => (
+                                                <SelectItem key={u.id} value={String(u.id)}>{u.name}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="priority-calc" className="flex items-center gap-1.5">
