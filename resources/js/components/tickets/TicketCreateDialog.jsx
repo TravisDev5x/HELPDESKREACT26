@@ -1,7 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import {
     Dialog,
     DialogContent,
@@ -17,9 +16,12 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { Building2, CheckCircle2, Loader2, MapPin, Paperclip, Ticket, User, X } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Building2, CheckCircle2, ChevronDown, Loader2, MapPin, Paperclip, Settings2, Ticket, User, X } from "lucide-react";
 import { Field, SectionHeading } from "@/components/tickets/TicketFormFields";
-import { MarkdownToolbar } from "@/components/tickets/MarkdownToolbar";
+import { TicketDescriptionEditor } from "@/components/tickets/TicketDescriptionEditor";
+import { catalogName, TicketDescriptionGuidance, TicketSubmissionSummary } from "@/components/tickets/TicketCreationAssist";
+import { cn } from "@/lib/utils";
 import { notify } from "@/lib/notify";
 
 const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
@@ -55,8 +57,8 @@ export function TicketCreateDialog({
     viewTicketHref = (id) => `/resolbeb/tickets/${id}`,
 }) {
     const autoSite = Boolean(siteContext?.siteName);
-    const descriptionRef = useRef(null);
     const [pendingFiles, setPendingFiles] = useState([]);
+    const [advancedOpen, setAdvancedOpen] = useState(false);
 
     // Adjuntos son un draft local: se limpian cada vez que el modal se cierra
     // (éxito, cancelar, o click afuera) para que el siguiente ticket empiece limpio.
@@ -77,8 +79,19 @@ export function TicketCreateDialog({
 
     const handleSubmit = (e) => {
         e.preventDefault();
+        if (!form.priority_id || (!autoSite && !form.site_id)) {
+            setAdvancedOpen(true);
+        }
         onSubmit(e, pendingFiles);
     };
+    const ticketTypeName = catalogName(catalogs.ticket_types, form.ticket_type_id);
+    const selectedSiteName = siteContext?.siteName || catalogName(catalogs.sites, form.site_id, "");
+    const missingLabels = [
+        !form.subject?.trim() && "asunto",
+        !form.ticket_type_id && "tipo",
+        !form.priority_id && "prioridad",
+        !autoSite && !form.site_id && "sede",
+    ].filter(Boolean);
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -139,7 +152,7 @@ export function TicketCreateDialog({
                                     />
                                 </Field>
 
-                                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                                <div className="grid grid-cols-1 gap-4">
                                     <Field label="Tipo" required>
                                         <Select
                                             value={form.ticket_type_id}
@@ -157,6 +170,29 @@ export function TicketCreateDialog({
                                             </SelectContent>
                                         </Select>
                                     </Field>
+                                </div>
+
+                                <Field label="Detalle del incidente">
+                                    <TicketDescriptionEditor
+                                        value={form.description}
+                                        onChange={(description) => setForm((current) => ({ ...current, description }))}
+                                        disabled={saving}
+                                        minHeight="100px"
+                                        placeholder="Qué ocurrió, cuándo y si hay mensajes de error…"
+                                    />
+                                    <TicketDescriptionGuidance ticketTypeName={ticketTypeName} />
+                                </Field>
+
+                                <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen} className="rounded-lg border border-border/60">
+                                    <CollapsibleTrigger asChild>
+                                        <Button type="button" variant="ghost" className="h-auto w-full justify-between px-3 py-2.5">
+                                            <span className="flex items-center gap-2 text-sm font-medium">
+                                                <Settings2 className="h-4 w-4 text-muted-foreground" aria-hidden /> Opciones avanzadas
+                                            </span>
+                                            <ChevronDown className={cn("h-4 w-4 transition-transform", advancedOpen && "rotate-180")} aria-hidden />
+                                        </Button>
+                                    </CollapsibleTrigger>
+                                    <CollapsibleContent className="space-y-5 border-t border-border/60 px-3 py-4">
                                     <Field label="Prioridad" required>
                                         <Select
                                             value={form.priority_id}
@@ -174,7 +210,6 @@ export function TicketCreateDialog({
                                             </SelectContent>
                                         </Select>
                                     </Field>
-                                </div>
 
                                 <SectionHeading>Ubicación y asignación</SectionHeading>
 
@@ -222,7 +257,11 @@ export function TicketCreateDialog({
                                             </p>
                                         </Field>
                                     )}
-                                    <Field label="Asignar a área" required className={autoSite ? "" : "sm:col-span-2"}>
+                                    <Field
+                                        label="Área responsable"
+                                        hint="Opcional. Si no la conoces, Mesa de ayuda la enrutará automáticamente."
+                                        className={autoSite ? "" : "sm:col-span-2"}
+                                    >
                                         <Select
                                             value={form.area_current_id}
                                             onValueChange={(v) => setForm({ ...form, area_current_id: v })}
@@ -230,10 +269,11 @@ export function TicketCreateDialog({
                                             <div className="relative">
                                                 <User className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
                                                 <SelectTrigger className="pl-9">
-                                                    <SelectValue placeholder="Área responsable" />
+                                                <SelectValue placeholder="Área responsable" />
                                                 </SelectTrigger>
                                             </div>
                                             <SelectContent>
+                                                <SelectItem value="automatic">Asignación automática</SelectItem>
                                                 {(catalogs.areas || []).map((a) => (
                                                     <SelectItem key={a.id} value={String(a.id)}>
                                                         {a.name}
@@ -261,23 +301,8 @@ export function TicketCreateDialog({
                                         </SelectContent>
                                     </Select>
                                 </Field>
-
-                                <Field label="Detalle del incidente">
-                                    <div className="space-y-1.5">
-                                        <MarkdownToolbar
-                                            textareaRef={descriptionRef}
-                                            onChange={(v) => setForm({ ...form, description: v })}
-                                            disabled={saving}
-                                        />
-                                        <Textarea
-                                            ref={descriptionRef}
-                                            className="min-h-[100px] resize-y"
-                                            placeholder="Qué ocurrió, cuándo y si hay mensajes de error…"
-                                            value={form.description}
-                                            onChange={(e) => setForm({ ...form, description: e.target.value })}
-                                        />
-                                    </div>
-                                </Field>
+                                    </CollapsibleContent>
+                                </Collapsible>
 
                                 <Field
                                     label="Adjuntar evidencia"
@@ -326,7 +351,15 @@ export function TicketCreateDialog({
                                 </Field>
                             </div>
 
-                            <DialogFooter className="gap-2 border-t border-border/60 bg-muted/30 px-6 py-4 sm:justify-end">
+                            <DialogFooter className="gap-3 border-t border-border/60 bg-background/95 px-6 py-4 backdrop-blur sm:items-center sm:justify-between">
+                                <TicketSubmissionSummary
+                                    ticketTypeName={ticketTypeName}
+                                    siteName={selectedSiteName}
+                                    fileCount={pendingFiles.length}
+                                    missingLabels={missingLabels}
+                                    compact
+                                />
+                                <div className="flex shrink-0 gap-2">
                                 <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
                                     Cancelar
                                 </Button>
@@ -338,6 +371,7 @@ export function TicketCreateDialog({
                                     )}
                                     Crear ticket
                                 </Button>
+                                </div>
                             </DialogFooter>
                         </form>
                     </>

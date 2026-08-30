@@ -5,7 +5,8 @@ import axios from "@/lib/axios";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { TicketDescriptionEditor } from "@/components/tickets/TicketDescriptionEditor";
+import { catalogName, TicketDescriptionGuidance, TicketSubmissionSummary } from "@/components/tickets/TicketCreationAssist";
 import {
     Select,
     SelectContent,
@@ -25,6 +26,11 @@ export default function PortalTicketsCreate() {
     });
     const [errors, setErrors] = useState({});
     const [submitting, setSubmitting] = useState(false);
+    const ticketTypeName = catalogName(ticketTypes, form.ticket_type_id);
+    const missingLabels = [
+        !form.subject.trim() && "asunto",
+        !form.ticket_type_id && "tipo",
+    ].filter(Boolean);
 
     const set = (field) => (e) =>
         setForm((prev) => ({ ...prev, [field]: typeof e === "string" ? e : e.target.value }));
@@ -48,7 +54,6 @@ export default function PortalTicketsCreate() {
                 description: form.description.trim() || null,
                 ticket_type_id: Number(form.ticket_type_id),
                 area_origin_id: defaultAreaId,
-                area_current_id: defaultAreaId,
                 ticket_state_id: defaultStateId,
                 created_at: new Date().toISOString(),
             };
@@ -132,15 +137,15 @@ export default function PortalTicketsCreate() {
                                 (opcional)
                             </span>
                         </Label>
-                        <Textarea
+                        <TicketDescriptionEditor
                             id="description"
-                            placeholder="Proporciona más detalles sobre el problema…"
                             value={form.description}
-                            onChange={set("description")}
+                            onChange={(description) => setForm((current) => ({ ...current, description }))}
                             disabled={submitting}
-                            rows={5}
-                            className="resize-none"
+                            placeholder="Proporciona más detalles sobre el problema…"
+                            aria-invalid={Boolean(errors.description)}
                         />
+                        <TicketDescriptionGuidance ticketTypeName={ticketTypeName} />
                         {errors.description && (
                             <p className="text-xs text-destructive">{errors.description}</p>
                         )}
@@ -153,7 +158,13 @@ export default function PortalTicketsCreate() {
                         </p>
                     ) : null}
 
-                    <div className="flex gap-3 pt-1">
+                    <div className="sticky bottom-0 z-10 -mx-3 flex flex-col gap-3 border-t border-border/60 bg-background/95 px-3 py-4 backdrop-blur sm:flex-row sm:items-center sm:justify-between">
+                        <TicketSubmissionSummary
+                            ticketTypeName={ticketTypeName}
+                            fileCount={0}
+                            missingLabels={missingLabels}
+                        />
+                        <div className="flex gap-3">
                         <Button type="submit" disabled={submitting} className="gap-2">
                             {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
                             {submitting ? "Enviando…" : "Enviar ticket"}
@@ -166,6 +177,7 @@ export default function PortalTicketsCreate() {
                         >
                             Cancelar
                         </Button>
+                        </div>
                     </div>
                 </form>
             </div>

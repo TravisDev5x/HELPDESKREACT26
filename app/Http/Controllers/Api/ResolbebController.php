@@ -12,6 +12,7 @@ use App\Models\TicketType;
 use App\Models\User;
 use App\Policies\TicketPolicy;
 use App\Services\ClientScopeService;
+use App\Services\TenantContextService;
 use App\Services\TicketQueryFilterService;
 use App\Support\Database\SqlDialect;
 use Carbon\Carbon;
@@ -66,7 +67,11 @@ class ResolbebController extends Controller
 
         $timezone = $this->resolveBusinessTimezone($user);
 
-        $cacheKey = 'dashboard.'.$user->id.'.'.md5(json_encode($request->query()));
+        $tenantContext = app(TenantContextService::class)->current();
+        $scopeKey = $tenantContext->enforcesStrictClientIsolation()
+            ? 'client-'.$tenantContext->clientId
+            : 'platform';
+        $cacheKey = 'dashboard.'.$scopeKey.'.'.$user->id.'.'.md5(json_encode($request->query()));
 
         $result = Cache::remember($cacheKey, now()->addMinutes(2), function () use ($base, $timezone) {
             return $this->buildDashboardPayload($base, $timezone);

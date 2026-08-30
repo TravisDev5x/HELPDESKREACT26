@@ -112,6 +112,33 @@ final class PgsqlRowLevelSecurity
         }
     }
 
+    /** @return array<string, string> */
+    public static function snapshot(): array
+    {
+        if (! self::enabled()) {
+            return [];
+        }
+
+        $state = [];
+        foreach ([self::BYPASS, self::PORTAL_CLIENT_ID, self::OPERATOR_USER_ID, self::USER_CLIENT_ID] as $key) {
+            $state[$key] = (string) (DB::selectOne('SELECT current_setting(?, true) AS value', [$key])?->value ?? '');
+        }
+
+        return $state;
+    }
+
+    /** @param array<string, string> $state */
+    public static function restore(array $state): void
+    {
+        if (! self::enabled()) {
+            return;
+        }
+
+        foreach ([self::BYPASS, self::PORTAL_CLIENT_ID, self::OPERATOR_USER_ID, self::USER_CLIENT_ID] as $key) {
+            self::set($key, $state[$key] ?? '');
+        }
+    }
+
     private static function set(string $key, string $value): void
     {
         DB::statement('SELECT set_config(?, ?, false)', [$key, $value]);

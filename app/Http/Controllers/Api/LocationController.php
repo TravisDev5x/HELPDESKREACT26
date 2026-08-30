@@ -70,7 +70,7 @@ class LocationController extends Controller
     public function update(Request $request, Location $location)
     {
         $user = Auth::user();
-        $this->operatorScope->authorizeSite($user, $location->site);
+        $this->authorizeLocationSite($user, $location);
 
         $data = $request->validate([
             'site_id' => ['required', 'exists:sites,id'],
@@ -101,7 +101,7 @@ class LocationController extends Controller
 
     public function destroy(Location $location)
     {
-        $this->operatorScope->authorizeSite(Auth::user(), $location->site);
+        $this->authorizeLocationSite(Auth::user(), $location);
 
         if ($location->users()->exists()) {
             return response()->json(['message' => 'No se puede eliminar: hay usuarios asignados'], 422);
@@ -115,6 +115,14 @@ class LocationController extends Controller
     private function authorizeParentLocation(User $user, int $parentId): void
     {
         $parent = Location::with('site')->findOrFail($parentId);
-        $this->operatorScope->authorizeSite($user, $parent->site);
+        $this->authorizeLocationSite($user, $parent);
+    }
+
+    /** RLS puede ocultar la sede relacionada aunque la ubicación sea enlazada. */
+    private function authorizeLocationSite(User $user, Location $location): void
+    {
+        $site = $location->site;
+        abort_unless($site instanceof Site, 403, 'No tiene acceso a esta sede.');
+        $this->operatorScope->authorizeSite($user, $site);
     }
 }

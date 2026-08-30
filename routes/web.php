@@ -1,21 +1,23 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\Storage;
-use Inertia\Inertia;
 use App\Http\Controllers\Auth\AcceptInvitationController;
+use App\Http\Controllers\Auth\GoogleAuthController;
+use App\Http\Controllers\Auth\MicrosoftAuthController;
 use App\Http\Controllers\CompanyController;
-use App\Http\Controllers\LandingController;
 use App\Http\Controllers\Inertia\CatalogPageController;
 use App\Http\Controllers\Inertia\InvAssetAssignmentPageController;
-use App\Http\Controllers\Inertia\InvIntegrationPageController;
 use App\Http\Controllers\Inertia\InvAssetPageController;
+use App\Http\Controllers\Inertia\InvIntegrationPageController;
 use App\Http\Controllers\Inertia\InvMonitorPageController;
 use App\Http\Controllers\Inertia\ResolbebIndexController;
 use App\Http\Controllers\Inertia\UserController as InertiaUserController;
+use App\Http\Controllers\LandingController;
 use App\Http\Controllers\Onboarding\TenantOnboardingController;
+use App\Http\Controllers\Web\CheckAuthController;
 use App\Http\Controllers\Web\ClientController;
 use App\Models\Plan;
+use Illuminate\Support\Facades\Route;
+use Inertia\Inertia;
 
 /*
 |--------------------------------------------------------------------------
@@ -34,26 +36,15 @@ use App\Models\Plan;
 // - El frontend debe llamar /check-auth DESPUÉS del login o desde layout autenticado.
 // - Llamar /check-auth desde /login dará 401 (correcto; no es bug).
 // - Requests AJAX sin sesión reciben 401 JSON { authenticated: false } (nunca redirect HTML).
-Route::get('/check-auth', App\Http\Controllers\Web\CheckAuthController::class)
+Route::get('/check-auth', CheckAuthController::class)
     ->middleware('auth')
     ->name('check-auth');
-
-// ==========================
-// DIAGNÓSTICO (solo local / debug)
-// ==========================
-if (app()->environment('local') || config('app.debug')) {
-    Route::get('/test-disco', function () {
-        Storage::disk('public')->put('prueba.txt', 'OK');
-
-        return 'OK';
-    });
-}
 
 // ==========================
 // AUTH (Inertia) — rutas públicas
 // ==========================
 Route::get('/login', fn () => Inertia::render('Auth/Login'))->middleware('guest')->name('login');
-Route::get('/auth/google/redirect', [\App\Http\Controllers\Auth\GoogleAuthController::class, 'redirect'])
+Route::get('/auth/google/redirect', [GoogleAuthController::class, 'redirect'])
     ->middleware('guest')
     ->name('auth.google.redirect');
 // Sin 'guest': el callback debe ser alcanzable tanto al iniciar sesión (invitado)
@@ -61,17 +52,17 @@ Route::get('/auth/google/redirect', [\App\Http\Controllers\Auth\GoogleAuthContro
 // comparten la misma redirect_uri fija configurada en Google (services.google.redirect).
 // La identidad para el flujo de vínculo viaja en la sesión (google_oauth_link_user_id),
 // no depende de Auth::check() aquí.
-Route::get('/auth/google/callback', [\App\Http\Controllers\Auth\GoogleAuthController::class, 'callback'])
+Route::get('/auth/google/callback', [GoogleAuthController::class, 'callback'])
     ->name('auth.google.callback');
-Route::get('/auth/google/link', [\App\Http\Controllers\Auth\GoogleAuthController::class, 'linkRedirect'])
+Route::get('/auth/google/link', [GoogleAuthController::class, 'linkRedirect'])
     ->middleware('auth')
     ->name('auth.google.link');
-Route::get('/auth/microsoft/redirect', [\App\Http\Controllers\Auth\MicrosoftAuthController::class, 'redirect'])
+Route::get('/auth/microsoft/redirect', [MicrosoftAuthController::class, 'redirect'])
     ->middleware('guest')
     ->name('auth.microsoft.redirect');
-Route::get('/auth/microsoft/callback', [\App\Http\Controllers\Auth\MicrosoftAuthController::class, 'callback'])
+Route::get('/auth/microsoft/callback', [MicrosoftAuthController::class, 'callback'])
     ->name('auth.microsoft.callback');
-Route::get('/auth/microsoft/link', [\App\Http\Controllers\Auth\MicrosoftAuthController::class, 'linkRedirect'])
+Route::get('/auth/microsoft/link', [MicrosoftAuthController::class, 'linkRedirect'])
     ->middleware('auth')
     ->name('auth.microsoft.link');
 Route::get('/register', function () {
@@ -323,7 +314,7 @@ Route::middleware('auth')->group(function () {
 // El middleware 'tenant' resuelve el slug y hace abort(404) si no existe.
 // ==========================
 $baseDomain = config('tenancy.base_domain', 'tikara.mx');
-Route::domain('{tenantSlug}.' . $baseDomain)
+Route::domain('{tenantSlug}.'.$baseDomain)
     ->middleware(['tenant'])
     ->group(function () {
         // Auth del portal (sin sesión)
@@ -350,22 +341,22 @@ Route::domain('{tenantSlug}.' . $baseDomain)
             })->name('portal.tickets.index');
 
             Route::get('/tickets/new', function (string $tenantSlug) {
-                $ticketTypes = \DB::table('ticket_types')->orderBy('id')->get(['id', 'name']);
-                $areas = \DB::table('areas')
+                $ticketTypes = DB::table('ticket_types')->orderBy('id')->get(['id', 'name']);
+                $areas = DB::table('areas')
                     ->whereNull('client_id')
                     ->orWhere('client_id', auth()->user()?->client_id)
                     ->orderBy('id')
                     ->get(['id', 'name']);
                 $defaultAreaId = $areas->first()?->id;
-                $defaultStateId = (int) (\DB::table('ticket_states')
+                $defaultStateId = (int) (DB::table('ticket_states')
                     ->where(fn ($q) => $q->whereNull('is_final')->orWhere('is_final', false))
                     ->orderBy('id')
                     ->value('id') ?? 1);
 
                 return Inertia::render('Portal/Tickets/Create', [
-                    'tenantSlug'     => $tenantSlug,
-                    'ticketTypes'    => $ticketTypes,
-                    'defaultAreaId'  => $defaultAreaId,
+                    'tenantSlug' => $tenantSlug,
+                    'ticketTypes' => $ticketTypes,
+                    'defaultAreaId' => $defaultAreaId,
                     'defaultStateId' => $defaultStateId,
                 ]);
             })->name('portal.tickets.create');

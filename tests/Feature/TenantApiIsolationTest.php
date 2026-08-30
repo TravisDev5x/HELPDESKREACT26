@@ -2,9 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Models\Client;
+use App\Models\Priority;
 use App\Models\Site;
 use App\Support\Tenancy\PgsqlRowLevelSecurity;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Testing\TestResponse;
 use Tests\Support\CreatesMspTwinClientFixtures;
 use Tests\TestCase;
@@ -30,6 +33,7 @@ class TenantApiIsolationTest extends TestCase
             $response->assertForbidden();
         }
     }
+
     use RefreshDatabase;
 
     public function test_portal_tickets_index_and_show_isolate_client_data(): void
@@ -56,6 +60,72 @@ class TenantApiIsolationTest extends TestCase
         $showForeign = $this->actingAs($world['agentA'], 'web')
             ->getJson($this->portalApiUrl($world['clientA'], '/api/tickets/'.$world['ticketB']->id));
         $this->assertTenantBoundaryDenied($showForeign);
+    }
+
+    public function test_manage_all_cannot_mutate_a_ticket_from_another_portal_tenant(): void
+    {
+        $world = $this->createTwinClientIsolationWorld();
+        $this->resetTenantContext();
+
+        $response = $this->actingAs($world['agentA'], 'web')->patchJson(
+            $this->portalApiUrl($world['clientA'], '/api/tickets/'.$world['ticketB']->id),
+            ['due_at' => now()->addDay()->toIso8601String()]
+        );
+
+        $this->assertTenantBoundaryDenied($response);
+        PgsqlRowLevelSecurity::setBypass(true);
+        $this->assertNull($world['ticketB']->fresh()->due_at);
+    }
+
+    public function test_resolbeb_dashboard_cache_key_contains_the_portal_tenant(): void
+    {
+        $world = $this->createTwinClientIsolationWorld();
+        $this->resetTenantContext();
+        Cache::flush();
+
+        $this->actingAs($world['agentA'], 'web')
+            ->getJson($this->portalApiUrl($world['clientA'], '/api/tickets/dashboard-operativo'))
+            ->assertOk();
+
+        $expectedKey = 'dashboard.client-'.$world['clientA']->id.'.'.$world['agentA']->id.'.'.md5(json_encode([]));
+        $legacyKey = 'dashboard.'.$world['agentA']->id.'.'.md5(json_encode([]));
+
+        $this->assertTrue(Cache::has($expectedKey));
+        $this->assertFalse(Cache::has($legacyKey));
+    }
+
+    public function test_ticket_update_rejects_a_catalog_row_from_another_operator(): void
+    {
+        $world = $this->createTwinClientIsolationWorld();
+        $foreignPriority = Priority::create([
+            'name' => 'Prioridad ajena '.uniqid(),
+            'level' => 5,
+            'is_active' => true,
+            'operator_user_id' => $world['otherOperator']->id,
+        ]);
+        $this->resetTenantContext();
+
+        $this->actingAs($world['agentA'], 'web')->patchJson(
+            $this->portalApiUrl($world['clientA'], '/api/tickets/'.$world['ticketA']->id),
+            ['priority_id' => $foreignPriority->id]
+        )->assertUnprocessable();
+
+        PgsqlRowLevelSecurity::setBypass(true);
+        $this->assertNotSame($foreignPriority->id, $world['ticketA']->fresh()->priority_id);
+    }
+
+    public function test_manage_all_cannot_assign_a_ticket_to_a_user_from_another_tenant(): void
+    {
+        $world = $this->createTwinClientIsolationWorld();
+        $this->resetTenantContext();
+
+        $this->actingAs($world['agentA'], 'web')->postJson(
+            $this->portalApiUrl($world['clientA'], '/api/tickets/'.$world['ticketA']->id.'/assign'),
+            ['assigned_user_id' => $world['agentB']->id]
+        )->assertForbidden();
+
+        PgsqlRowLevelSecurity::setBypass(true);
+        $this->assertNull($world['ticketA']->fresh()->assigned_user_id);
     }
 
     public function test_portal_incidents_index_and_show_isolate_client_data(): void
@@ -131,7 +201,7 @@ class TenantApiIsolationTest extends TestCase
     {
         $world = $this->createTwinClientIsolationWorld();
 
-        $foreignClient = \App\Models\Client::create([
+        $foreignClient = Client::create([
             'name' => 'Cliente ajeno',
             'operator_user_id' => $world['otherOperator']->id,
             'is_active' => true,

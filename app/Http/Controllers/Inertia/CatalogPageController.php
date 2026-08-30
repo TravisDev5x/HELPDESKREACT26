@@ -5,17 +5,18 @@ namespace App\Http\Controllers\Inertia;
 use App\Http\Controllers\Controller;
 use App\Models\Area;
 use App\Models\AuthorizationObject;
+use App\Models\Campaign;
+use App\Models\ImpactLevel;
+use App\Models\IncidentSeverity;
+use App\Models\IncidentStatus;
+use App\Models\IncidentType;
 use App\Models\InvCategory;
 use App\Models\InvLabel;
-use App\Models\InvManufacturer;
 use App\Models\InvMaintenanceModality;
 use App\Models\InvMaintenanceOrigin;
+use App\Models\InvManufacturer;
 use App\Models\InvStatus;
-use App\Services\OperatorCatalogScopeService;
-use App\Services\OperatorScopeService;
-use App\Models\Campaign;
-use App\Models\Client;
-use App\Models\ImpactLevel;
+use App\Models\Location;
 use App\Models\Permission;
 use App\Models\Position;
 use App\Models\Priority;
@@ -25,9 +26,11 @@ use App\Models\Site;
 use App\Models\TicketMacro;
 use App\Models\TicketState;
 use App\Models\TicketType;
-use App\Models\Location;
 use App\Models\UrgencyLevel;
 use App\Models\User;
+use App\Services\OperatorCatalogScopeService;
+use App\Services\OperatorScopeService;
+use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -219,7 +222,12 @@ class CatalogPageController extends Controller
     public function ticketMacros(): Response
     {
         return Inertia::render('Catalogs/TicketMacros', [
-            'ticketMacros' => TicketMacro::orderBy('category')->orderBy('name')->get(['id', 'name', 'category', 'is_active', 'created_at']),
+            // Hallazgo C4: esta página servía la tabla entera sin filtrar, igual
+            // que la API. Mismo scope de catálogo maestro que el resto.
+            'ticketMacros' => app(OperatorCatalogScopeService::class)
+                ->apply(TicketMacro::query(), Auth::user(), 'ticket_macros')
+                ->orderBy('category')->orderBy('name')
+                ->get(['id', 'name', 'category', 'is_active', 'created_at']),
         ]);
     }
 
@@ -252,21 +260,21 @@ class CatalogPageController extends Controller
     public function incidentTypes(): Response
     {
         return Inertia::render('Incidents/Types', [
-            'incidentTypes' => \App\Models\IncidentType::orderBy('name')->get(['id', 'name', 'code', 'is_active', 'created_at']),
+            'incidentTypes' => IncidentType::orderBy('name')->get(['id', 'name', 'code', 'is_active', 'created_at']),
         ]);
     }
 
     public function incidentSeverities(): Response
     {
         return Inertia::render('Incidents/Severities', [
-            'incidentSeverities' => \App\Models\IncidentSeverity::orderBy('level')->orderBy('name')->get(['id', 'name', 'code', 'level', 'is_active', 'created_at']),
+            'incidentSeverities' => IncidentSeverity::orderBy('level')->orderBy('name')->get(['id', 'name', 'code', 'level', 'is_active', 'created_at']),
         ]);
     }
 
     public function incidentStatuses(): Response
     {
         return Inertia::render('Incidents/Statuses', [
-            'incidentStatuses' => \App\Models\IncidentStatus::orderBy('name')->get(['id', 'name', 'code', 'is_final', 'is_active', 'created_at']),
+            'incidentStatuses' => IncidentStatus::orderBy('name')->get(['id', 'name', 'code', 'is_final', 'is_active', 'created_at']),
         ]);
     }
 
@@ -300,9 +308,9 @@ class CatalogPageController extends Controller
         return [
             'areas' => Area::where('is_active', true)->orderBy('name')->get(['id', 'name']),
             'sites' => Site::where('is_active', true)->orderBy('name')->get(['id', 'name']),
-            'incident_types' => \App\Models\IncidentType::where('is_active', true)->orderBy('name')->get(['id', 'name']),
-            'incident_severities' => \App\Models\IncidentSeverity::where('is_active', true)->orderBy('level')->get(['id', 'name', 'level', 'code']),
-            'incident_statuses' => \App\Models\IncidentStatus::where('is_active', true)->orderBy('name')->get(['id', 'name', 'code', 'is_final']),
+            'incident_types' => IncidentType::where('is_active', true)->orderBy('name')->get(['id', 'name']),
+            'incident_severities' => IncidentSeverity::where('is_active', true)->orderBy('level')->get(['id', 'name', 'level', 'code']),
+            'incident_statuses' => IncidentStatus::where('is_active', true)->orderBy('name')->get(['id', 'name', 'code', 'is_final']),
             'area_users' => User::where('status', 'active')->whereNotNull('area_id')->orderBy('name')->get(['id', 'name']),
         ];
     }

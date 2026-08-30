@@ -4,11 +4,13 @@ namespace App\Services;
 
 use App\Models\Client;
 use App\Models\User;
+use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Unique;
 
 /**
  * Catálogos maestros: plataforma (operator_user_id NULL) + operador MSP.
@@ -26,6 +28,9 @@ class OperatorCatalogScopeService
         'incident_types',
         'incident_severities',
         'incident_statuses',
+        // Hallazgo C4: faltaba en este registro, que es lo que dejaba a
+        // TicketMacroController sirviendo la tabla entera sin filtrar.
+        'ticket_macros',
         'areas',
         'campaigns',
         'positions',
@@ -156,7 +161,7 @@ class OperatorCatalogScopeService
     }
 
     /**
-     * @return array<int, \Illuminate\Contracts\Validation\ValidationRule|string>
+     * @return array<int, ValidationRule|string>
      */
     public function uniqueNameRule(User $user, string $table, ?int $ignoreId = null, string $column = 'name'): array
     {
@@ -164,7 +169,7 @@ class OperatorCatalogScopeService
     }
 
     /**
-     * @return array<int, \Illuminate\Contracts\Validation\ValidationRule|string>
+     * @return array<int, ValidationRule|string>
      */
     public function uniqueCodeRule(User $user, string $table, ?int $ignoreId = null): array
     {
@@ -172,7 +177,7 @@ class OperatorCatalogScopeService
     }
 
     /**
-     * @return array<int, \Illuminate\Contracts\Validation\ValidationRule|string>
+     * @return array<int, ValidationRule|string>
      */
     public function requiredUniqueCodeRule(User $user, string $table, ?int $ignoreId = null): array
     {
@@ -220,7 +225,7 @@ class OperatorCatalogScopeService
         return $operatorId ? (int) $operatorId : null;
     }
 
-    private function uniqueRule(User $user, string $table, string $column, ?int $ignoreId): \Illuminate\Validation\Rules\Unique
+    private function uniqueRule(User $user, string $table, string $column, ?int $ignoreId): Unique
     {
         $rule = Rule::unique($table, $column)->ignore($ignoreId);
 

@@ -28,6 +28,16 @@ class RbacAdminRouteGatingTest extends TestCase
 
     private User $agente;
 
+    public function test_first_user_without_roles_or_permissions_has_no_implicit_admin_access(): void
+    {
+        config()->set('security.testing_permission_bypass', false);
+        $user = $this->makeUser('first-user@test.local');
+
+        $this->actingAs($user, 'web')
+            ->getJson('/api/users')
+            ->assertForbidden();
+    }
+
     protected function setUp(): void
     {
         parent::setUp();

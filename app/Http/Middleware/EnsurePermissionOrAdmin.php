@@ -11,8 +11,6 @@ class EnsurePermissionOrAdmin
     /**
      * Permite acceso si:
      * - El usuario tiene rol admin, o
-     * - El sistema está en modo arranque (sin asignaciones de rol), o
-     * - Es el primer usuario creado, o
      * - Tiene alguno de los permisos requeridos.
      *
      * @param  string[]  $permissions  Permisos separados por comas o pipes (middleware 'perm:users.manage|roles.manage')
@@ -20,7 +18,7 @@ class EnsurePermissionOrAdmin
     public function handle(Request $request, Closure $next, ...$permissions)
     {
         $user = $request->user();
-        if (!$user) {
+        if (! $user) {
             return response()->json(['message' => 'No autorizado'], 403);
         }
 
@@ -29,16 +27,15 @@ class EnsurePermissionOrAdmin
             return $next($request);
         }
 
-        // Ventana de arranque: si no existe ninguna asignación, deja pasar para configurar el sistema.
-        $hasAssignments = DB::table('model_has_roles')->exists();
-        if (!$hasAssignments) {
-            return $next($request);
-        }
+        // Compatibility for legacy fixtures only. The environment check makes
+        // this fail closed even if the flag is accidentally present in production.
+        if (app()->environment('testing') && config('security.testing_permission_bypass', false)) {
+            $hasAssignments = DB::table('model_has_roles')->exists();
+            $firstUserId = DB::table('users')->orderBy('id')->value('id');
 
-        // Bypass para el primer usuario del sistema (evita quedar bloqueados)
-        $firstUserId = DB::table('users')->orderBy('id')->value('id');
-        if ($firstUserId && (int) $user->id === (int) $firstUserId) {
-            return $next($request);
+            if (! $hasAssignments || ($firstUserId && (int) $user->id === (int) $firstUserId)) {
+                return $next($request);
+            }
         }
 
         // Check de permisos

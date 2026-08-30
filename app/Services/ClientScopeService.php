@@ -3,9 +3,12 @@
 namespace App\Services;
 
 use App\Models\Client;
+use App\Models\Incident;
 use App\Models\Site;
+use App\Models\Ticket;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -44,9 +47,9 @@ class ClientScopeService
      * el ticket se crea con site_id NULL — estado "sin site asignado",
      * visible solo para admin/supervisor hasta que alguien lo asigne.
      *
-     * @return \Illuminate\Http\JsonResponse|null Error 422 o null si OK
+     * @return JsonResponse|null Error 422 o null si OK
      */
-    public function stampTicketSiteFromUser(User $user, array &$data): ?\Illuminate\Http\JsonResponse
+    public function stampTicketSiteFromUser(User $user, array &$data): ?JsonResponse
     {
         $user->loadMissing('site:id,name,client_id');
 
@@ -59,7 +62,7 @@ class ClientScopeService
     /**
      * Bloquea acceso operativo si tiene permiso de área sin area_id (config incompleta).
      */
-    public function guardOperationalModuleAccess(User $user, string $module): ?\Illuminate\Http\JsonResponse
+    public function guardOperationalModuleAccess(User $user, string $module): ?JsonResponse
     {
         // Admin de plataforma (super_admin) sin permiso platform.view_internals:
         // puede ver clientes y estadísticas, pero no datos operativos internos.
@@ -68,7 +71,7 @@ class ClientScopeService
 
             return response()->json([
                 'message' => "Acceso de plataforma: los {$label} internos de cada cliente no están disponibles en este perfil.",
-                'code'    => 'platform_admin_restricted',
+                'code' => 'platform_admin_restricted',
             ], 403);
         }
 
@@ -244,7 +247,7 @@ class ClientScopeService
         return $query->whereRaw('0 = 1');
     }
 
-    public function incidentVisibleToUser(User $user, \App\Models\Incident $incident): bool
+    public function incidentVisibleToUser(User $user, Incident $incident): bool
     {
         if ($enforced = $this->tenantContext->enforcedClientId()) {
             return $this->incidentBelongsToClient($incident, $enforced);
@@ -351,7 +354,7 @@ class ClientScopeService
         return $query->whereIn('users.site_id', $this->siteIdsSubquery($clientId));
     }
 
-    public function ticketVisibleToUser(User $user, \App\Models\Ticket $ticket): bool
+    public function ticketVisibleToUser(User $user, Ticket $ticket): bool
     {
         if ($enforced = $this->tenantContext->enforcedClientId()) {
             return $this->ticketBelongsToClient($ticket, $enforced);
@@ -363,10 +366,14 @@ class ClientScopeService
 
         if ($this->operatorScope->hasMspWideAccess($user)) {
             if ($this->operatorScope->usesOperatorMspWideScope($user)) {
-                if ($this->operatorScope->usesLegacyMspWideAccess($user)) {
-                    return true;
-                }
-
+                // Hallazgo C3: aquí vivía `if (usesLegacyMspWideAccess($user)) return true;`,
+                // que concedía CUALQUIER ticket de CUALQUIER tenant sin comparar
+                // client_id. Como update/release/alert/cancel/attach/canManageAction/
+                // canAssignTo pasan todos por este método, ese `return true` era a la
+                // vez un bypass de lectura y de escritura. La pertenencia del ticket
+                // se decide siempre contra el operador resuelto; sin operador no hay
+                // frontera válida y se deniega (mismo criterio que el `if (! $operatorId)`
+                // de abajo, que ya era el correcto).
                 $operatorId = $this->operatorScope->resolveOperatorUserId($user);
                 if (! $operatorId) {
                     return false;
@@ -374,13 +381,13 @@ class ClientScopeService
                 $ticket->loadMissing('site:id,client_id', 'client:id,operator_user_id');
 
                 if ($ticket->client_id) {
-                    $op = \App\Models\Client::where('id', $ticket->client_id)->value('operator_user_id');
+                    $op = Client::where('id', $ticket->client_id)->value('operator_user_id');
 
                     return (int) $op === $operatorId;
                 }
 
                 if ($ticket->site?->client_id) {
-                    $op = \App\Models\Client::where('id', $ticket->site->client_id)->value('operator_user_id');
+                    $op = Client::where('id', $ticket->site->client_id)->value('operator_user_id');
 
                     return (int) $op === $operatorId;
                 }
@@ -683,7 +690,7 @@ class ClientScopeService
         };
     }
 
-    private function ticketBelongsToClient(\App\Models\Ticket $ticket, int $clientId): bool
+    private function ticketBelongsToClient(Ticket $ticket, int $clientId): bool
     {
         if ($ticket->client_id) {
             return (int) $ticket->client_id === $clientId;
@@ -694,7 +701,7 @@ class ClientScopeService
         return $ticket->site && (int) $ticket->site->client_id === $clientId;
     }
 
-    private function incidentBelongsToClient(\App\Models\Incident $incident, int $clientId): bool
+    private function incidentBelongsToClient(Incident $incident, int $clientId): bool
     {
         if ($incident->client_id) {
             return (int) $incident->client_id === $clientId;

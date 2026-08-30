@@ -10,6 +10,7 @@ use App\Models\Ticket;
 use App\Models\TicketHistory;
 use App\Models\User;
 use App\Services\TicketCreationService;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -190,6 +191,31 @@ class RequesterValidationTest extends TestCase
         $this->assertSame(0, TicketHistory::where('ticket_id', $ticketId)->count());
     }
 
+    public function test_reply_from_active_same_tenant_user_without_ticket_access_is_rejected(): void
+    {
+        $fixture = $this->createTenantFixtureSet();
+        $client = Client::find($fixture['client_id']);
+        DB::table('sites')->where('id', $fixture['site_id'])->update(['client_id' => $client->id]);
+
+        $unrelatedUser = User::create([
+            'first_name' => 'Usuario', 'paternal_last_name' => 'SinAcceso',
+            'email' => 'sin-acceso-'.uniqid().'@empresa.test', 'password' => Hash::make('x'),
+            'employee_number' => (string) random_int(100000, 999999),
+            'area_id' => $fixture['area_id'], 'position_id' => DB::table('positions')->value('id'),
+            'site_id' => $fixture['site_id'], 'client_id' => $client->id, 'status' => 'active',
+        ]);
+
+        $ticketId = $this->insertTicket($fixture, $client->id);
+        DB::table('tickets')->where('id', $ticketId)->update(['folio' => '00001']);
+
+        ProcessInboundReply::dispatch($client->id, '00001', [
+            'from' => $unrelatedUser->email,
+            'body_plain' => 'No tengo autorización sobre este ticket.',
+        ]);
+
+        $this->assertSame(0, TicketHistory::where('ticket_id', $ticketId)->count());
+    }
+
     public function test_users_email_unique_constraint_is_global_across_tenants(): void
     {
         $clientA = Client::create(['name' => 'Tenant A', 'is_active' => true]);
@@ -207,7 +233,7 @@ class RequesterValidationTest extends TestCase
             'area_id' => $areaId, 'position_id' => $positionId, 'site_id' => $siteA, 'client_id' => $clientA->id, 'status' => 'active',
         ]);
 
-        $this->expectException(\Illuminate\Database\QueryException::class);
+        $this->expectException(QueryException::class);
 
         User::create([
             'first_name' => 'Dos', 'paternal_last_name' => 'B',

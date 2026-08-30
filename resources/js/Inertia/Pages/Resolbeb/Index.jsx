@@ -387,7 +387,7 @@ export default function ResolbebIndex({ mode = "tickets", catalogs: catalogsProp
             subject: "", description: "",
             site_id: String(user?.site_id || user?.site?.id || ""),
             area_origin_id: String(user?.area_id || ""),
-            area_current_id: String(user?.area_id || ""),
+            area_current_id: "automatic",
             ticket_type_id: String(catalogs.ticket_types?.[0]?.id || ""),
             priority_id: String(catalogs.priorities?.[0]?.id || ""),
             ticket_state_id: String(openState?.id ?? ""),
@@ -413,8 +413,8 @@ export default function ResolbebIndex({ mode = "tickets", catalogs: catalogsProp
             notify.error("Tu usuario no tiene sede asignada. No puedes crear tickets hasta que un administrador te la asigne.");
             return;
         }
-        if (!form.area_current_id || !form.ticket_type_id || !form.priority_id || !form.ticket_state_id) {
-            notify.error("Completa todos los campos obligatorios (área responsable, área origen, tipo, prioridad).");
+        if (!form.ticket_type_id || !form.priority_id || !form.ticket_state_id) {
+            notify.error("Completa todos los campos obligatorios (área origen, tipo y prioridad).");
             return;
         }
         setSaving(true);
@@ -422,7 +422,9 @@ export default function ResolbebIndex({ mode = "tickets", catalogs: catalogsProp
             subject: (form.subject || "").trim(),
             description: form.description?.trim() || null,
             area_origin_id: Number(form.area_origin_id),
-            area_current_id: Number(form.area_current_id),
+            ...(form.area_current_id && form.area_current_id !== "automatic"
+                ? { area_current_id: Number(form.area_current_id) }
+                : {}),
             priority_id: Number(form.priority_id),
             ticket_type_id: Number(form.ticket_type_id),
             ticket_state_id: Number(form.ticket_state_id),

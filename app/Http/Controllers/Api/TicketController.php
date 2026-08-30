@@ -2,42 +2,45 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Controller;
-use App\Models\Ticket;
-use App\Models\TicketAlert;
-use App\Models\AuditLog;
-use App\Models\TicketHistory;
-use App\Models\TicketAreaAccess;
-use App\Models\TicketState;
-use App\Models\User;
-use App\Models\PriorityMatrix;
-use App\Mail\TicketReassignedMail;
-use App\Notifications\Tickets\TicketAssignedNotification;
-use App\Notifications\Tickets\TicketReassignedNotification;
-use App\Notifications\Tickets\TicketEscalatedNotification;
-use App\Notifications\Tickets\TicketRequesterResolvedNotification;
-use App\Notifications\Tickets\TicketRequesterCommentNotification;
-use App\Notifications\Tickets\TicketRequesterAlertNotification;
 use App\Events\TicketCreated;
 use App\Events\TicketUpdated;
 use App\Exports\TicketAuditExport;
+use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreTicketRequest;
 use App\Http\Requests\UpdateTicketRequest;
+use App\Mail\TicketReassignedMail;
+use App\Models\AuditLog;
+use App\Models\PriorityMatrix;
+use App\Models\Ticket;
+use App\Models\TicketAlert;
+use App\Models\TicketAreaAccess;
+use App\Models\TicketHistory;
+use App\Models\TicketState;
+use App\Models\User;
+use App\Notifications\Tickets\TicketAssignedNotification;
+use App\Notifications\Tickets\TicketEscalatedNotification;
+use App\Notifications\Tickets\TicketReassignedNotification;
+use App\Notifications\Tickets\TicketRequesterAlertNotification;
+use App\Notifications\Tickets\TicketRequesterCommentNotification;
+use App\Notifications\Tickets\TicketRequesterResolvedNotification;
+use App\Policies\TicketPolicy;
+use App\Services\ClientScopeService;
+use App\Services\OperatorScopeService;
+use App\Services\TicketCreationService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
-use Carbon\Carbon;
-use App\Services\ClientScopeService;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class TicketController extends Controller
 {
     public function __construct(
         protected ClientScopeService $clientScope,
-        protected \App\Services\TicketCreationService $ticketCreation
+        protected TicketCreationService $ticketCreation
     ) {}
 
     /**
@@ -75,7 +78,7 @@ class TicketController extends Controller
     public function index(Request $request)
     {
         $user = Auth::user();
-        if (!$user) {
+        if (! $user) {
             return response()->json(['message' => 'No autorizado'], 401);
         }
 
@@ -103,7 +106,7 @@ class TicketController extends Controller
         ]);
 
         // Alcance base via Policy (mismo comportamiento que antes)
-        $policy = app(\App\Policies\TicketPolicy::class);
+        $policy = app(TicketPolicy::class);
         $query = $policy->scopeFor($user, $query);
 
         $this->applyCatalogFilters($request, $user, $query);
@@ -117,7 +120,7 @@ class TicketController extends Controller
         } elseif ($request->filled('assigned_user_id')) {
             $assigneeId = (int) $request->input('assigned_user_id');
             $allowed = true;
-            if (!$user->can('tickets.manage_all')) {
+            if (! $user->can('tickets.manage_all')) {
                 $allowed = $this->clientScope->assertUserAccessible($user, $assigneeId)
                     && DB::table('users')
                         ->where('id', $assigneeId)
@@ -138,7 +141,7 @@ class TicketController extends Controller
         // Paginación segura
         $allowedPerPage = [10, 25, 50, 100, 500];
         $perPage = (int) $request->input('per_page', 10);
-        if (!in_array($perPage, $allowedPerPage, true)) {
+        if (! in_array($perPage, $allowedPerPage, true)) {
             $perPage = 10;
         }
 
@@ -151,7 +154,7 @@ class TicketController extends Controller
     public function summary(Request $request)
     {
         $user = Auth::user();
-        if (!$user) {
+        if (! $user) {
             return response()->json(['message' => 'No autorizado'], 401);
         }
 
@@ -165,7 +168,7 @@ class TicketController extends Controller
         Gate::authorize('viewAny', Ticket::class);
 
         $query = Ticket::query();
-        $policy = app(\App\Policies\TicketPolicy::class);
+        $policy = app(TicketPolicy::class);
         $query = $policy->scopeFor($user, $query);
 
         $this->applyCatalogFilters($request, $user, $query);
@@ -179,7 +182,7 @@ class TicketController extends Controller
         } elseif ($request->filled('assigned_user_id')) {
             $assigneeId = (int) $request->input('assigned_user_id');
             $allowed = true;
-            if (!$user->can('tickets.manage_all')) {
+            if (! $user->can('tickets.manage_all')) {
                 $allowed = $this->clientScope->assertUserAccessible($user, $assigneeId)
                     && DB::table('users')
                         ->where('id', $assigneeId)
@@ -204,6 +207,7 @@ class TicketController extends Controller
             ->get()
             ->map(function ($row) use ($states) {
                 $state = $states->get($row->ticket_state_id);
+
                 return [
                     'id' => $row->ticket_state_id,
                     'label' => $state?->name ?? 'Sin estado',
@@ -239,12 +243,12 @@ class TicketController extends Controller
     public function export(Request $request)
     {
         $user = Auth::user();
-        if (!$user) {
+        if (! $user) {
             return response()->json(['message' => 'No autorizado'], 401);
         }
         Gate::authorize('viewAny', Ticket::class);
 
-        if (!$user->can('tickets.manage_all')) {
+        if (! $user->can('tickets.manage_all')) {
             return response()->json(['message' => 'Solo administradores pueden exportar CSV'], 403);
         }
 
@@ -258,7 +262,7 @@ class TicketController extends Controller
             'assignedUser:id,name',
         ]);
 
-        $policy = app(\App\Policies\TicketPolicy::class);
+        $policy = app(TicketPolicy::class);
         $query = $policy->scopeFor($user, $query);
 
         $this->applyCatalogFilters($request, $user, $query);
@@ -336,11 +340,11 @@ class TicketController extends Controller
             'requesterPosition:id,name',
             'assignedUser:id,name,position_id',
             'assignedUser.position:id,name',
-'ticketType:id,name',
-                'priority:id,name,level',
-                'impactLevel:id,name',
-                'urgencyLevel:id,name',
-                'state:id,name,code,is_final',
+            'ticketType:id,name',
+            'priority:id,name,level',
+            'impactLevel:id,name',
+            'urgencyLevel:id,name',
+            'state:id,name,code,is_final',
             'histories' => function ($q) {
                 $q->orderByDesc('created_at');
                 $q->with([
@@ -364,6 +368,7 @@ class TicketController extends Controller
         if ($user && (int) $user->id === (int) $ticket->requester_id) {
             $ticket->setRelation('histories', $ticket->histories->reject(fn ($h) => $h->action === 'comment' && $h->is_internal)->values());
         }
+
         return $this->withAbilities($ticket);
     }
 
@@ -374,14 +379,14 @@ class TicketController extends Controller
     public function indexAuditLogs(Request $request)
     {
         $user = Auth::user();
-        if (!$user) {
+        if (! $user) {
             return response()->json(['message' => 'No autorizado'], 401);
         }
-        if (!$user->can('tickets.manage_all')) {
+        if (! $user->can('tickets.manage_all')) {
             return response()->json(['message' => 'Solo administradores pueden acceder al centro de auditoría'], 403);
         }
 
-        $query = app(\App\Services\OperatorScopeService::class)
+        $query = app(OperatorScopeService::class)
             ->applyOnAuditLogs(
                 AuditLog::query()
                     ->where('auditable_type', Ticket::class)
@@ -401,7 +406,7 @@ class TicketController extends Controller
         $ticketIds = $request->input('ticket_ids');
         if ($ticketIds !== null && $ticketIds !== '') {
             $ids = array_filter(array_map('intval', explode(',', (string) $ticketIds)));
-            if (!empty($ids)) {
+            if (! empty($ids)) {
                 $query->whereIn('auditable_id', $ids);
             }
         }
@@ -420,10 +425,10 @@ class TicketController extends Controller
     public function exportAudit(Request $request): BinaryFileResponse
     {
         $user = Auth::user();
-        if (!$user) {
+        if (! $user) {
             abort(401, 'No autorizado');
         }
-        if (!$user->can('tickets.manage_all')) {
+        if (! $user->can('tickets.manage_all')) {
             abort(403, 'Solo administradores pueden exportar auditoría');
         }
 
@@ -436,9 +441,9 @@ class TicketController extends Controller
         }
 
         $export = new TicketAuditExport($startDate, $endDate, $ticketIds ?: null, $user);
-        $filename = 'auditoria_tickets_' . now()->format('Ymd_His') . '.xlsx';
-        $tempName = 'audit_export_' . substr(uniqid('', true), -8) . '.xlsx';
-        $path = storage_path('app' . DIRECTORY_SEPARATOR . $tempName);
+        $filename = 'auditoria_tickets_'.now()->format('Ymd_His').'.xlsx';
+        $tempName = 'audit_export_'.substr(uniqid('', true), -8).'.xlsx';
+        $path = storage_path('app'.DIRECTORY_SEPARATOR.$tempName);
         $export->exportToPath($path);
 
         // Limpiar buffer de salida para evitar espacios/saltos que corrompan el binario Excel
@@ -472,19 +477,28 @@ class TicketController extends Controller
     public function store(StoreTicketRequest $request)
     {
         $user = Auth::user();
-        if (!$user) return response()->json(['message' => 'No autorizado'], 401);
+        if (! $user) {
+            return response()->json(['message' => 'No autorizado'], 401);
+        }
         Gate::authorize('create', Ticket::class);
-        if (!$user->can('tickets.create') && !$user->can('tickets.manage_all')) {
+        if (! $user->can('tickets.create') && ! $user->can('tickets.manage_all')) {
             return response()->json(['message' => 'No autorizado'], 403);
         }
 
         $data = $request->validated();
 
+        // El solicitante describe la necesidad, no la estructura interna.
+        // Solo operadores con alcance de mesa pueden forzar el área inicial.
+        if (! $user->can('tickets.manage_all') && ! $user->can('tickets.view_area')) {
+            unset($data['area_current_id']);
+        }
+        $autoRouted = empty($data['area_current_id']);
+
         if ($error = $this->clientScope->stampTicketSiteFromUser($user, $data)) {
             return $error;
         }
 
-        if (!empty($data['impact_level_id']) && !empty($data['urgency_level_id'])) {
+        if (! empty($data['impact_level_id']) && ! empty($data['urgency_level_id'])) {
             $matrix = PriorityMatrix::where('impact_level_id', $data['impact_level_id'])
                 ->where('urgency_level_id', $data['urgency_level_id'])
                 ->first();
@@ -505,7 +519,7 @@ class TicketController extends Controller
             ? Carbon::parse($data['due_at'])->timezone(config('app.timezone'))
             : $clientCreatedAt->copy()->addHours(Ticket::SLA_LIMIT_HOURS);
 
-        return DB::transaction(function () use ($data, $user, $clientCreatedAt) {
+        return DB::transaction(function () use ($data, $user, $clientCreatedAt, $autoRouted) {
             // Folio atómico vía TicketSequence::nextFor() — este controlador
             // (creación operativa/interna) tenía el mismo bug histórico que
             // MyTicketsController::store(): nunca asignaba folio.
@@ -528,7 +542,7 @@ class TicketController extends Controller
                 'from_area_id' => null,
                 'to_area_id' => $ticket->area_current_id,
                 'ticket_state_id' => $ticket->ticket_state_id,
-                'note' => 'Creación de ticket',
+                'note' => $autoRouted ? 'Creación de ticket · área enrutada automáticamente' : 'Creación de ticket',
                 'is_internal' => false,
                 'created_at' => $ticket->created_at,
             ]);
@@ -547,6 +561,7 @@ class TicketController extends Controller
                 'urgencyLevel:id,name',
                 'state:id,name'
             );
+
             return response()->json($this->withAbilities($ticket), 201);
         });
     }
@@ -554,7 +569,9 @@ class TicketController extends Controller
     public function update(UpdateTicketRequest $request, Ticket $ticket)
     {
         $user = Auth::user();
-        if (!$user) return response()->json(['message' => 'No autorizado'], 401);
+        if (! $user) {
+            return response()->json(['message' => 'No autorizado'], 401);
+        }
         if ($blocked = $this->clientScope->guardOperationalModuleAccess($user, 'tickets')) {
             Log::warning('tickets.update sin area_id', ['user_id' => $user->id, 'ticket_id' => $ticket->id]);
 
@@ -571,7 +588,7 @@ class TicketController extends Controller
             $data['client_id'] = $this->clientScope->syncTicketClientFromSite((int) $data['site_id']);
         }
 
-        if (!empty($data['impact_level_id']) && !empty($data['urgency_level_id'])) {
+        if (! empty($data['impact_level_id']) && ! empty($data['urgency_level_id'])) {
             $matrix = PriorityMatrix::where('impact_level_id', $data['impact_level_id'])
                 ->where('urgency_level_id', $data['urgency_level_id'])
                 ->first();
@@ -619,7 +636,7 @@ class TicketController extends Controller
             $noteProvided = array_key_exists('note', $data) && $data['note'];
             $noteAllowed = false;
             if ($noteProvided) {
-                if (!Gate::allows('comment', $ticket)) {
+                if (! Gate::allows('comment', $ticket)) {
                     Log::warning('tickets.comment sin permiso', ['user_id' => $user->id, 'ticket_id' => $ticket->id]);
                     abort(403, 'No puede comentar');
                 }
@@ -635,7 +652,7 @@ class TicketController extends Controller
                 $oldState = $beforeStateId ? TicketState::find($beforeStateId) : null;
                 if ($newState && $newState->is_final) {
                     $ticket->resolved_at = now();
-                } elseif ($oldState && $oldState->is_final && (!$newState || !$newState->is_final)) {
+                } elseif ($oldState && $oldState->is_final && (! $newState || ! $newState->is_final)) {
                     $ticket->resolved_at = null;
                 }
             }
@@ -679,7 +696,7 @@ class TicketController extends Controller
                 'to_assignee_id' => $didEscalate ? null : null,
             ]);
 
-            if ($action === 'comment' && !$isInternal && $ticket->first_response_at === null) {
+            if ($action === 'comment' && ! $isInternal && $ticket->first_response_at === null) {
                 $ticket->first_response_at = now();
                 $ticket->save();
             }
@@ -697,7 +714,7 @@ class TicketController extends Controller
             if ((int) $beforeAssigneeId !== (int) $ticket->assigned_user_id) {
                 $changes['assigned_user_id'] = ['from' => $beforeAssigneeId, 'to' => $ticket->assigned_user_id];
             }
-            if (!empty($changes)) {
+            if (! empty($changes)) {
                 $this->auditTicketChange($user, $ticket, 'update', $changes, [
                     'note_provided' => (bool) $noteProvided,
                     'note_length' => $noteProvided ? strlen((string) $data['note']) : 0,
@@ -724,7 +741,7 @@ class TicketController extends Controller
                 }
             }
 
-            $isPublicComment = $noteAllowed && $noteProvided && !($data['is_internal'] ?? true);
+            $isPublicComment = $noteAllowed && $noteProvided && ! ($data['is_internal'] ?? true);
             if ($isPublicComment && $ticket->requester_id && (int) $ticket->requester_id !== (int) $user->id) {
                 $requester = User::find($ticket->requester_id);
                 if ($requester) {
@@ -744,6 +761,7 @@ class TicketController extends Controller
             TicketUpdated::dispatch($ticket);
 
             $ticket->load($this->ticketDetailRelations());
+
             return response()->json($this->withAbilities($ticket));
         });
     }
@@ -751,7 +769,9 @@ class TicketController extends Controller
     public function take(Ticket $ticket)
     {
         $user = Auth::user();
-        if (!$user) return response()->json(['message' => 'No autorizado'], 401);
+        if (! $user) {
+            return response()->json(['message' => 'No autorizado'], 401);
+        }
 
         // take() siempre es autoasignación: actor y destino son la misma
         // persona (Fase 5 -- assign() ahora requiere el destino explícito).
@@ -774,6 +794,7 @@ class TicketController extends Controller
             if ($ticket->assigned_user_id) {
                 return response()->json(['message' => 'Ticket ya asignado'], 409);
             }
+            Gate::authorize('assign', [$ticket, $user]);
 
             $openStateId = TicketState::findIdByCode(TicketState::CODE_OPEN);
             $progressStateId = TicketState::findIdByCode(TicketState::CODE_IN_PROGRESS);
@@ -810,6 +831,7 @@ class TicketController extends Controller
             $this->notifyAssignment($ticket, $user, $user->id, 'assigned');
 
             $ticket->load($this->ticketDetailRelations());
+
             return response()->json($this->withAbilities($ticket));
         });
     }
@@ -827,7 +849,9 @@ class TicketController extends Controller
     public function assign(Request $request, Ticket $ticket)
     {
         $user = Auth::user();
-        if (!$user) return response()->json(['message' => 'No autorizado'], 401);
+        if (! $user) {
+            return response()->json(['message' => 'No autorizado'], 401);
+        }
 
         $data = $request->validate([
             'assigned_user_id' => 'required|exists:users,id',
@@ -857,6 +881,8 @@ class TicketController extends Controller
             if ($isReassignment !== (bool) $ticket->assigned_user_id) {
                 return response()->json(['message' => 'El ticket cambió de estado, vuelve a intentarlo'], 409);
             }
+
+            Gate::authorize($isReassignment ? 'reassign' : 'assign', [$ticket, $newUser]);
 
             $prevAssignee = $ticket->assigned_user_id;
 
@@ -897,6 +923,7 @@ class TicketController extends Controller
             }
 
             $ticket->load($this->ticketDetailRelations());
+
             return response()->json($this->withAbilities($ticket));
         });
     }
@@ -904,11 +931,13 @@ class TicketController extends Controller
     public function unassign(Ticket $ticket)
     {
         $user = Auth::user();
-        if (!$user) return response()->json(['message' => 'No autorizado'], 401);
+        if (! $user) {
+            return response()->json(['message' => 'No autorizado'], 401);
+        }
 
         Gate::authorize('release', $ticket);
 
-        if (!$ticket->assigned_user_id) {
+        if (! $ticket->assigned_user_id) {
             return response()->json(['message' => 'Ticket sin responsable'], 409);
         }
 
@@ -935,6 +964,7 @@ class TicketController extends Controller
             ]);
 
             $ticket->load($this->ticketDetailRelations());
+
             return response()->json($this->withAbilities($ticket));
         });
     }
@@ -946,7 +976,9 @@ class TicketController extends Controller
     public function sendAlert(Request $request, Ticket $ticket)
     {
         $user = Auth::user();
-        if (!$user) return response()->json(['message' => 'No autorizado'], 401);
+        if (! $user) {
+            return response()->json(['message' => 'No autorizado'], 401);
+        }
 
         Gate::authorize('alert', $ticket);
 
@@ -964,7 +996,7 @@ class TicketController extends Controller
         if ($noteText === '') {
             $noteText = 'Alerta del solicitante (sin mensaje adicional).';
         } else {
-            $noteText = 'Observación / alerta del solicitante: ' . $noteText;
+            $noteText = 'Observación / alerta del solicitante: '.$noteText;
         }
         TicketHistory::create([
             'ticket_id' => $ticket->id,
@@ -981,8 +1013,8 @@ class TicketController extends Controller
 
         $requesterName = $user->name;
         $message = "El solicitante ha enviado una alerta por el ticket #{$ticket->id}: no atendido o ignorado.";
-        if (!empty(trim((string) ($data['message'] ?? '')))) {
-            $message .= ' ' . trim($data['message']);
+        if (! empty(trim((string) ($data['message'] ?? '')))) {
+            $message .= ' '.trim($data['message']);
         }
 
         $recipientIds = collect();
@@ -990,7 +1022,7 @@ class TicketController extends Controller
             $recipientIds->push($ticket->assigned_user_id);
         }
         $manageAllIds = User::permission('tickets.manage_all')->get()
-            ->filter(fn (User $u) => app(\App\Services\OperatorScopeService::class)->userInTicketOperatorScope($u, $ticket))
+            ->filter(fn (User $u) => app(OperatorScopeService::class)->userInTicketOperatorScope($u, $ticket))
             ->pluck('id');
         $recipientIds = $recipientIds->merge($manageAllIds)
             ->unique()->filter(fn ($id) => (int) $id !== (int) $user->id)->values();
@@ -1013,6 +1045,7 @@ class TicketController extends Controller
             'urgencyLevel:id,name',
             'state:id,name,code',
         ]);
+
         return response()->json([
             'alert' => $alert,
             'ticket' => $this->withAbilities($ticket),
@@ -1025,7 +1058,9 @@ class TicketController extends Controller
     public function cancel(Ticket $ticket)
     {
         $user = Auth::user();
-        if (!$user) return response()->json(['message' => 'No autorizado'], 401);
+        if (! $user) {
+            return response()->json(['message' => 'No autorizado'], 401);
+        }
 
         Gate::authorize('cancel', $ticket);
 
@@ -1073,6 +1108,7 @@ class TicketController extends Controller
                     $q->with(['actor:id,name,email', 'state:id,name,code']);
                 },
             ]);
+
             return response()->json($this->withAbilities($ticket));
         });
     }
@@ -1080,7 +1116,9 @@ class TicketController extends Controller
     public function escalate(Request $request, Ticket $ticket)
     {
         $user = Auth::user();
-        if (!$user) return response()->json(['message' => 'No autorizado'], 401);
+        if (! $user) {
+            return response()->json(['message' => 'No autorizado'], 401);
+        }
 
         Gate::authorize('escalate', $ticket);
 
@@ -1090,7 +1128,7 @@ class TicketController extends Controller
         ]);
 
         $noteProvided = array_key_exists('note', $data) && $data['note'];
-        if ($noteProvided && !Gate::allows('comment', $ticket)) {
+        if ($noteProvided && ! Gate::allows('comment', $ticket)) {
             Log::warning('tickets.comment sin permiso', ['user_id' => $user->id, 'ticket_id' => $ticket->id]);
             abort(403, 'No puede comentar');
         }
@@ -1135,13 +1173,14 @@ class TicketController extends Controller
                 'area_current_id' => ['from' => $fromArea, 'to' => $newArea],
                 'assigned_user_id' => ['from' => $fromAssignee, 'to' => null],
             ], [
-                'note_provided' => !empty($data['note']),
-                'note_length' => !empty($data['note']) ? strlen((string) $data['note']) : 0,
+                'note_provided' => ! empty($data['note']),
+                'note_length' => ! empty($data['note']) ? strlen((string) $data['note']) : 0,
             ]);
 
             $this->notifyEscalated($ticket, $user, $newArea);
 
             $ticket->load($this->ticketDetailRelations());
+
             return response()->json($this->withAbilities($ticket));
         });
     }
@@ -1209,7 +1248,7 @@ class TicketController extends Controller
 
         $search = $request->input('search') ?? $request->input('q');
         if (is_string($search) && trim($search) !== '') {
-            $term = '%' . preg_replace('/%/', '\\%', trim(mb_substr($search, 0, 200))) . '%';
+            $term = '%'.preg_replace('/%/', '\\%', trim(mb_substr($search, 0, 200))).'%';
             $query->where(function ($q) use ($term) {
                 $q->where('subject', 'like', $term)->orWhere('description', 'like', $term);
             });
@@ -1249,14 +1288,14 @@ class TicketController extends Controller
 
         $users = User::whereIn('id', $recipientIds)->get();
         foreach ($users as $u) {
-            if (!$this->hasTicketPermission($u)) {
+            if (! $this->hasTicketPermission($u)) {
                 continue;
             }
 
             $isAssignee = (int) $u->id === (int) $assigneeId;
             $message = $isAssignee
-                ? "Ticket #{$ticket->id} " . ($action === 'assigned' ? 'asignado a ti' : 'reasignado a ti')
-                : "Tu ticket #{$ticket->id} fue " . ($action === 'assigned' ? 'asignado' : 'reasignado');
+                ? "Ticket #{$ticket->id} ".($action === 'assigned' ? 'asignado a ti' : 'reasignado a ti')
+                : "Tu ticket #{$ticket->id} fue ".($action === 'assigned' ? 'asignado' : 'reasignado');
 
             $notification = $action === 'assigned'
                 ? new TicketAssignedNotification($ticket->id, $message, $actor->id)
@@ -1311,7 +1350,7 @@ class TicketController extends Controller
             }
             $seen[] = $u->id;
 
-            if (!$this->hasTicketPermission($u)) {
+            if (! $this->hasTicketPermission($u)) {
                 continue;
             }
 
@@ -1371,7 +1410,7 @@ class TicketController extends Controller
 
     protected function auditTicketChange(?User $actor, Ticket $ticket, string $action, array $changes, array $meta = []): void
     {
-        if (!config('helpdesk.tickets.audit_enabled', false)) {
+        if (! config('helpdesk.tickets.audit_enabled', false)) {
             return;
         }
 

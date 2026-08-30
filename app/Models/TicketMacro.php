@@ -14,6 +14,11 @@ class TicketMacro extends Model
         'content',
         'category',
         'is_active',
+        // Catálogo maestro (docs/CATALOG_TENANCY_MODEL.md): operator_user_id
+        // NULL = macro de plataforma; con valor = macro del operador MSP dueño.
+        // Los rellena OperatorCatalogScopeService::operatorAttributesForCreate().
+        'operator_user_id',
+        'client_id',
     ];
 
     protected $casts = [

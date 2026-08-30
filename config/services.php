@@ -29,6 +29,12 @@ return [
         // INBOUND — firma HMAC de webhooks (InboundEmailService::verifyMailgunSignature).
         // Credencial distinta de domain/secret de arriba: esta NUNCA se usa para enviar.
         'webhook_signing_key' => env('MAILGUN_WEBHOOK_SIGNING_KEY'),
+        'webhook_max_age_seconds' => (int) env('MAILGUN_WEBHOOK_MAX_AGE_SECONDS', 300),
+        'webhook_replay_cache_seconds' => (int) env('MAILGUN_WEBHOOK_REPLAY_CACHE_SECONDS', 600),
+    ],
+
+    'inbound_mail' => [
+        'provider' => env('INBOUND_MAIL_PROVIDER', 'mailgun'),
     ],
 
     'resend' => [

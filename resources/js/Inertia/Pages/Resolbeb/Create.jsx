@@ -1,16 +1,21 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Head, router } from "@inertiajs/react";
 import axios from "@/lib/axios";
 import { useAuth } from "@/context/AuthContext";
 import AuthenticatedLayout from "@/Inertia/Layouts/AuthenticatedLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Field, SectionHeading } from "@/components/tickets/TicketFormFields";
-import { MarkdownToolbar } from "@/components/tickets/MarkdownToolbar";
+import { TicketDescriptionEditor } from "@/components/tickets/TicketDescriptionEditor";
+import {
+    catalogName,
+    TicketDescriptionGuidance,
+    TicketSubmissionSummary,
+} from "@/components/tickets/TicketCreationAssist";
 import { priorityClassByLevel } from "@/lib/badgeStyles";
 import { cn } from "@/lib/utils";
 import { notify } from "@/lib/notify";
@@ -22,6 +27,8 @@ import {
     Building2,
     User,
     Paperclip,
+    Settings2,
+    ChevronDown,
     X,
 } from "lucide-react";
 
@@ -42,7 +49,7 @@ export default function ResolbebCreate({ catalogs: catalogsProp }) {
     const [saving, setSaving] = useState(false);
     const [errors, setErrors] = useState({});
     const [pendingFiles, setPendingFiles] = useState([]);
-    const descriptionRef = useRef(null);
+    const [advancedOpen, setAdvancedOpen] = useState(false);
     const [form, setForm] = useState({
         subject: "",
         description: "",
@@ -107,12 +114,13 @@ export default function ResolbebCreate({ catalogs: catalogsProp }) {
         }
         if (
             !form.area_origin_id ||
-            !form.area_current_id ||
+            (!isSolicitanteOnly && !form.area_current_id) ||
             !form.ticket_type_id ||
             !form.impact_level_id ||
             !form.urgency_level_id ||
             !form.ticket_state_id
         ) {
+            setAdvancedOpen(true);
             notify.error("Completa todos los campos obligatorios (incl. Impacto y Urgencia)");
             return;
         }
@@ -124,7 +132,9 @@ export default function ResolbebCreate({ catalogs: catalogsProp }) {
                 subject: form.subject.trim(),
                 description: form.description?.trim() || null,
                 area_origin_id: Number(form.area_origin_id),
-                area_current_id: Number(form.area_current_id),
+                ...(!isSolicitanteOnly && form.area_current_id
+                    ? { area_current_id: Number(form.area_current_id) }
+                    : {}),
                 impact_level_id: Number(form.impact_level_id),
                 urgency_level_id: Number(form.urgency_level_id),
                 ticket_type_id: Number(form.ticket_type_id),
@@ -154,7 +164,11 @@ export default function ResolbebCreate({ catalogs: catalogsProp }) {
             }
         } catch (err) {
             if (err?.response?.status === 422) {
-                setErrors(err.response.data.errors ?? {});
+                const serverErrors = err.response.data.errors ?? {};
+                setErrors(serverErrors);
+                if (["impact_level_id", "urgency_level_id", "area_current_id", "area_origin_id"].some((field) => serverErrors[field])) {
+                    setAdvancedOpen(true);
+                }
                 notify.error(err?.response?.data?.message || "Revisa los campos del formulario");
             } else {
                 notify.error(err?.response?.data?.message || "Error al crear el ticket");
@@ -182,6 +196,14 @@ export default function ResolbebCreate({ catalogs: catalogsProp }) {
         user?.site?.name ||
         (catalogs.sites || []).find((s) => String(s.id) === String(user?.site_id))?.name ||
         "—";
+    const ticketTypeName = catalogName(catalogs.ticket_types, form.ticket_type_id);
+    const missingLabels = [
+        !form.subject.trim() && "asunto",
+        !form.ticket_type_id && "tipo",
+        !form.impact_level_id && "impacto",
+        !form.urgency_level_id && "urgencia",
+        !isSolicitanteOnly && !form.area_current_id && "área responsable",
+    ].filter(Boolean);
 
     return (
         <AuthenticatedLayout title="Nuevo ticket">
@@ -212,21 +234,30 @@ export default function ResolbebCreate({ catalogs: catalogsProp }) {
                             />
                             <FieldError errors={errors} field="subject" />
                         </Field>
+                        <Field label="Tipo de ticket" required>
+                            <Select
+                                value={form.ticket_type_id}
+                                onValueChange={(v) => setForm({ ...form, ticket_type_id: v })}
+                            >
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Seleccionar" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {(catalogs.ticket_types || []).map((t) => (
+                                        <SelectItem key={t.id} value={String(t.id)}>{t.name}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            <FieldError errors={errors} field="ticket_type_id" />
+                        </Field>
                         <Field label="Descripción del problema">
-                            <div className="space-y-1.5">
-                                <MarkdownToolbar
-                                    textareaRef={descriptionRef}
-                                    onChange={(v) => setForm({ ...form, description: v })}
-                                    disabled={saving}
-                                />
-                                <Textarea
-                                    ref={descriptionRef}
-                                    placeholder="Describe qué ocurrió, cuándo y si hay mensajes de error..."
-                                    className="min-h-[120px] resize-y"
-                                    value={form.description}
-                                    onChange={(e) => setForm({ ...form, description: e.target.value })}
-                                />
-                            </div>
+                            <TicketDescriptionEditor
+                                value={form.description}
+                                onChange={(description) => setForm((current) => ({ ...current, description }))}
+                                disabled={saving}
+                                aria-invalid={Boolean(errors.description)}
+                            />
+                            <TicketDescriptionGuidance ticketTypeName={ticketTypeName} />
                             <FieldError errors={errors} field="description" />
                         </Field>
 
@@ -276,29 +307,20 @@ export default function ResolbebCreate({ catalogs: catalogsProp }) {
                         </Field>
                     </div>
 
-                    <Separator />
-
+                    <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen} className="rounded-xl border border-border/60">
+                        <CollapsibleTrigger asChild>
+                            <Button type="button" variant="ghost" className="h-auto w-full justify-between rounded-xl px-4 py-3">
+                                <span className="flex items-center gap-2 text-sm font-semibold">
+                                    <Settings2 className="h-4 w-4 text-muted-foreground" aria-hidden />
+                                    Opciones avanzadas
+                                </span>
+                                <ChevronDown className={cn("h-4 w-4 transition-transform", advancedOpen && "rotate-180")} aria-hidden />
+                            </Button>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="space-y-6 border-t border-border/60 px-4 py-5">
                     <div className="space-y-4">
                         <SectionHeading>Clasificación</SectionHeading>
-                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                            <Field label="Tipo de ticket">
-                                <Select
-                                    value={form.ticket_type_id}
-                                    onValueChange={(v) => setForm({ ...form, ticket_type_id: v })}
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Seleccionar" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {(catalogs.ticket_types || []).map((t) => (
-                                            <SelectItem key={t.id} value={String(t.id)}>
-                                                {t.name}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                                <FieldError errors={errors} field="ticket_type_id" />
-                            </Field>
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                             <Field label="Impacto" required>
                                 <Select
                                     value={form.impact_level_id}
@@ -374,7 +396,7 @@ export default function ResolbebCreate({ catalogs: catalogsProp }) {
                             </Field>
                         </div>
                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                            <Field label="Área responsable" required>
+                            {!isSolicitanteOnly && <Field label="Área responsable" required>
                                 <Select
                                     value={form.area_current_id}
                                     onValueChange={(v) => setForm({ ...form, area_current_id: v })}
@@ -394,8 +416,8 @@ export default function ResolbebCreate({ catalogs: catalogsProp }) {
                                     </SelectContent>
                                 </Select>
                                 <FieldError errors={errors} field="area_current_id" />
-                            </Field>
-                            <Field label="Área de origen" hint="Quién reporta el incidente.">
+                            </Field>}
+                            {!isSolicitanteOnly && <Field label="Área de origen" hint="Quién reporta el incidente.">
                                 <Select
                                     value={form.area_origin_id}
                                     onValueChange={(v) => setForm({ ...form, area_origin_id: v })}
@@ -412,22 +434,32 @@ export default function ResolbebCreate({ catalogs: catalogsProp }) {
                                     </SelectContent>
                                 </Select>
                                 <FieldError errors={errors} field="area_origin_id" />
-                            </Field>
+                            </Field>}
                         </div>
                     </div>
+                        </CollapsibleContent>
+                    </Collapsible>
 
-                    <div className="flex justify-end gap-2 border-t border-border/40 pt-6">
-                        <Button type="button" variant="ghost" asChild>
-                            <a href={backTo}>Cancelar</a>
-                        </Button>
-                        <Button type="submit" disabled={saving}>
+                    <div className="sticky bottom-0 z-10 -mx-3 flex flex-col gap-3 border-t border-border/60 bg-background/95 px-3 py-4 shadow-[0_-8px_20px_-18px_hsl(var(--foreground))] backdrop-blur sm:flex-row sm:items-center sm:justify-between">
+                        <TicketSubmissionSummary
+                            ticketTypeName={ticketTypeName}
+                            siteName={siteName}
+                            fileCount={pendingFiles.length}
+                            missingLabels={missingLabels}
+                        />
+                        <div className="flex shrink-0 justify-end gap-2">
+                            <Button type="button" variant="ghost" asChild>
+                                <a href={backTo}>Cancelar</a>
+                            </Button>
+                            <Button type="submit" disabled={saving}>
                             {saving ? (
                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                             ) : (
                                 <CheckCircle2 className="mr-2 h-4 w-4" />
                             )}
                             Crear ticket
-                        </Button>
+                            </Button>
+                        </div>
                     </div>
                 </form>
             </div>

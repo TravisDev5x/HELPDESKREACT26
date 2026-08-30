@@ -4,7 +4,11 @@ namespace Tests\Feature;
 
 use App\Jobs\ProcessInboundTicket;
 use App\Models\Client;
+use App\Models\Ticket;
+use App\Models\User;
 use App\Services\TicketCreationService;
+use App\Services\TicketRoutingService;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Tests\Support\CreatesTenantFixtures;
@@ -64,6 +68,82 @@ class TicketCreationServiceTest extends TestCase
         app(TicketCreationService::class)->create(['subject' => 'Sin cliente']);
     }
 
+    public function test_routing_uses_the_only_area_mapped_to_the_ticket_type(): void
+    {
+        $fixture = $this->createTenantFixtureSet();
+        $now = now();
+        $specialistAreaId = DB::table('areas')->insertGetId([
+            'name' => 'Redes especialista',
+            'client_id' => $fixture['client_id'],
+            'is_active' => true,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+        DB::table('area_ticket_type')->insert([
+            'area_id' => $specialistAreaId,
+            'ticket_type_id' => $fixture['ticket_type_id'],
+        ]);
+
+        $resolved = app(TicketRoutingService::class)->resolveArea(
+            $fixture['client_id'],
+            $fixture['ticket_type_id'],
+            $fixture['area_id'],
+        );
+
+        $this->assertSame($specialistAreaId, $resolved);
+    }
+
+    public function test_ambiguous_routing_falls_back_to_the_tenant_triage_area(): void
+    {
+        $fixture = $this->createTenantFixtureSet();
+        $now = now();
+        $triageAreaId = DB::table('areas')->insertGetId([
+            'name' => 'Mesa de ayuda Nivel 1',
+            'client_id' => $fixture['client_id'],
+            'is_active' => true,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+        $secondAreaId = DB::table('areas')->insertGetId([
+            'name' => 'Aplicaciones',
+            'client_id' => $fixture['client_id'],
+            'is_active' => true,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+        DB::table('area_ticket_type')->insert([
+            ['area_id' => $triageAreaId, 'ticket_type_id' => $fixture['ticket_type_id']],
+            ['area_id' => $secondAreaId, 'ticket_type_id' => $fixture['ticket_type_id']],
+        ]);
+
+        $resolved = app(TicketRoutingService::class)->resolveArea(
+            $fixture['client_id'],
+            $fixture['ticket_type_id'],
+            $fixture['area_id'],
+        );
+
+        $this->assertSame($triageAreaId, $resolved);
+    }
+
+    public function test_creation_routes_area_when_the_caller_omits_it(): void
+    {
+        $fixture = $this->createTenantFixtureSet();
+
+        $ticket = app(TicketCreationService::class)->create([
+            'subject' => 'Enrutamiento automático',
+            'area_origin_id' => $fixture['area_id'],
+            'site_id' => $fixture['site_id'],
+            'client_id' => $fixture['client_id'],
+            'requester_id' => $fixture['user_id'],
+            'ticket_type_id' => $fixture['ticket_type_id'],
+            'priority_id' => $fixture['priority_id'],
+            'ticket_state_id' => $fixture['ticket_state_id'],
+        ]);
+
+        $this->assertSame($fixture['area_id'], (int) $ticket->area_current_id);
+        $this->assertNull($ticket->assigned_user_id);
+    }
+
     public function test_email_flow_produces_ticket_with_folio_via_shared_service(): void
     {
         $fixture = $this->createTenantFixtureSet();
@@ -74,7 +154,7 @@ class TicketCreationServiceTest extends TestCase
             'is_active' => true,
         ]);
         DB::table('users')->where('id', $fixture['user_id'])->update(['client_id' => $tenant->id]);
-        $requesterEmail = \App\Models\User::find($fixture['user_id'])->email;
+        $requesterEmail = User::find($fixture['user_id'])->email;
 
         // TicketClassifierService cae al default (category=general, priority=medium)
         // sin reglas ni IA configurada, que mapea a ticket_type_id=3, priority_id=3.
@@ -93,7 +173,7 @@ class TicketCreationServiceTest extends TestCase
             'message_id' => '<abc@empresa.test>',
         ]);
 
-        $ticket = \App\Models\Ticket::where('client_id', $tenant->id)
+        $ticket = Ticket::where('client_id', $tenant->id)
             ->where('source', 'email')
             ->first();
 
@@ -117,7 +197,7 @@ class TicketCreationServiceTest extends TestCase
             'is_active' => true,
         ]);
         DB::table('users')->where('id', $fixture['user_id'])->update(['client_id' => $tenant->id]);
-        $requesterEmail = \App\Models\User::find($fixture['user_id'])->email;
+        $requesterEmail = User::find($fixture['user_id'])->email;
 
         $now = now();
         DB::table('ticket_types')->insertOrIgnore(['id' => 3, 'name' => 'Solicitud de cambio', 'code' => 'change_request', 'is_active' => true, 'created_at' => $now, 'updated_at' => $now]);
@@ -136,7 +216,7 @@ class TicketCreationServiceTest extends TestCase
         ProcessInboundTicket::dispatch($tenant->id, $payload);
         ProcessInboundTicket::dispatch($tenant->id, $payload);
 
-        $count = \App\Models\Ticket::where('client_id', $tenant->id)
+        $count = Ticket::where('client_id', $tenant->id)
             ->where('origin_message_id', '<duplicado-webhook@empresa.test>')
             ->count();
 
@@ -162,7 +242,7 @@ class TicketCreationServiceTest extends TestCase
             'ticket_state_id' => $fixture['ticket_state_id'],
         ]);
 
-        $this->expectException(\Illuminate\Database\UniqueConstraintViolationException::class);
+        $this->expectException(UniqueConstraintViolationException::class);
 
         $service->create([
             'subject' => 'Dos (mismo Message-Id, sin pasar por el chequeo previo del job)',

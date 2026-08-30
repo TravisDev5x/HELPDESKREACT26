@@ -214,6 +214,9 @@ class MailablesTest extends TestCase
             'area_id' => $fixture['area_id'], 'position_id' => DB::table('positions')->value('id'),
             'site_id' => $fixture['site_id'], 'client_id' => $client->id, 'status' => 'active',
         ]);
+        setPermissionsTeamId($client->id);
+        Permission::firstOrCreate(['name' => 'tickets.manage_all', 'guard_name' => 'web']);
+        $agent->givePermissionTo('tickets.manage_all');
 
         ProcessInboundReply::dispatch($client->id, '00001', [
             'from' => $agent->email,

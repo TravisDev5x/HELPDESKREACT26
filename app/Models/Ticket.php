@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Services\ClientScopeService;
+use App\Support\Tickets\TicketDescriptionFormatter;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -52,6 +53,7 @@ class Ticket extends Model
     ];
 
     protected $appends = [
+        'description_html',
         'is_burned',
         'is_overdue',
         'sla_due_at',
@@ -75,6 +77,16 @@ class Ticket extends Model
                 }
             }
         });
+    }
+
+    public function setDescriptionAttribute(?string $value): void
+    {
+        $this->attributes['description'] = TicketDescriptionFormatter::sanitize($value);
+    }
+
+    public function getDescriptionHtmlAttribute(): string
+    {
+        return TicketDescriptionFormatter::toSafeHtml($this->attributes['description'] ?? null);
     }
 
     public function areaOrigin(): BelongsTo { return $this->belongsTo(\App\Models\Area::class, 'area_origin_id'); }

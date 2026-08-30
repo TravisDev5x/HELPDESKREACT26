@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Client;
+use App\Models\Site;
 use App\Models\Ticket;
 use App\Models\TicketSequence;
 use App\Models\User;
@@ -23,6 +24,7 @@ class TicketCreationService
     public function __construct(
         protected TenantClientResolver $tenantClientResolver,
         protected TicketPrefixService $prefixService,
+        protected TicketRoutingService $ticketRouting,
     ) {}
 
     /**
@@ -55,6 +57,14 @@ class TicketCreationService
 
         $this->assertSiteBelongsToClient($attributes['site_id'], $client);
 
+        if (empty($attributes['area_current_id'])) {
+            $attributes['area_current_id'] = $this->ticketRouting->resolveArea(
+                (int) $client->id,
+                ! empty($attributes['ticket_type_id']) ? (int) $attributes['ticket_type_id'] : null,
+                ! empty($attributes['area_origin_id']) ? (int) $attributes['area_origin_id'] : null,
+            );
+        }
+
         $attributes['folio'] = $this->nextFolioFor($client);
 
         $ticket = new Ticket($attributes);
@@ -79,7 +89,7 @@ class TicketCreationService
             return;
         }
 
-        $siteClientId = \App\Models\Site::where('id', $siteId)->value('client_id');
+        $siteClientId = Site::where('id', $siteId)->value('client_id');
 
         if ($siteClientId !== null && (int) $siteClientId !== (int) $client->id) {
             throw new InvalidArgumentException(

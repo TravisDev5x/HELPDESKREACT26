@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Rules\ScopedCatalogExists;
 use Illuminate\Foundation\Http\FormRequest;
 
 class UpdateTicketRequest extends FormRequest
@@ -16,12 +17,14 @@ class UpdateTicketRequest extends FormRequest
 
     public function rules(): array
     {
+        $catalog = fn (string $table) => new ScopedCatalogExists($table, $this->user());
+
         return [
-            'ticket_state_id' => 'nullable|exists:ticket_states,id',
-            'priority_id' => 'nullable|exists:priorities,id',
-            'impact_level_id' => 'nullable|exists:impact_levels,id',
-            'urgency_level_id' => 'nullable|exists:urgency_levels,id',
-            'area_current_id' => 'nullable|exists:areas,id',
+            'ticket_state_id' => ['nullable', 'integer', $catalog('ticket_states')],
+            'priority_id' => ['nullable', 'integer', $catalog('priorities')],
+            'impact_level_id' => ['nullable', 'integer', $catalog('impact_levels')],
+            'urgency_level_id' => ['nullable', 'integer', $catalog('urgency_levels')],
+            'area_current_id' => ['nullable', 'integer', $catalog('areas')],
             'note' => 'nullable|string|max:1000',
             'is_internal' => 'nullable|boolean',
             'due_at' => 'nullable|date',

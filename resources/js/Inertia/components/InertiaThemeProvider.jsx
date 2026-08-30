@@ -20,6 +20,7 @@ export function InertiaThemeProvider({ children }) {
     const { user, updateUserTheme, updateUserPrefs } = useAuth();
     const [theme, setThemeState] = useState(readStoredTheme);
     const [themeColor, setThemeColorState] = useState(readStoredThemeColor);
+    const [systemTheme, setSystemTheme] = useState(() => resolveTheme("system"));
     const mediaRef = useRef(null);
     const initializedRef = useRef(false);
 
@@ -60,7 +61,12 @@ export function InertiaThemeProvider({ children }) {
         }
 
         const media = window.matchMedia("(prefers-color-scheme: dark)");
-        const handler = () => applyTheme("system");
+        const handler = (event) => {
+            const nextSystemTheme = event.matches ? "dark" : "light";
+            setSystemTheme(nextSystemTheme);
+            applyTheme("system");
+        };
+        setSystemTheme(media.matches ? "dark" : "light");
         media.addEventListener("change", handler);
         mediaRef.current = { media, handler };
 
@@ -108,7 +114,10 @@ export function InertiaThemeProvider({ children }) {
         [user, updateUserPrefs]
     );
 
-    const resolvedTheme = useMemo(() => resolveTheme(theme), [theme]);
+    const resolvedTheme = useMemo(
+        () => (theme === "system" ? systemTheme : resolveTheme(theme)),
+        [theme, systemTheme]
+    );
 
     const value = useMemo(
         () => ({

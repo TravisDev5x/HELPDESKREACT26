@@ -18,13 +18,24 @@ class InboundMailController extends Controller
 
     public function handle(Request $request, string $provider): JsonResponse
     {
+        $configuredProvider = (string) config('services.inbound_mail.provider');
+        if ($provider !== $configuredProvider || $configuredProvider !== 'mailgun') {
+            Log::warning('Tikara: proveedor de webhook no permitido', [
+                'provider' => $provider,
+                'ip' => $request->ip(),
+            ]);
+
+            return response()->json(['error' => 'Unsupported provider'], 404);
+        }
+
         $payload = $request->all();
 
-        if ($provider === 'mailgun' && ! $this->emailService->verifyMailgunSignature($payload)) {
+        if (! $this->emailService->verifyMailgunSignature($payload)) {
             Log::warning('Tikara: webhook signature inválida', [
                 'provider' => $provider,
-                'ip'       => $request->ip(),
+                'ip' => $request->ip(),
             ]);
+
             return response()->json(['error' => 'Invalid signature'], 401);
         }
 
@@ -36,6 +47,7 @@ class InboundMailController extends Controller
             Log::info('Tikara: email para dominio sin tenant', [
                 'to' => $parsedEmail['to'],
             ]);
+
             return response()->json(['status' => 'ignored'], 200);
         }
 

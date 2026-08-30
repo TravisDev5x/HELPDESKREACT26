@@ -14,8 +14,9 @@ import { cn } from "@/lib/utils";
 import { kpiCardSurface, hintWarning, noticeWarningPanel } from "@/lib/badgeStyles";
 import { notify } from "@/lib/notify";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Loader2, MessageSquare, ArrowLeft, ChevronDown, ChevronUp, UserCheck, AlertTriangle, XCircle, BellRing, ArrowUpFromLine, Paperclip, Download, Package, Search, X } from "lucide-react";
+import { Loader2, MessageSquare, ArrowLeft, UserCheck, AlertTriangle, XCircle, BellRing, ArrowUpFromLine, Paperclip, Download, Package, Search, X } from "lucide-react";
 import { TicketPriorityBadgeByName, TicketStateBadgeByName } from "@/components/badges/EntityBadges";
+import { TicketDescription } from "@/components/tickets/TicketDescription";
 
 const RESOLVE_BASE = "/resolbeb";
 
@@ -91,8 +92,6 @@ function RequesterView({
     ticket,
     id,
     attendedBy,
-    descExpanded,
-    setDescExpanded,
     commentEntries,
     note,
     setNote,
@@ -112,7 +111,6 @@ function RequesterView({
     updating,
     isCancelledState,
 }) {
-    const descLong = (ticket.description || "").length > 280;
     return (
         <>
             {isRequester && attendedBy.length > 0 && (
@@ -147,21 +145,7 @@ function RequesterView({
                             <CardTitle className="text-lg md:text-xl">Ticket #{ticket.id} — {ticket.subject}</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                            <p className="text-muted-foreground whitespace-pre-wrap text-sm">
-                                {descLong && !descExpanded ? (
-                                    <>
-                                        {(ticket.description || "").slice(0, 280)}…
-                                        <button type="button" onClick={() => setDescExpanded(true)} className="ml-2 text-primary hover:underline inline-flex items-center gap-0.5 text-xs font-medium">Ver más <ChevronDown className="h-3 w-3" /></button>
-                                    </>
-                                ) : descLong && descExpanded ? (
-                                    <>
-                                        {ticket.description}
-                                        <button type="button" onClick={() => setDescExpanded(false)} className="ml-2 text-primary hover:underline inline-flex items-center gap-0.5 text-xs font-medium">Ver menos <ChevronUp className="h-3 w-3" /></button>
-                                    </>
-                                ) : (
-                                    ticket.description || "—"
-                                )}
-                            </p>
+                            <TicketDescription html={ticket.description_html} text={ticket.description} className="text-muted-foreground" />
                             <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-3 border-t pt-3">
                                 <Field label="Área origen" value={ticket.area_origin?.name} />
                                 <Field label="Tipo" value={ticket.ticket_type?.name} />
@@ -319,8 +303,6 @@ function ManagerView({
     const [escalateAreaId, setEscalateAreaId] = useState("");
     const [escalateNote, setEscalateNote] = useState("");
     const [showEscalateForm, setShowEscalateForm] = useState(false);
-    const descLong = (ticket.description || "").length > 280;
-    const [descExpanded, setDescExpanded] = useState(false);
     const areas = catalogs.areas || [];
 
     const handleEscalate = () => {
@@ -393,9 +375,7 @@ function ManagerView({
                     </div>
                     <div>
                         <strong className="text-muted-foreground text-sm block mb-1">Descripción</strong>
-                        <div className="text-muted-foreground whitespace-pre-wrap rounded-md bg-muted/30 p-3 text-sm">
-                            {descLong && !descExpanded ? <>{(ticket.description || "").slice(0, 280)}… <button type="button" onClick={() => setDescExpanded(true)} className="ml-2 text-primary hover:underline text-xs font-medium">Ver más <ChevronDown className="h-3 w-3" /></button></> : descLong && descExpanded ? <>{ticket.description} <button type="button" onClick={() => setDescExpanded(false)} className="ml-2 text-primary hover:underline text-xs font-medium">Ver menos <ChevronUp className="h-3 w-3" /></button></> : (ticket.description || "—")}
-                        </div>
+                        <TicketDescription html={ticket.description_html} text={ticket.description} className="rounded-md bg-muted/30 p-3 text-muted-foreground" />
                     </div>
                     <TicketAttachments attachments={ticket.attachments} ticketId={ticket.id} basePath="/api/tickets" />
                 </CardContent>
@@ -591,7 +571,6 @@ export default function Resolvev1Detalle() {
     const [assigneeId, setAssigneeId] = useState("none");
     const [dueAtLocal, setDueAtLocal] = useState("");
     const [isInternalNote, setIsInternalNote] = useState(true);
-    const [descExpanded, setDescExpanded] = useState(false);
     const [alertMessage, setAlertMessage] = useState("");
     const [sendingAlert, setSendingAlert] = useState(false);
     const [cancelling, setCancelling] = useState(false);
@@ -922,8 +901,6 @@ export default function Resolvev1Detalle() {
                 <RequesterView
                     ticket={ticket}
                     attendedBy={attendedBy}
-                    descExpanded={descExpanded}
-                    setDescExpanded={setDescExpanded}
                     commentEntries={commentEntries}
                     note={note}
                     setNote={setNote}

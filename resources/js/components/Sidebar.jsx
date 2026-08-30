@@ -16,6 +16,7 @@ import {
     TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -31,11 +32,9 @@ import { storageUrl } from '@/lib/storage'
 
 import {
     Home,
-    Clock,
     CalendarDays,
     AlertTriangle,
     Ticket,
-    Shield,
     Users,
     Monitor,
     ShieldCheck,
@@ -46,23 +45,12 @@ import {
     CircleDot,
     ChevronsUpDown,
     LogOut,
-    MoreHorizontal,
     LayoutDashboard,
     UserCircle,
-    Layers,
-    FileCheck,
-    BookOpen,
-    Upload,
-    GitMerge,
-    Bell,
-    FileSpreadsheet,
     Workflow,
     Tags,
     Megaphone,
     Building2,
-    Activity,
-    LogIn,
-    Link2,
     Briefcase,
     Network,
     MapPin,
@@ -76,6 +64,7 @@ import {
     Wrench,
     Factory,
     Plug,
+    Plus,
 } from 'lucide-react'
 
 const ICON_SIZE = 20
@@ -145,17 +134,22 @@ const SidebarItem = ({
     tooltipSide = 'right',
     onNavigate,
     currentPath = '',
+    primary = false,
+    exact = false,
 }) => {
     const href = to
-    const active = routeMatchesPath(currentPath, href)
+    const active = exact ? currentPath === href : routeMatchesPath(currentPath, href)
 
     const linkClass = (isActive) =>
         cn(
             'flex items-center rounded-md transition-colors min-w-0',
             isCollapsed ? 'justify-center h-10 w-10 p-0 shrink-0' : 'gap-3 px-3 py-2 justify-start w-full',
-            isActive
+            primary
+                ? 'bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 hover:text-primary-foreground'
+                : isActive
                 ? 'bg-accent text-accent-foreground'
                 : 'text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground',
+            isActive && !primary && 'relative font-semibold before:absolute before:inset-y-2 before:left-0 before:w-0.5 before:rounded-full before:bg-primary',
             isChild && !isCollapsed && 'ml-4 pl-3 border-l border-border/40'
         )
 
@@ -239,7 +233,7 @@ const SidebarExternalItem = ({
 // ----------------------------------------------------------------------
 // SUB-COMPONENTE: GroupItem (Grupo con hijos, tooltip en colapsado)
 // ----------------------------------------------------------------------
-function GroupItem({ label, icon: Icon, children, collapsed, dropdownSide = 'right', tooltipSide = 'right', onNavigate, defaultOpen = false }) {
+function GroupItem({ label, icon: Icon, children, collapsed, dropdownSide = 'right', tooltipSide = 'right', onNavigate, defaultOpen = false, active = false }) {
     const [open, setOpen] = useState(defaultOpen)
 
     useEffect(() => {
@@ -258,7 +252,9 @@ function GroupItem({ label, icon: Icon, children, collapsed, dropdownSide = 'rig
                                     size="icon"
                                     className={cn(
                                         'h-10 w-10 shrink-0 rounded-md transition-colors',
-                                        'text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground',
+                                        active
+                                            ? 'bg-accent text-accent-foreground ring-1 ring-border/60'
+                                            : 'text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground',
                                         'data-[state=open]:bg-accent data-[state=open]:text-accent-foreground'
                                     )}
                                 >
@@ -283,15 +279,17 @@ function GroupItem({ label, icon: Icon, children, collapsed, dropdownSide = 'rig
     }
 
     return (
-        <div className="flex flex-col gap-1">
-            <Button
+        <Collapsible open={open} onOpenChange={setOpen} className="flex flex-col gap-1">
+            <CollapsibleTrigger asChild>
+                <Button
                 variant="ghost"
                 className={cn(
                     'w-full justify-between h-10 px-3 font-normal rounded-md transition-colors',
-                    'text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground'
+                    active
+                        ? 'bg-accent text-accent-foreground font-semibold'
+                        : 'text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground'
                 )}
-                onClick={() => setOpen(!open)}
-            >
+                >
                 <span className="flex items-center gap-3 text-sm font-medium min-w-0">
                     <Icon size={ICON_SIZE} strokeWidth={ICON_STROKE} className="shrink-0 flex-shrink-0" />
                     <span className="truncate whitespace-nowrap">{label}</span>
@@ -302,16 +300,12 @@ function GroupItem({ label, icon: Icon, children, collapsed, dropdownSide = 'rig
                         open ? 'rotate-0' : '-rotate-90'
                     )}
                 />
-            </Button>
-            <div
-                className={cn(
-                    'grid transition-all duration-300 ease-in-out',
-                    open ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
-                )}
-            >
-                <div className="overflow-hidden flex flex-col gap-1">{children}</div>
-            </div>
-        </div>
+                </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="flex flex-col gap-1 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in data-[state=closed]:fade-out">
+                {children}
+            </CollapsibleContent>
+        </Collapsible>
     )
 }
 
@@ -381,55 +375,32 @@ export function Sidebar({ collapsed, onToggle, onNavigate, currentPath: currentP
     const canSeeMyTickets =
         (can('tickets.create') || can('tickets.view_own')) &&
         (can('tickets.manage_all') || can('tickets.view_area'))
-    // Solicitante puro: un solo punto de creación (modal del dashboard en
-    // Inicio) en vez de duplicar el link "Crear ticket" hacia la página
-    // completa -- agentes/admins sí la conservan.
-    const isSolicitanteOnly =
-        !can('tickets.manage_all') && !can('tickets.view_area') &&
-        (can('tickets.create') || can('tickets.view_own'))
     const isAdmin = can('users.manage')
     const NAV = useMemo(() => {
         const sections = []
 
-        // BLOQUE 1: GENERAL (todos pueden crear ticket y ver sus tickets)
+        // 1. TRABAJO: lo que una persona necesita para comenzar su jornada.
         const generalItems = [
-            inertiaNav('/home', { label: t('nav.home'), icon: Home, emphasis: true }),
-            ...(canSeeClientsModule
-                ? [{ href: '/clients', label: t('nav.clientes'), icon: Building2, external: true }]
+            ...(can('tickets.create')
+                ? [inertiaNav('/resolbeb/tickets/new', { label: 'Nueva solicitud', icon: Plus, primary: true })]
                 : []),
-            ...(canSeeCompany
-                ? [{ href: '/company', label: 'Mi empresa', icon: Building2, external: true }]
+            inertiaNav('/home', { label: t('nav.home'), icon: Home, emphasis: true }),
+            ...(can('tickets.create') || can('tickets.view_own')
+                ? [inertiaNav('/resolbeb/mis-tickets', { label: t('nav.myTickets'), icon: Ticket, emphasis: true })]
                 : []),
             inertiaNav('/calendar', { label: t('nav.calendar'), icon: CalendarDays, emphasis: true }),
-            inertiaNav('/resolbeb/mis-tickets', { label: t('nav.myTickets'), icon: Ticket, emphasis: true }),
-            ...(isSolicitanteOnly
-                ? []
-                : [inertiaNav('/resolbeb/tickets/new', { label: t('nav.createTicket'), icon: Layers, emphasis: true })]),
         ]
-        sections.push({ sectionId: 'general', label: t('section.general'), items: generalItems })
+        sections.push({ sectionId: 'work', label: 'Trabajo', items: generalItems })
 
-        // BLOQUE 2: MÓDULOS — TICKETS, INCIDENCIAS, TIMEDESK
-        // "Mis tickets" y "Crear ticket" NO se repiten aquí -- ya están en
-        // General para todos. "Resolbeb" (nombre interno/legacy) se separa
-        // en dos módulos con nombre claro: Tickets e Incidencias.
+        // 2. OPERACIÓN: colas y módulos para resolver trabajo.
         const moduleItems = []
 
         const canSeeResolbeb = canSeeTicketsModule || canSeeMyTickets
         const ticketsChildren = []
         if (canSeeResolbeb) {
-            ticketsChildren.push(inertiaNav('/resolbeb', { label: t('nav.dashboard'), icon: LayoutDashboard }))
-            if (canSeeTicketsModule) ticketsChildren.push(inertiaNav('/resolbeb/tickets', { label: t('nav.allTickets'), icon: Ticket }))
+            ticketsChildren.push(inertiaNav('/resolbeb', { label: t('nav.dashboard'), icon: LayoutDashboard, exact: true }))
+            if (canSeeTicketsModule) ticketsChildren.push(inertiaNav('/resolbeb/tickets', { label: 'Mesa de ayuda', icon: Ticket }))
             if (canSeeReviewPending) ticketsChildren.push(inertiaNav('/resolbeb/pending-requests', { label: t('nav.pendingRequests'), icon: Inbox }))
-            if (canSeeCatalogs) {
-                ticketsChildren.push({ type: 'separator', label: t('nav.catalogsTickets') })
-                ticketsChildren.push(inertiaNav('/resolbeb/estados', { label: t('nav.ticketStates'), icon: Workflow }))
-                ticketsChildren.push(inertiaNav('/resolbeb/tipos', { label: t('nav.ticketTypes'), icon: Tags }))
-                ticketsChildren.push(inertiaNav('/priorities', { label: t('nav.priorities'), icon: SignalHigh }))
-                ticketsChildren.push(inertiaNav('/impact-levels', { label: t('nav.impactLevels'), icon: SignalHigh }))
-                ticketsChildren.push(inertiaNav('/urgency-levels', { label: t('nav.urgencyLevels'), icon: SignalHigh }))
-                ticketsChildren.push(inertiaNav('/priority-matrix', { label: t('nav.priorityMatrix'), icon: Grid3X3 }))
-                ticketsChildren.push(inertiaNav('/ticket-macros', { label: t('nav.ticketMacros'), icon: FileText }))
-            }
         }
         if (canSeeResolbeb && ticketsChildren.length > 0) {
             moduleItems.push({
@@ -443,10 +414,6 @@ export function Sidebar({ collapsed, onToggle, onNavigate, currentPath: currentP
         const incidentsChildren = []
         if (canSeeIncidents) {
             incidentsChildren.push(inertiaNav('/incidents', { label: t('nav.allIncidents'), icon: AlertTriangle }))
-            incidentsChildren.push({ type: 'separator', label: t('nav.catalogsIncidents') })
-            incidentsChildren.push(inertiaNav('/incident-types', { label: t('nav.incidentTypes'), icon: Tags }))
-            incidentsChildren.push(inertiaNav('/incident-severities', { label: t('nav.severities'), icon: SignalHigh }))
-            incidentsChildren.push(inertiaNav('/incident-statuses', { label: t('nav.incidentStates'), icon: Workflow }))
         }
         if (canSeeIncidents && incidentsChildren.length > 0) {
             moduleItems.push({
@@ -457,36 +424,7 @@ export function Sidebar({ collapsed, onToggle, onNavigate, currentPath: currentP
             })
         }
 
-        if (moduleItems.length > 0) {
-            sections.push({ sectionId: 'modules', label: t('section.modules'), items: moduleItems })
-        }
-
-        // BLOQUE: CATÁLOGOS (colapsable como los demás módulos; sin Roles ni Permisos, van en Sistema)
-        // campaigns/areas/positions/locations están gateados en el backend
-        // por perm:catalogs.manage (routes/api.php); sin este check el link
-        // se mostraba a cualquier usuario autenticado aunque el backend le
-        // negara el acceso real.
-        if (can('catalogs.manage')) {
-            const catalogChildren = [
-                inertiaNav('/campaigns', { label: t('nav.campaigns'), icon: Megaphone }),
-                inertiaNav('/areas', { label: t('nav.areas'), icon: Network }),
-                inertiaNav('/positions', { label: t('nav.positions'), icon: Briefcase }),
-                inertiaNav('/locations', { label: t('nav.locations'), icon: MapPin }),
-            ]
-            const catalogGroup = {
-                label: t('nav.catalogs'),
-                icon: Layers,
-                children: catalogChildren,
-            }
-            sections.push({ sectionId: 'catalogs', label: t('section.catalogs'), items: [catalogGroup] })
-        }
-
-        // BLOQUE: INVENTARIO (port desde HelpdeskECD2026 — fase 1 catálogos,
-        // fase 2 activos). Dos permisos independientes: manage_assets ve el
-        // registro de activos, manage_config ve los catálogos de
-        // configuración — un técnico podría tener uno sin el otro. Mismo
-        // criterio que el bloque de Catálogos: gate explícito aquí, no solo
-        // en el backend.
+        // Inventario operativo. Su configuración se presenta más abajo.
         {
             const inventoryChildren = []
             if (can('inventory.manage_assets')) {
@@ -494,27 +432,87 @@ export function Sidebar({ collapsed, onToggle, onNavigate, currentPath: currentP
                 inventoryChildren.push(inertiaNav('/inventory/monitor', { label: t('nav.inventoryMonitor'), icon: AlertTriangle }))
                 inventoryChildren.push(inertiaNav('/inventory/assignments', { label: t('nav.inventoryAssignments'), icon: Users }))
             }
-            if (can('inventory.manage_config')) {
-                inventoryChildren.push({ type: 'separator', label: t('nav.catalogs') })
-                inventoryChildren.push(inertiaNav('/inventory/categories', { label: t('nav.inventoryCategories'), icon: Tags }))
-                inventoryChildren.push(inertiaNav('/inventory/statuses', { label: t('nav.inventoryStatuses'), icon: CircleDot }))
-                inventoryChildren.push(inertiaNav('/inventory/labels', { label: t('nav.inventoryLabels'), icon: Tag }))
-                inventoryChildren.push(inertiaNav('/inventory/manufacturers', { label: t('nav.inventoryManufacturers'), icon: Factory }))
-                inventoryChildren.push(inertiaNav('/inventory/maintenance-origins', { label: t('nav.inventoryMaintenanceOrigins'), icon: Wrench }))
-                inventoryChildren.push(inertiaNav('/inventory/maintenance-modalities', { label: t('nav.inventoryMaintenanceModalities'), icon: Wrench }))
-                inventoryChildren.push(inertiaNav('/inventory/integrations', { label: t('nav.inventoryIntegrations'), icon: Plug }))
-            }
             if (inventoryChildren.length > 0) {
-                const inventoryGroup = {
+                moduleItems.push({
                     label: t('nav.inventory'),
                     icon: Package,
                     children: inventoryChildren,
-                }
-                sections.push({ sectionId: 'inventory', label: t('nav.inventory'), items: [inventoryGroup] })
+                })
             }
         }
 
-        // BLOQUE 3: SISTEMA (solo administradores; colapsable; incluye Roles y Permisos)
+        if (moduleItems.length > 0) {
+            sections.push({ sectionId: 'operations', label: 'Operación', items: moduleItems })
+        }
+
+        // 3. ORGANIZACIÓN: estructura de la empresa, lejos de las colas diarias.
+        const organizationItems = []
+        if (canSeeClientsModule) organizationItems.push({ href: '/clients', label: t('nav.clientes'), icon: Building2, external: true })
+        if (canSeeCompany) organizationItems.push({ href: '/company', label: 'Mi empresa', icon: Building2, external: true })
+        if (can('catalogs.manage')) {
+            organizationItems.push({
+                label: 'Estructura',
+                icon: Network,
+                children: [
+                    inertiaNav('/campaigns', { label: t('nav.campaigns'), icon: Megaphone }),
+                    inertiaNav('/areas', { label: t('nav.areas'), icon: Network }),
+                    inertiaNav('/positions', { label: t('nav.positions'), icon: Briefcase }),
+                    inertiaNav('/locations', { label: t('nav.locations'), icon: MapPin }),
+                ],
+            })
+        }
+        if (organizationItems.length > 0) {
+            sections.push({ sectionId: 'organization', label: 'Organización', items: organizationItems })
+        }
+
+        // 4. CONFIGURACIÓN: catálogos técnicos cerrados hasta necesitarlos.
+        const configurationItems = []
+        if (canSeeCatalogs) {
+            configurationItems.push({
+                label: 'Tickets',
+                icon: Ticket,
+                children: [
+                    inertiaNav('/resolbeb/tipos', { label: t('nav.ticketTypes'), icon: Tags }),
+                    inertiaNav('/resolbeb/estados', { label: t('nav.ticketStates'), icon: Workflow }),
+                    inertiaNav('/priorities', { label: t('nav.priorities'), icon: SignalHigh }),
+                    inertiaNav('/impact-levels', { label: t('nav.impactLevels'), icon: SignalHigh }),
+                    inertiaNav('/urgency-levels', { label: t('nav.urgencyLevels'), icon: SignalHigh }),
+                    inertiaNav('/priority-matrix', { label: t('nav.priorityMatrix'), icon: Grid3X3 }),
+                    inertiaNav('/ticket-macros', { label: t('nav.ticketMacros'), icon: FileText }),
+                ],
+            })
+        }
+        if (canSeeIncidents) {
+            configurationItems.push({
+                label: 'Incidentes',
+                icon: AlertTriangle,
+                children: [
+                    inertiaNav('/incident-types', { label: t('nav.incidentTypes'), icon: Tags }),
+                    inertiaNav('/incident-severities', { label: t('nav.severities'), icon: SignalHigh }),
+                    inertiaNav('/incident-statuses', { label: t('nav.incidentStates'), icon: Workflow }),
+                ],
+            })
+        }
+        if (can('inventory.manage_config')) {
+            configurationItems.push({
+                label: t('nav.inventory'),
+                icon: Package,
+                children: [
+                    inertiaNav('/inventory/categories', { label: t('nav.inventoryCategories'), icon: Tags }),
+                    inertiaNav('/inventory/statuses', { label: t('nav.inventoryStatuses'), icon: CircleDot }),
+                    inertiaNav('/inventory/labels', { label: t('nav.inventoryLabels'), icon: Tag }),
+                    inertiaNav('/inventory/manufacturers', { label: t('nav.inventoryManufacturers'), icon: Factory }),
+                    inertiaNav('/inventory/maintenance-origins', { label: t('nav.inventoryMaintenanceOrigins'), icon: Wrench }),
+                    inertiaNav('/inventory/maintenance-modalities', { label: t('nav.inventoryMaintenanceModalities'), icon: Wrench }),
+                    inertiaNav('/inventory/integrations', { label: t('nav.inventoryIntegrations'), icon: Plug }),
+                ],
+            })
+        }
+        if (configurationItems.length > 0) {
+            sections.push({ sectionId: 'configuration', label: 'Configuración', items: configurationItems })
+        }
+
+        // 5. ADMINISTRACIÓN: seguridad y gobierno, siempre al final.
         if (isAdmin) {
             const systemChildren = [
                 inertiaNav('/users', { label: t('nav.users'), icon: Users }),
@@ -529,7 +527,7 @@ export function Sidebar({ collapsed, onToggle, onNavigate, currentPath: currentP
                 icon: Settings,
                 children: systemChildren,
             }
-            sections.push({ sectionId: 'system', label: t('section.system'), items: [systemGroup] })
+            sections.push({ sectionId: 'system', label: 'Administración', items: [systemGroup] })
         }
 
         return sections
@@ -541,7 +539,6 @@ export function Sidebar({ collapsed, onToggle, onNavigate, currentPath: currentP
         canSeeIncidents,
         canSeeTicketsModule,
         canSeeMyTickets,
-        isSolicitanteOnly,
         isAdmin,
         user?.permissions,
         can,
@@ -644,15 +641,7 @@ export function Sidebar({ collapsed, onToggle, onNavigate, currentPath: currentP
                                 >
                                     {section.label}
                                 </SectionTitle>
-                                {collapsed && section.sectionId === 'modules' && (
-                                    <div className="flex justify-center py-1">
-                                        <MoreHorizontal size={ICON_SIZE} strokeWidth={ICON_STROKE} className="shrink-0 text-muted-foreground/40" />
-                                    </div>
-                                )}
-                                <div className={cn(
-                                    'flex flex-col gap-1',
-                                    collapsed && section.sectionId === 'modules' && 'items-center'
-                                )}>
+                                <div className="flex flex-col gap-1">
                                     {section.items.map((item) => {
                                         if (item.children) {
                                             const groupActive = item.children.some((c) => {
@@ -670,6 +659,7 @@ export function Sidebar({ collapsed, onToggle, onNavigate, currentPath: currentP
                                                         tooltipSide={tooltipSide}
                                                         onNavigate={onNavigate}
                                                         defaultOpen={groupActive}
+                                                        active={groupActive}
                                                     >
                                                         {item.children.map((child, childIdx) => {
                                                             if (child.type === 'separator') {
@@ -716,6 +706,7 @@ export function Sidebar({ collapsed, onToggle, onNavigate, currentPath: currentP
                                                     tooltipSide={tooltipSide}
                                                     onNavigate={onNavigate}
                                                     defaultOpen={groupActive}
+                                                    active={groupActive}
                                                 >
                                                     {item.children.map((child, childIdx) => {
                                                         if (child.type === 'separator') {
@@ -752,6 +743,7 @@ export function Sidebar({ collapsed, onToggle, onNavigate, currentPath: currentP
                                                                 tooltipSide={tooltipSide}
                                                                 onNavigate={onNavigate}
                                                                 currentPath={pathname}
+                                                                exact={child.exact}
                                                             />
                                                         )
                                                     })}
@@ -782,6 +774,8 @@ export function Sidebar({ collapsed, onToggle, onNavigate, currentPath: currentP
                                                 tooltipSide={tooltipSide}
                                                 onNavigate={onNavigate}
                                                 currentPath={pathname}
+                                                primary={item.primary}
+                                                exact={item.exact}
                                             />
                                         )
                                     })}

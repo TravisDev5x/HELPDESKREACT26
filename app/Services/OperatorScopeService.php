@@ -3,8 +3,12 @@
 namespace App\Services;
 
 use App\Models\Client;
+use App\Models\Site;
+use App\Models\Ticket;
 use App\Models\User;
+use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
 
 class OperatorScopeService
@@ -53,10 +57,10 @@ class OperatorScopeService
         }
 
         return match ($module) {
-            'tickets'   => $user->can('tickets.manage_all'),
+            'tickets' => $user->can('tickets.manage_all'),
             'incidents' => $user->can('incidents.manage_all'),
             'inventory' => $user->can('inventory.manage_assets'),
-            default     => $user->can('tickets.manage_all') || $user->can('incidents.manage_all'),
+            default => $user->can('tickets.manage_all') || $user->can('incidents.manage_all'),
         };
     }
 
@@ -105,9 +109,9 @@ class OperatorScopeService
     /**
      * Usuarios MSP-wide sin operador resuelto (candidatos a is_operator antes de desactivar legacy).
      *
-     * @return \Illuminate\Support\Collection<int, User>
+     * @return Collection<int, User>
      */
-    public function legacyOperatorCandidates(): \Illuminate\Support\Collection
+    public function legacyOperatorCandidates(): Collection
     {
         return User::query()
             ->where('is_operator', false)
@@ -219,7 +223,14 @@ class OperatorScopeService
         if ($this->usesOperatorMspWideScope($user, 'tickets')) {
             $operatorId = $this->resolveOperatorUserId($user);
             if (! $operatorId) {
-                return $this->usesLegacyMspWideAccess($user) ? $query : $query->whereRaw('0 = 1');
+                // Hallazgo C3: aquí vivía `usesLegacyMspWideAccess($user) ? $query : ...`,
+                // que devolvía el query SIN NINGÚN filtro de tenant. "Alcance MSP-wide"
+                // significa "los clients de MI operador"; si no hay operador resoluble
+                // no hay frontera de ownership que honrar, y la respuesta correcta es
+                // "ningún client", no "todos". El flag legacy sigue ensanchando el
+                // CATÁLOGO de clientes (applyOnClients/clientsForCatalog), nunca los
+                // registros operativos de otro tenant.
+                return $query->whereRaw('0 = 1');
             }
 
             return $query->where(function ($q) use ($operatorId) {
@@ -502,7 +513,7 @@ class OperatorScopeService
     }
 
     /**
-     * @return array<int, \Illuminate\Contracts\Validation\ValidationRule|string>
+     * @return array<int, ValidationRule|string>
      */
     public function nameRules(User $user, ?int $ignoreClientId = null): array
     {
@@ -529,7 +540,7 @@ class OperatorScopeService
     }
 
     /**
-     * @return array<int, \Illuminate\Contracts\Validation\ValidationRule|string>
+     * @return array<int, ValidationRule|string>
      */
     public function codeRules(User $user, ?int $ignoreClientId = null): array
     {
@@ -588,9 +599,9 @@ class OperatorScopeService
         return $this->applyOnClients(Client::query()->where('id', $clientId), $user)->exists();
     }
 
-    public function authorizeSite(User $user, \App\Models\Site $site): void
+    public function authorizeSite(User $user, Site $site): void
     {
-        if (! $this->applyOnSites(\App\Models\Site::query()->where('id', $site->id), $user)->exists()) {
+        if (! $this->applyOnSites(Site::query()->where('id', $site->id), $user)->exists()) {
             abort(403, 'No tienes acceso a esta sede.');
         }
     }
@@ -598,7 +609,7 @@ class OperatorScopeService
     /**
      * Usuario con manage_all pertenece al mismo operador MSP que el ticket.
      */
-    public function userInTicketOperatorScope(User $user, \App\Models\Ticket $ticket): bool
+    public function userInTicketOperatorScope(User $user, Ticket $ticket): bool
     {
         if ($this->bypassesOperatorScope($user)) {
             return true;
@@ -618,7 +629,7 @@ class OperatorScopeService
         return $userOperatorId && (int) $userOperatorId === (int) $operatorId;
     }
 
-    public function resolveOperatorIdForTicket(\App\Models\Ticket $ticket): ?int
+    public function resolveOperatorIdForTicket(Ticket $ticket): ?int
     {
         $ticket->loadMissing('site:id,client_id', 'client:id,operator_user_id');
 
@@ -642,7 +653,7 @@ class OperatorScopeService
     }
 
     /** Restringe audit_logs al operador MSP del usuario. */
-    public function applyOnAuditLogs(\Illuminate\Database\Eloquent\Builder $query, User $user): \Illuminate\Database\Eloquent\Builder
+    public function applyOnAuditLogs(Builder $query, User $user): Builder
     {
         if ($enforced = $this->tenantContext->enforcedClientId()) {
             return $query->where('client_id', $enforced);

@@ -1,23 +1,28 @@
 <?php
 
+use App\Http\Middleware\ApplyPgsqlTenantRls;
+use App\Http\Middleware\AuditReportAccess;
+use App\Http\Middleware\EnforcePasswordChange;
+use App\Http\Middleware\EnforceTenantBoundary;
+use App\Http\Middleware\EnsureOnboardingComplete;
+use App\Http\Middleware\EnsurePermissionOrAdmin;
+use App\Http\Middleware\EnsureSessionForAuth;
+use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\ResolveTenantFromSubdomain;
+use App\Http\Middleware\SecurityHeaders;
+use App\Http\Middleware\SetLocale;
+use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
-use Inertia\Inertia;
-use Symfony\Component\HttpFoundation\Response;
 use Illuminate\Routing\Middleware\SubstituteBindings;
+use Inertia\Inertia;
 use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
-use App\Http\Middleware\EnsureSessionForAuth;
-use App\Http\Middleware\EnforcePasswordChange;
-use App\Http\Middleware\AuditReportAccess;
-use App\Http\Middleware\SecurityHeaders;
-use App\Http\Middleware\SetLocale;
-use App\Http\Middleware\EnsurePermissionOrAdmin;
-use App\Http\Middleware\HandleInertiaRequests;
-use App\Http\Middleware\EnsureOnboardingComplete;
-use App\Http\Middleware\ApplyPgsqlTenantRls;
-use App\Http\Middleware\EnforceTenantBoundary;
+use Spatie\Permission\Middleware\PermissionMiddleware;
+use Spatie\Permission\Middleware\RoleMiddleware;
+use Spatie\Permission\Middleware\RoleOrPermissionMiddleware;
+use Symfony\Component\HttpFoundation\Response;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -27,17 +32,6 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-
-        // Detrás de un reverse proxy/túnel (nginx, Cloudflare Tunnel) que termina
-        // TLS antes de llegar a la app — sin esto, Laravel genera URLs con esquema
-        // http:// aunque el navegador esté en https://, rompiendo assets (mixed content).
-        $middleware->trustProxies(
-            at: '*',
-            headers: Request::HEADER_X_FORWARDED_FOR
-                | Request::HEADER_X_FORWARDED_HOST
-                | Request::HEADER_X_FORWARDED_PORT
-                | Request::HEADER_X_FORWARDED_PROTO
-        );
 
         // Webhooks externos no mandan CSRF token — excluirlos explícitamente.
         $middleware->validateCsrfTokens(except: [
@@ -88,11 +82,11 @@ return Application::configure(basePath: dirname(__DIR__))
             'locale' => SetLocale::class,
             'perm' => EnsurePermissionOrAdmin::class,
             'report.audit' => AuditReportAccess::class,
-            'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,
-            'permission' => \Spatie\Permission\Middleware\PermissionMiddleware::class,
-            'role_or_permission' => \Spatie\Permission\Middleware\RoleOrPermissionMiddleware::class,
+            'role' => RoleMiddleware::class,
+            'permission' => PermissionMiddleware::class,
+            'role_or_permission' => RoleOrPermissionMiddleware::class,
             'onboarding' => EnsureOnboardingComplete::class,
-            'tenant' => \App\Http\Middleware\ResolveTenantFromSubdomain::class,
+            'tenant' => ResolveTenantFromSubdomain::class,
             'tenant.rls' => ApplyPgsqlTenantRls::class,
         ]);
 
@@ -102,7 +96,7 @@ return Application::configure(basePath: dirname(__DIR__))
          * Requests AJAX (expectsJson) nunca reciben redirect HTML en auth fallida.
          * Siempre JSON 401 con { authenticated: false }. Evita confusión en el frontend.
          */
-        $exceptions->renderable(function (\Illuminate\Auth\AuthenticationException $e, \Illuminate\Http\Request $request) {
+        $exceptions->renderable(function (AuthenticationException $e, Request $request) {
             if ($request->expectsJson()) {
                 return response()->json(['authenticated' => false], 401);
             }
@@ -149,4 +143,3 @@ return Application::configure(basePath: dirname(__DIR__))
         });
     })
     ->create();
-

@@ -327,7 +327,7 @@ const CREATE_FORM_INITIAL = {
     description: "",
     site_id: "",
     area_origin_id: "",
-    area_current_id: "",
+    area_current_id: "automatic",
     ticket_type_id: "",
     priority_id: "",
     ticket_state_id: "",
@@ -398,6 +398,7 @@ function DashboardSolicitante() {
                 ...CREATE_FORM_INITIAL,
                 site_id: String(user?.site_id || user?.site?.id || ""),
                 area_origin_id: String(user?.area_id || ""),
+                area_current_id: "automatic",
                 ticket_type_id: String((data.ticket_types || [])[0]?.id || ""),
                 priority_id: String((data.priorities || [])[0]?.id || ""),
                 ticket_state_id: String(openState?.id || ""),
@@ -423,8 +424,8 @@ function DashboardSolicitante() {
             notify.error("El asunto es obligatorio");
             return;
         }
-        if (!createForm.site_id || !createForm.area_origin_id || !createForm.area_current_id || !createForm.ticket_type_id || !createForm.priority_id || !createForm.ticket_state_id) {
-            notify.error("Completa todos los campos obligatorios (sede, área responsable, área origen, tipo, prioridad).");
+        if (!createForm.site_id || !createForm.area_origin_id || !createForm.ticket_type_id || !createForm.priority_id || !createForm.ticket_state_id) {
+            notify.error("Completa todos los campos obligatorios (sede, área origen, tipo y prioridad).");
             return;
         }
         setCreateSaving(true);
@@ -434,7 +435,9 @@ function DashboardSolicitante() {
                 description: createForm.description?.trim() || null,
                 site_id: Number(createForm.site_id),
                 area_origin_id: Number(createForm.area_origin_id),
-                area_current_id: Number(createForm.area_current_id),
+                ...(createForm.area_current_id && createForm.area_current_id !== "automatic"
+                    ? { area_current_id: Number(createForm.area_current_id) }
+                    : {}),
                 priority_id: Number(createForm.priority_id),
                 ticket_type_id: Number(createForm.ticket_type_id),
                 ticket_state_id: Number(createForm.ticket_state_id),

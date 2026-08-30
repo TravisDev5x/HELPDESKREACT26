@@ -19,6 +19,7 @@ export function ThemeProvider({
     onThemeChange = null,
 }) {
     const [theme, setThemeState] = useState(() => readStoredTheme() ?? defaultTheme);
+    const [systemTheme, setSystemTheme] = useState(() => resolveTheme("system"));
 
     useEffect(() => {
         applyTheme(theme);
@@ -28,7 +29,12 @@ export function ThemeProvider({
         if (theme !== "system") return undefined;
 
         const media = window.matchMedia("(prefers-color-scheme: dark)");
-        const handler = () => applyTheme("system");
+        const handler = (event) => {
+            const nextSystemTheme = event.matches ? "dark" : "light";
+            setSystemTheme(nextSystemTheme);
+            applyTheme("system");
+        };
+        setSystemTheme(media.matches ? "dark" : "light");
         media.addEventListener("change", handler);
         return () => media.removeEventListener("change", handler);
     }, [theme]);
@@ -47,7 +53,10 @@ export function ThemeProvider({
         [onThemeChange]
     );
 
-    const resolvedTheme = useMemo(() => resolveTheme(theme), [theme]);
+    const resolvedTheme = useMemo(
+        () => (theme === "system" ? systemTheme : resolveTheme(theme)),
+        [theme, systemTheme]
+    );
 
     const value = useMemo(
         () => ({

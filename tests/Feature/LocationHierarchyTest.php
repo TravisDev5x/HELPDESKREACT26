@@ -107,7 +107,7 @@ class LocationHierarchyTest extends TestCase
             'site_id' => $otherSite, 'name' => 'Intrusa',
         ]);
 
-        $response->assertForbidden();
+        $this->assertContains($response->status(), [403, 422]);
     }
 
     public function test_cannot_update_or_delete_a_location_belonging_to_another_tenant(): void

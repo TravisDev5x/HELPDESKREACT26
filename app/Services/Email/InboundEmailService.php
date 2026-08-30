@@ -4,6 +4,7 @@ namespace App\Services\Email;
 
 use App\Models\Client;
 use App\Models\EmailDomain;
+use Illuminate\Support\Facades\Cache;
 
 class InboundEmailService
 {
@@ -13,16 +14,16 @@ class InboundEmailService
     public function parse(array $payload): array
     {
         return [
-            'from'             => $this->extractEmail($payload['sender'] ?? $payload['from'] ?? ''),
-            'from_name'        => $this->extractName($payload['from'] ?? ''),
-            'to'               => $this->extractEmail($payload['recipient'] ?? $payload['To'] ?? ''),
-            'subject'          => $payload['subject'] ?? $payload['Subject'] ?? '',
-            'body_plain'       => $payload['body-plain'] ?? $payload['stripped-text'] ?? '',
-            'body_html'        => $payload['body-html'] ?? $payload['stripped-html'] ?? '',
-            'message_id'       => $payload['Message-Id'] ?? $payload['message-id'] ?? '',
-            'in_reply_to'      => $payload['In-Reply-To'] ?? $payload['in-reply-to'] ?? '',
-            'references'       => $payload['References'] ?? $payload['references'] ?? '',
-            'attachments'      => $this->parseAttachments($payload),
+            'from' => $this->extractEmail($payload['sender'] ?? $payload['from'] ?? ''),
+            'from_name' => $this->extractName($payload['from'] ?? ''),
+            'to' => $this->extractEmail($payload['recipient'] ?? $payload['To'] ?? ''),
+            'subject' => $payload['subject'] ?? $payload['Subject'] ?? '',
+            'body_plain' => $payload['body-plain'] ?? $payload['stripped-text'] ?? '',
+            'body_html' => $payload['body-html'] ?? $payload['stripped-html'] ?? '',
+            'message_id' => $payload['Message-Id'] ?? $payload['message-id'] ?? '',
+            'in_reply_to' => $payload['In-Reply-To'] ?? $payload['in-reply-to'] ?? '',
+            'references' => $payload['References'] ?? $payload['references'] ?? '',
+            'attachments' => $this->parseAttachments($payload),
         ];
     }
 
@@ -44,11 +45,12 @@ class InboundEmailService
         if ($atPos === false) {
             return null;
         }
-        $domain    = strtolower(trim(substr($toEmail, $atPos + 1)));
+        $domain = strtolower(trim(substr($toEmail, $atPos + 1)));
         $appDomain = config('tenancy.base_domain', 'tikara.mx');
 
-        if (str_ends_with($domain, '.' . $appDomain)) {
+        if (str_ends_with($domain, '.'.$appDomain)) {
             $slug = substr($domain, 0, -(strlen($appDomain) + 1));
+
             return Client::where('portal_slug', $slug)
                 ->where('is_active', true)
                 ->whereNull('cancelled_at')
@@ -104,12 +106,24 @@ class InboundEmailService
         }
 
         $timestamp = (string) ($payload['timestamp'] ?? '');
-        $token     = (string) ($payload['token'] ?? '');
+        $token = (string) ($payload['token'] ?? '');
         $signature = (string) ($payload['signature'] ?? '');
 
-        $expected = hash_hmac('sha256', $timestamp . $token, $signingKey);
+        $maxAge = max(1, (int) config('services.mailgun.webhook_max_age_seconds'));
+        if (! ctype_digit($timestamp) || abs(time() - (int) $timestamp) > $maxAge || $token === '') {
+            return false;
+        }
 
-        return hash_equals($expected, $signature);
+        $expected = hash_hmac('sha256', $timestamp.$token, $signingKey);
+
+        if (! hash_equals($expected, $signature)) {
+            return false;
+        }
+
+        $replayTtl = max($maxAge, (int) config('services.mailgun.webhook_replay_cache_seconds'));
+        $replayKey = 'inbound-mail:mailgun:'.hash('sha256', $timestamp.'|'.$token);
+
+        return Cache::add($replayKey, true, $replayTtl);
     }
 
     private function extractEmail(string $from): string
@@ -117,6 +131,7 @@ class InboundEmailService
         if (preg_match('/<(.+?)>/', $from, $m)) {
             return strtolower(trim($m[1]));
         }
+
         return strtolower(trim($from));
     }
 
@@ -125,6 +140,7 @@ class InboundEmailService
         if (preg_match('/^(.+?)\s*</u', $from, $m)) {
             return trim($m[1], ' "\'');
         }
+
         return '';
     }
 
@@ -141,6 +157,7 @@ class InboundEmailService
                 $attachments[] = $payload["attachment-{$i}"];
             }
         }
+
         return $attachments;
     }
 }

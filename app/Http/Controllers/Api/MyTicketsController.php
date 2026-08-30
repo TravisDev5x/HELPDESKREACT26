@@ -10,14 +10,16 @@ use App\Models\Ticket;
 use App\Models\TicketAreaAccess;
 use App\Models\TicketAttachment;
 use App\Models\TicketHistory;
+use App\Models\User;
 use App\Services\ClientScopeService;
 use App\Services\RequesterTicketService;
 use App\Services\TicketCreationService;
-use Illuminate\Support\Facades\Gate;
 use Carbon\Carbon;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 
 /**
@@ -53,13 +55,13 @@ class MyTicketsController extends Controller
         }
 
         $query->with([
-                'areaOrigin:id,name',
-                'areaCurrent:id,name',
-                'site:id,name',
-                'ticketType:id,name',
-                'priority:id,name,level',
-                'state:id,name,code',
-            ]);
+            'areaOrigin:id,name',
+            'areaCurrent:id,name',
+            'site:id,name',
+            'ticketType:id,name',
+            'priority:id,name,level',
+            'state:id,name,code',
+        ]);
 
         $this->applyRequesterFilters($request, $query);
 
@@ -132,6 +134,9 @@ class MyTicketsController extends Controller
         Gate::authorize('requester.create.ticket');
 
         $data = $request->validated();
+        // El portal nunca confía en un área operativa enviada por el cliente.
+        unset($data['area_current_id']);
+        $autoRouted = true;
         if ($error = $this->clientScope->stampTicketSiteFromUser($user, $data)) {
             return $error;
         }
@@ -160,7 +165,7 @@ class MyTicketsController extends Controller
             ? Carbon::parse($data['due_at'])->timezone(config('app.timezone'))
             : $clientCreatedAt->copy()->addHours(Ticket::SLA_LIMIT_HOURS);
 
-        return DB::transaction(function () use ($data, $user, $clientCreatedAt) {
+        return DB::transaction(function () use ($data, $user, $clientCreatedAt, $autoRouted) {
             // Folio atómico vía TicketSequence::nextFor(), mismo mecanismo que
             // el flujo de email (ProcessInboundTicket) — antes este controlador
             // creaba el ticket directamente y nunca le asignaba folio.
@@ -183,7 +188,7 @@ class MyTicketsController extends Controller
                 'from_area_id' => null,
                 'to_area_id' => $ticket->area_current_id,
                 'ticket_state_id' => $ticket->ticket_state_id,
-                'note' => 'Creación de ticket',
+                'note' => $autoRouted ? 'Creación de ticket · área enrutada automáticamente' : 'Creación de ticket',
                 'is_internal' => false,
                 'created_at' => $ticket->created_at,
             ]);
@@ -344,10 +349,11 @@ class MyTicketsController extends Controller
 
         try {
             Gate::authorize('requester.cancel.ticket', $ticket);
-        } catch (\Illuminate\Auth\Access\AuthorizationException $e) {
+        } catch (AuthorizationException $e) {
             $message = $ticket->assigned_user_id
                 ? 'Solo puedes cancelar antes de que soporte tome el ticket.'
                 : 'No puedes cancelar este ticket.';
+
             return response()->json(['message' => $message], 403);
         }
 
@@ -462,7 +468,7 @@ class MyTicketsController extends Controller
         return $ticket;
     }
 
-    protected function maskAgentUser(\App\Models\User $agent): void
+    protected function maskAgentUser(User $agent): void
     {
         $agent->setAttribute('name', 'Agente de soporte');
         if (array_key_exists('email', $agent->getAttributes())) {

@@ -4,7 +4,11 @@ namespace App\Policies;
 
 use App\Models\Ticket;
 use App\Models\User;
+use App\Services\ClientScopeService;
+use App\Services\OperatorScopeService;
+use App\Services\TenantClientResolver;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Collection;
 
 class TicketPolicy
 {
@@ -15,7 +19,7 @@ class TicketPolicy
      */
     public function before(User $user, string $ability): ?bool
     {
-        if (app(\App\Services\OperatorScopeService::class)->isPlatformAdminBlockedFromInternals($user)) {
+        if (app(OperatorScopeService::class)->isPlatformAdminBlockedFromInternals($user)) {
             return false;
         }
 
@@ -44,7 +48,7 @@ class TicketPolicy
      */
     public function view(User $user, Ticket $ticket): bool
     {
-        if (! app(\App\Services\ClientScopeService::class)->ticketVisibleToUser($user, $ticket)) {
+        if (! app(ClientScopeService::class)->ticketVisibleToUser($user, $ticket)) {
             return false;
         }
 
@@ -63,6 +67,10 @@ class TicketPolicy
      */
     public function update(User $user, Ticket $ticket): bool
     {
+        if (! app(ClientScopeService::class)->ticketVisibleToUser($user, $ticket)) {
+            return false;
+        }
+
         if ($user->can('tickets.manage_all')) {
             return true;
         }
@@ -141,6 +149,10 @@ class TicketPolicy
      */
     public function release(User $user, Ticket $ticket): bool
     {
+        if (! app(ClientScopeService::class)->ticketVisibleToUser($user, $ticket)) {
+            return false;
+        }
+
         if ($user->can('tickets.manage_all')) {
             return true;
         }
@@ -167,12 +179,17 @@ class TicketPolicy
     /** Solo el solicitante puede enviar alertas (ticket no atendido / ignorado). */
     public function alert(User $user, Ticket $ticket): bool
     {
-        return (int) $ticket->requester_id === (int) $user->id;
+        return app(ClientScopeService::class)->ticketVisibleToUser($user, $ticket)
+            && (int) $ticket->requester_id === (int) $user->id;
     }
 
     /** Solo el solicitante puede cancelar sus tickets que no estén resueltos. */
     public function cancel(User $user, Ticket $ticket): bool
     {
+        if (! app(ClientScopeService::class)->ticketVisibleToUser($user, $ticket)) {
+            return false;
+        }
+
         if ((int) $ticket->requester_id !== (int) $user->id) {
             return false;
         }
@@ -190,6 +207,10 @@ class TicketPolicy
      */
     public function attach(User $user, Ticket $ticket): bool
     {
+        if (! app(ClientScopeService::class)->ticketVisibleToUser($user, $ticket)) {
+            return false;
+        }
+
         if ($this->update($user, $ticket)) {
             return true;
         }
@@ -212,19 +233,19 @@ class TicketPolicy
         $scope = $this->siteScopeType($user);
 
         if ($scope === 'all') {
-            return app(\App\Services\ClientScopeService::class)->applyTicketScope($query, $user);
+            return app(ClientScopeService::class)->applyTicketScope($query, $user);
         }
 
         if ($scope === 'solicitante') {
             $query->where('requester_id', $user->id);
 
-            return app(\App\Services\ClientScopeService::class)->applyTicketScope($query, $user);
+            return app(ClientScopeService::class)->applyTicketScope($query, $user);
         }
 
         if ($scope === null) {
             $query->whereRaw('0 = 1');
 
-            return app(\App\Services\ClientScopeService::class)->applyTicketScope($query, $user);
+            return app(ClientScopeService::class)->applyTicketScope($query, $user);
         }
 
         // supervisor / agente
@@ -237,7 +258,7 @@ class TicketPolicy
             });
         }
 
-        return app(\App\Services\ClientScopeService::class)->applyTicketScope($query, $user);
+        return app(ClientScopeService::class)->applyTicketScope($query, $user);
     }
 
     /**
@@ -252,7 +273,7 @@ class TicketPolicy
      * devuelve colección vacía (el admin/manage_all se resuelve aparte, en
      * el propio listener, vía tickets.manage_all).
      */
-    public function notifiableStaff(Ticket $ticket): \Illuminate\Support\Collection
+    public function notifiableStaff(Ticket $ticket): Collection
     {
         if (! $ticket->site_id) {
             return collect();
@@ -316,7 +337,7 @@ class TicketPolicy
         return null;
     }
 
-    protected function userSiteIds(User $user): \Illuminate\Support\Collection
+    protected function userSiteIds(User $user): Collection
     {
         return $user->sites()->pluck('sites.id');
     }
@@ -382,6 +403,18 @@ class TicketPolicy
      */
     protected function canAssignTo(User $actor, Ticket $ticket, User $newUser, string $permission): bool
     {
+        if (! app(ClientScopeService::class)->ticketVisibleToUser($actor, $ticket)) {
+            return false;
+        }
+
+        $destinationClientId = app(TenantClientResolver::class)->resolve($newUser);
+        if (! $destinationClientId || (int) $destinationClientId !== (int) $ticket->client_id) {
+            return false;
+        }
+        if (! $this->userLinkedToTicketSite($newUser, $ticket)) {
+            return false;
+        }
+
         if ($actor->can('tickets.manage_all')) {
             return true;
         }
@@ -392,7 +425,7 @@ class TicketPolicy
             return false;
         }
 
-        return $this->userLinkedToTicketSite($newUser, $ticket);
+        return true;
     }
 
     protected function isAssignee(User $user, Ticket $ticket): bool
@@ -411,6 +444,10 @@ class TicketPolicy
     /** changeStatus/changeArea/comment (vía canManageAction) usan site scope, no area (Fase 4). */
     protected function canManageAction(User $user, Ticket $ticket, string $permission): bool
     {
+        if (! app(ClientScopeService::class)->ticketVisibleToUser($user, $ticket)) {
+            return false;
+        }
+
         if ($user->can('tickets.manage_all')) {
             return true;
         }
