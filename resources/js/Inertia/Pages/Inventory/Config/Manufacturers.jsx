@@ -3,9 +3,12 @@ import AuthenticatedLayout from "@/Inertia/Layouts/AuthenticatedLayout";
 import CatalogPage from "@/Inertia/components/CatalogPage";
 import CatalogDialog from "@/Inertia/components/CatalogDialog";
 import useCatalog from "@/Inertia/hooks/useCatalog";
+import { formatDate } from "@/i18n/formatters";
+import { useI18n } from "@/i18n/I18nProvider";
 
 export default function Manufacturers() {
     const { manufacturers } = usePage().props;
+    const { locale } = useI18n();
 
     const catalog = useCatalog("/api/inv-manufacturers", () => router.reload({ only: ["manufacturers"] }));
 
@@ -25,7 +28,7 @@ export default function Manufacturers() {
             width: "w-[180px]",
             render: (row) =>
                 row.created_at
-                    ? new Date(row.created_at).toLocaleDateString("es-ES")
+                    ? formatDate(row.created_at, locale)
                     : "—",
         },
     ];

@@ -118,6 +118,57 @@ class InventoryAssetScopeTest extends TestCase
         $response->assertStatus(422);
     }
 
+    public function test_create_rejects_locations_from_another_tenant_or_another_site(): void
+    {
+        $clientA = Client::factory()->create();
+        $clientB = Client::factory()->create();
+        $siteA = $this->makeSite($clientA->id);
+        $siteA2 = $this->makeSite($clientA->id);
+        $siteB = $this->makeSite($clientB->id);
+        $locationA2 = $this->makeLocation($siteA2);
+        $locationB = $this->makeLocation($siteB);
+        $userA = $this->clientUser($clientA->id, $siteA);
+        setPermissionsTeamId(config('tenancy.super_admin_team_id'));
+        $userA->givePermissionTo('inventory.manage_assets');
+        $category = InvCategory::create(['name' => 'Laptops', 'is_active' => true]);
+        $status = InvStatus::create(['name' => 'Disponible', 'is_active' => true]);
+
+        foreach ([$locationA2, $locationB] as $locationId) {
+            $response = $this->actingAs($userA, 'web')->postJson('/api/inv-assets', [
+                'internal_tag' => 'LAP-'.uniqid(), 'name' => 'Ubicación manipulada',
+                'category_id' => $category->id, 'status_id' => $status->id,
+                'site_id' => $siteA, 'location_id' => $locationId,
+            ]);
+
+            $response->assertStatus(422)
+                ->assertJsonPath('message', 'La ubicación seleccionada no pertenece a la sede elegida.');
+        }
+    }
+
+    public function test_update_rejects_a_location_that_does_not_belong_to_the_selected_site(): void
+    {
+        $client = Client::factory()->create();
+        $site = $this->makeSite($client->id);
+        $otherSite = $this->makeSite($client->id);
+        $foreignLocation = $this->makeLocation($otherSite);
+        $user = $this->clientUser($client->id, $site);
+        setPermissionsTeamId(config('tenancy.super_admin_team_id'));
+        $user->givePermissionTo('inventory.manage_assets');
+        $category = InvCategory::create(['name' => 'Laptops', 'is_active' => true]);
+        $status = InvStatus::create(['name' => 'Disponible', 'is_active' => true]);
+        $asset = InvAsset::create($this->assetPayload($client->id, $site, $category->id, $status->id, 'Activo válido'));
+
+        $response = $this->actingAs($user, 'web')->putJson("/api/inv-assets/{$asset->id}", [
+            'internal_tag' => $asset->internal_tag, 'name' => $asset->name,
+            'category_id' => $category->id, 'status_id' => $status->id,
+            'site_id' => $site, 'location_id' => $foreignLocation,
+        ]);
+
+        $response->assertStatus(422)
+            ->assertJsonPath('message', 'La ubicación seleccionada no pertenece a la sede elegida.');
+        $this->assertNull($asset->fresh()->location_id);
+    }
+
     private function assetPayload(int $clientId, int $siteId, int $categoryId, int $statusId, string $name): array
     {
         return [
@@ -142,6 +193,18 @@ class InventoryAssetScopeTest extends TestCase
             'is_active' => true,
             'created_at' => $now,
             'updated_at' => $now,
+        ]);
+    }
+
+    private function makeLocation(int $siteId): int
+    {
+        return DB::table('locations')->insertGetId([
+            'site_id' => $siteId,
+            'name' => 'L'.uniqid(),
+            'code' => 'LOC'.uniqid(),
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
         ]);
     }
 

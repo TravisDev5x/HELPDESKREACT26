@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import axios from "@/lib/axios";
 import { useAuth } from "@/context/AuthContext";
 import { useThemeContext } from "@/components/theme-provider";
+import { DEFAULT_LOCALE, normalizeLocale, SUPPORTED_LOCALES } from "@/i18n/locales";
 
 const STORAGE_LOCALE = "locale";
 
@@ -10,7 +11,7 @@ export const DEFAULT_PREFS = {
     ui_density: "normal",
     sidebar_state: "collapsed",
     sidebar_hover_preview: true,
-    locale: "es",
+    locale: DEFAULT_LOCALE,
 };
 
 const setRootLocale = (locale) => {
@@ -33,7 +34,7 @@ export function useTheme() {
     });
     const [locale, setLocaleState] = useState(() => {
         if (typeof window === "undefined") return DEFAULT_PREFS.locale;
-        return user?.locale || localStorage.getItem(STORAGE_LOCALE) || DEFAULT_PREFS.locale;
+        return normalizeLocale(user?.locale || localStorage.getItem(STORAGE_LOCALE) || DEFAULT_PREFS.locale);
     });
 
     const setTheme = useCallback(
@@ -58,9 +59,10 @@ export function useTheme() {
     }, [user?.ui_density, density]);
 
     useEffect(() => {
-        if (user?.locale && user.locale !== locale) {
-            setLocaleState(user.locale);
-            setRootLocale(user.locale);
+        const userLocale = normalizeLocale(user?.locale);
+        if (user?.locale && userLocale !== locale) {
+            setLocaleState(userLocale);
+            setRootLocale(userLocale);
         } else {
             setRootLocale(locale);
         }
@@ -94,13 +96,13 @@ export function useTheme() {
 
     const applyLocale = useCallback(
         (next, opts = { persist: true }) => {
-            const allowed = ["es", "en", "ja", "de", "zh", "fr"];
-            if (!allowed.includes(next)) return;
-            setLocaleState(next);
-            setRootLocale(next);
-            localStorage.setItem(STORAGE_LOCALE, next);
+            const normalized = String(next || "").slice(0, 2).toLowerCase();
+            if (!SUPPORTED_LOCALES.includes(normalized)) return;
+            setLocaleState(normalized);
+            setRootLocale(normalized);
+            localStorage.setItem(STORAGE_LOCALE, normalized);
             if (user && opts.persist !== false) {
-                persistPreferences({ locale: next });
+                persistPreferences({ locale: normalized });
             }
         },
         [user, persistPreferences]

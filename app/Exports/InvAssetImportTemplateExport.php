@@ -5,8 +5,8 @@ namespace App\Exports;
 use App\Models\InvCategory;
 use App\Models\InvLabel;
 use App\Models\InvStatus;
-use App\Models\Site;
 use App\Models\User;
+use App\Services\ClientScopeService;
 use App\Services\OperatorCatalogScopeService;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
@@ -30,10 +30,14 @@ class InvAssetImportTemplateExport
     private const EXAMPLE_ROW = [
         'LAP-0001', 'Laptop Dell Latitude 5420', 'Laptops', 'Disponible', '',
         'BUENO', 'SN123456', 'Oficina principal', '', '15000',
-        '2024-01-15', '2027-01-15', 'CompuMax', 'F-2024-001', '16GB RAM, 512GB SSD', '',
+        '2024-01-15', '2027-01-15', 'CompuMax', 'F-2024-001', 'ram: 16GB; storage_capacity: 512GB', '',
     ];
 
-    public function __construct(private User $user, private OperatorCatalogScopeService $catalogScope) {}
+    public function __construct(
+        private User $user,
+        private OperatorCatalogScopeService $catalogScope,
+        private ClientScopeService $clientScope,
+    ) {}
 
     public function buildSpreadsheet(): Spreadsheet
     {
@@ -75,7 +79,9 @@ class InvAssetImportTemplateExport
         $categories = $this->catalogScope->apply(InvCategory::query()->where('is_active', true), $this->user, 'inv_categories')->pluck('name');
         $statuses = $this->catalogScope->apply(InvStatus::query()->where('is_active', true), $this->user, 'inv_statuses')->pluck('name');
         $labels = $this->catalogScope->apply(InvLabel::query()->where('is_active', true), $this->user, 'inv_labels')->pluck('name');
-        $sites = Site::where('is_active', true)->orderBy('name')->pluck('name');
+        $sites = $this->clientScope->sitesQueryForUser($this->user)
+            ->orderBy('name')
+            ->pluck('name');
 
         $columns = [
             'Categorías' => $categories,

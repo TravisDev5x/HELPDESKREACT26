@@ -36,36 +36,38 @@ import {
 } from "@/lib/tenantBranding";
 
 const TITLE_MAP = {
-    "/": "Inicio",
-    "/home": "Inicio",
-    "/calendar": "Calendario",
-    "/profile": "Mi perfil",
-    "/company": "Mi empresa",
-    "/company/edit": "Editar empresa",
-    "/clients": "Clientes",
-    "/clients/create": "Nuevo cliente",
-    "/onboarding": "Configuración inicial",
-    "/resolbeb": "Dashboard operativo",
-    "/resolbeb/tickets": "Tickets",
-    "/resolbeb/mis-tickets": "Mis tickets",
-    "/resolbeb/tickets/new": "Nuevo ticket",
-    "/users": "Usuarios",
-    "/users/invitations": "Invitaciones",
-    "/settings": "Configuración",
-    "/audit-command": "Auditoría",
-    "/sessions": "Sesiones activas",
-    "/roles": "Roles",
-    "/permissions": "Permisos",
+    "/": "page.home",
+    "/home": "page.home",
+    "/notifications": "page.notifications",
+    "/calendar": "page.calendar",
+    "/profile": "page.profile",
+    "/company": "page.company",
+    "/company/edit": "page.companyEdit",
+    "/clients": "page.clients",
+    "/clients/create": "page.clientCreate",
+    "/onboarding": "page.onboarding",
+    "/resolbeb": "page.operations",
+    "/resolbeb/tickets": "page.tickets",
+    "/resolbeb/mis-tickets": "page.myTickets",
+    "/resolbeb/tickets/new": "page.ticketCreate",
+    "/users": "page.users",
+    "/users/invitations": "page.invitations",
+    "/settings": "settings.title",
+    "/settings/administration": "page.settingsAdministration",
+    "/audit-command": "page.audit",
+    "/sessions": "page.sessions",
+    "/roles": "page.roles",
+    "/permissions": "page.permissions",
 };
 
-function getPageTitle(pathname, titleProp) {
+function getPageTitle(pathname, titleProp, t) {
     if (titleProp) return titleProp;
-    if (TITLE_MAP[pathname]) return TITLE_MAP[pathname];
-    if (/^\/clients\/\d+\/edit/.test(pathname)) return "Editar cliente";
-    if (/^\/clients\/\d+/.test(pathname)) return "Detalle cliente";
-    if (/^\/resolbeb\/tickets\/\d+/.test(pathname)) return "Detalle ticket";
-    if (/^\/users\/\d+/.test(pathname)) return "Detalle usuario";
-    return "Panel";
+    if (TITLE_MAP[pathname]) return t(TITLE_MAP[pathname]);
+    if (/^\/clients\/\d+\/edit/.test(pathname)) return t("page.clientEdit");
+    if (/^\/clients\/\d+/.test(pathname)) return t("page.clientDetail");
+    if (/^\/resolbeb\/tickets\/\d+/.test(pathname)) return t("page.ticketDetail");
+    if (/^\/users\/\d+/.test(pathname)) return t("page.userDetail");
+    return t("layout.section.default");
 }
 
 export default function AuthenticatedLayout({ children, title: titleProp }) {
@@ -270,7 +272,7 @@ export default function AuthenticatedLayout({ children, title: titleProp }) {
         }
     };
 
-    const pageTitle = getPageTitle(currentPath, titleProp);
+    const pageTitle = getPageTitle(currentPath, titleProp, t);
     const sidebarCollapsed = collapsed || focused;
 
     // El Toaster (sileo) se monta en la raíz de la app (inertia.jsx), fuera
@@ -534,6 +536,8 @@ export default function AuthenticatedLayout({ children, title: titleProp }) {
                                 initialNotifications={initialNotifications}
                                 initialUnreadCount={initialUnreadCount}
                                 onUnreadCountChange={setNotifUnreadCount}
+                                userId={inertiaUser?.id ?? user?.id}
+                                realtime={pageProps.realtime}
                             />
                         </div>
                     </header>

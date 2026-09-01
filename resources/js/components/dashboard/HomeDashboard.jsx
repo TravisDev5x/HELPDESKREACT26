@@ -51,6 +51,7 @@ import {
     Clock,
     Bell,
     BellOff,
+    MessageSquareText,
     Maximize2,
     Info,
 } from "lucide-react";
@@ -500,6 +501,10 @@ function DashboardSolicitante() {
     }, [tickets]);
 
     const openCount = useMemo(() => tickets.filter((t) => !isResolved(t) && !isCancelled(t)).length, [tickets]);
+    const ticketsNeedingResponse = useMemo(
+        () => tickets.filter((ticket) => /espera|waiting/.test((ticket.state?.code ?? "").toLowerCase())),
+        [tickets]
+    );
 
     const scrollToMisTickets = useCallback(() => {
         refMisTickets.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -555,6 +560,39 @@ function DashboardSolicitante() {
             )}
             {!canCreateTicket && (
                 <p className="text-sm text-muted-foreground">Modo solo lectura. Un administrador te asignará un rol para crear y gestionar solicitudes.</p>
+            )}
+
+            {ticketsNeedingResponse.length > 0 && (
+                <Card className="border-amber-500/30 bg-amber-500/[0.04]">
+                    <CardHeader className="pb-2">
+                        <CardTitle className="flex items-center gap-2 text-sm">
+                            <MessageSquareText className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                            Requiere tu respuesta
+                        </CardTitle>
+                        <CardDescription className="text-xs">
+                            Soporte necesita información para continuar con estas solicitudes.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                        {ticketsNeedingResponse.slice(0, 3).map((ticket) => (
+                            <NavLink
+                                key={ticket.id}
+                                href={`/resolbeb/tickets/${ticket.id}`}
+                                className="flex items-center justify-between gap-3 rounded-md border border-border/60 bg-background/70 px-3 py-2 text-sm transition-colors hover:bg-muted/60"
+                            >
+                                <span className="min-w-0 truncate font-medium">
+                                    #{String(ticket.id).padStart(5, "0")} — {ticket.subject}
+                                </span>
+                                <span className="shrink-0 text-xs font-medium text-primary">Ver solicitud</span>
+                            </NavLink>
+                        ))}
+                        {ticketsNeedingResponse.length > 3 && (
+                            <Button type="button" variant="link" size="sm" className="h-auto px-0 text-xs" onClick={scrollToMisTickets}>
+                                Ver las {ticketsNeedingResponse.length} solicitudes
+                            </Button>
+                        )}
+                    </CardContent>
+                </Card>
             )}
 
             {/* Respuestas y novedades sobre tus tickets */}

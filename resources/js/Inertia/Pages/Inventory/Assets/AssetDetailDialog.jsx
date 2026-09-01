@@ -4,10 +4,14 @@ import AssetFormDialog from "./AssetFormDialog";
 import axios from "@/lib/axios";
 import { notify } from "@/lib/notify";
 import { getApiErrorMessage, handleAuthError } from "@/lib/apiErrors";
+import { MOVEMENT_LABELS, OPERATIONAL_STATE_LABELS, inventoryStatusVariant, operationalStateVariant } from "@/lib/inventoryAssetUi";
+import { formatDateTime } from "@/i18n/formatters";
+import { useI18n } from "@/i18n/I18nProvider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -25,6 +29,8 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
     Table,
     TableBody,
@@ -33,7 +39,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { ArrowRightLeft, CheckCircle2, Cpu, Download, FileText, Loader2, PackageMinus, Pencil, Plus, Ticket, Trash2, Upload, UserMinus, UserPlus, Wrench } from "lucide-react";
+import { ArrowRightLeft, CheckCircle2, ChevronDown, Cpu, Download, FileText, Loader2, MoreHorizontal, Pencil, Plus, Search, Ticket, Trash2, Upload, UserMinus, UserPlus, Wrench } from "lucide-react";
 
 function Field({ label, value }) {
     return (
@@ -49,13 +55,70 @@ function userLabel(user) {
     return [user.first_name, user.paternal_last_name, user.maternal_last_name].filter(Boolean).join(" ");
 }
 
-const MOVEMENT_LABELS = {
-    CHECKOUT: "Asignación",
-    CHECKIN: "Devolución",
-    TRASLADO: "Traslado",
-    BAJA: "Baja",
-    MAINTENANCE: "Mantenimiento",
-};
+function initials(user) {
+    return userLabel(user).split(" ").filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "?";
+}
+
+/** Selector remoto, scoped por tenant en el backend. */
+function AssigneePicker({ value, onChange, label = "Responsable", required = false }) {
+    const [query, setQuery] = useState("");
+    const [results, setResults] = useState([]);
+    const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        const term = query.trim();
+        if (term.length < 2) { setResults([]); return undefined; }
+        let active = true;
+        const timeout = setTimeout(() => {
+            setLoading(true);
+            axios.get("/api/inv-assets/assignees", { params: { search: term } })
+                .then(({ data }) => { if (active) setResults(data ?? []); })
+                .catch(() => { if (active) setResults([]); })
+                .finally(() => { if (active) setLoading(false); });
+        }, 250);
+        return () => { active = false; clearTimeout(timeout); };
+    }, [query]);
+
+    return <div className="space-y-2">
+        <Label>{label}{required ? " *" : ""}</Label>
+        {value ? (
+            <div className="flex items-center justify-between gap-3 rounded-md border bg-muted/30 px-3 py-2">
+                <div className="flex min-w-0 items-center gap-2">
+                    <Avatar className="h-8 w-8"><AvatarImage src={value.avatar_url} alt="" /><AvatarFallback className="text-[10px]">{initials(value)}</AvatarFallback></Avatar>
+                    <div className="min-w-0"><p className="truncate text-sm font-medium">{userLabel(value)}</p><p className="truncate text-xs text-muted-foreground">{value.email || value.area?.name || "Usuario activo"}</p></div>
+                </div>
+                <Button type="button" size="sm" variant="ghost" onClick={() => onChange(null)}>Cambiar</Button>
+            </div>
+        ) : <>
+            <div className="relative"><Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input className="pl-9" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar por nombre o correo…" autoComplete="off" /></div>
+            {loading && <p className="text-xs text-muted-foreground">Buscando responsables…</p>}
+            {!loading && query.trim().length >= 2 && results.length === 0 && <p className="text-xs text-muted-foreground">No se encontraron usuarios activos.</p>}
+            {results.length > 0 && <div className="max-h-52 overflow-y-auto rounded-md border p-1">{results.map((user) => <button type="button" key={user.id} onClick={() => { onChange(user); setQuery(""); setResults([]); }} className="flex w-full items-center gap-3 rounded-sm px-2 py-2 text-left hover:bg-accent focus:bg-accent focus:outline-none"><Avatar className="h-8 w-8"><AvatarImage src={user.avatar_url} alt="" /><AvatarFallback className="text-[10px]">{initials(user)}</AvatarFallback></Avatar><span className="min-w-0"><span className="block truncate text-sm font-medium">{userLabel(user)}</span><span className="block truncate text-xs text-muted-foreground">{[user.email, user.area?.name, user.site?.name].filter(Boolean).join(" · ")}</span></span></button>)}</div>}
+        </>}
+    </div>;
+}
+
+function movementDescription(movement) {
+    const actor = userLabel(movement.admin) || "Un usuario";
+    const user = userLabel(movement.user);
+    const previous = userLabel(movement.previous_user);
+    const location = movement.metadata?.to_location_name;
+    const site = movement.metadata?.to_site_name;
+    const place = [site, location].filter(Boolean).join(" · ");
+
+    switch (movement.type) {
+        case "CHECKOUT": return `${actor} asignó el activo a ${user || "un responsable"}.`;
+        case "CHECKIN": return `${actor} registró la devolución de ${user || "la persona responsable"}.`;
+        case "REASSIGN": return `${actor} reasignó el activo de ${previous || "un responsable"} a ${user || "un responsable"}.`;
+        case "TRASLADO": return `${actor} trasladó el activo${place ? ` a ${place}` : ""}.`;
+        case "MAINTENANCE_START": return `${actor} inició mantenimiento${movement.notes ? `: ${movement.notes}` : "."}`;
+        case "MAINTENANCE_END": return `${actor} cerró el mantenimiento${movement.notes ? `: ${movement.notes}` : "."}`;
+        case "MARK_LOST": return `${actor} reportó el activo como perdido.`;
+        case "MARK_STOLEN": return `${actor} reportó el activo como robado.`;
+        case "RETIRE": return `${actor} dio de baja el activo.`;
+        default: return `${actor} registró ${MOVEMENT_LABELS[movement.type] ?? "un movimiento"}.`;
+    }
+}
 
 // Auditoría de Inventario, fase 2.2 (documentos y bajas estructuradas).
 const DOCUMENT_TYPES = [
@@ -64,23 +127,6 @@ const DOCUMENT_TYPES = [
     { value: "acta_entrega", label: "Acta de entrega" },
     { value: "acta_devolucion", label: "Acta de devolución" },
     { value: "disposal_evidence", label: "Evidencia de baja" },
-    { value: "other", label: "Otro" },
-];
-
-const DISPOSAL_METHODS = [
-    { value: "VENTA", label: "Venta" },
-    { value: "RECICLAJE", label: "Reciclaje" },
-    { value: "DONACION", label: "Donación" },
-    { value: "ROBO", label: "Robo" },
-    { value: "PERDIDA", label: "Pérdida" },
-    { value: "OBSOLESCENCIA", label: "Obsolescencia" },
-    { value: "DANO_IRREPARABLE", label: "Daño irreparable" },
-];
-
-// Auditoría de Inventario, fase 3.2 (relaciones entre activos -- CMDB).
-const RELATIONSHIP_TYPES = [
-    { value: "component_of", label: "Componente de" },
-    { value: "network_of", label: "En red con" },
     { value: "other", label: "Otro" },
 ];
 
@@ -94,7 +140,8 @@ const NONE = "__none__";
  * entrada -- el detalle completo (movimientos/componentes/mantenimientos/
  * fotos) se trae de /api/inv-assets/{id} al abrir, no de props de página.
  */
-export default function AssetDetailDialog({ open, onOpenChange, assetId, categories, manufacturers, statuses, labels, sites, locations, specSchema, clientUsers, maintenanceOrigins, maintenanceModalities, canEdit = true, onChanged }) {
+export default function AssetDetailDialog({ open, onOpenChange, assetId, categories, manufacturers, statuses, labels, sites, locations, specSchema, disposalMethods = [], relationshipTypes = [], maintenanceOrigins, maintenanceModalities, canEdit = true, onChanged }) {
+    const { locale } = useI18n();
     const [asset, setAsset] = useState(null);
     const [loading, setLoading] = useState(false);
     const [openDialog, setOpenDialog] = useState(null); // 'checkout' | 'checkin' | 'transfer' | 'retire' | null
@@ -103,14 +150,17 @@ export default function AssetDetailDialog({ open, onOpenChange, assetId, categor
     const [uploadingImages, setUploadingImages] = useState(false);
     const [uploadingDocument, setUploadingDocument] = useState(false);
     const [documentType, setDocumentType] = useState(DOCUMENT_TYPES[0].value);
+    const [showDetails, setShowDetails] = useState(false);
 
-    const [checkoutUserId, setCheckoutUserId] = useState("");
+    const [checkoutUser, setCheckoutUser] = useState(null);
+    const [reassignUser, setReassignUser] = useState(null);
+    const [reassignNotes, setReassignNotes] = useState("");
     const [transferSiteId, setTransferSiteId] = useState("");
     const [transferLocationId, setTransferLocationId] = useState(NONE);
     const [retireStatusId, setRetireStatusId] = useState("");
     const [retireReason, setRetireReason] = useState("");
     const [retireMethod, setRetireMethod] = useState("");
-    const [retireAuthorizedBy, setRetireAuthorizedBy] = useState(NONE);
+    const [retireAuthorizedBy, setRetireAuthorizedBy] = useState(null);
     const [retireResidualValue, setRetireResidualValue] = useState("");
 
     const [selectedComponents, setSelectedComponents] = useState([]);
@@ -154,13 +204,15 @@ export default function AssetDetailDialog({ open, onOpenChange, assetId, categor
 
     const close = () => {
         setOpenDialog(null);
-        setCheckoutUserId("");
+        setCheckoutUser(null);
+        setReassignUser(null);
+        setReassignNotes("");
         setTransferSiteId("");
         setTransferLocationId(NONE);
         setRetireStatusId("");
         setRetireReason("");
         setRetireMethod("");
-        setRetireAuthorizedBy(NONE);
+        setRetireAuthorizedBy(null);
         setRetireResidualValue("");
         setNewComponent({ name: "", marca: "", modelo: "", serie: "", capacidad: "" });
         setNewWarranty({ provider: "", warranty_number: "", coverage: "", starts_at: "", ends_at: "" });
@@ -350,8 +402,17 @@ export default function AssetDetailDialog({ open, onOpenChange, assetId, categor
         setOpenDialog("close-maintenance");
     };
 
+    const openRetire = (method = "") => {
+        setRetireMethod(method);
+        setOpenDialog("retire");
+    };
+
     const retirableStatuses = (statuses ?? []).filter((s) => !s.assignable);
     const siteLocations = (locations ?? []).filter((l) => String(l.site_id) === transferSiteId);
+    const operationalState = asset?.operational_state ?? (asset?.current_user_id ? "ASSIGNED" : "AVAILABLE");
+    const allowedActions = asset?.allowed_actions ?? [];
+    const allows = (action) => canEdit && allowedActions.includes(action);
+    const openMaintenance = (asset?.maintenances ?? []).find((maintenance) => !maintenance.end_date);
 
     return (
         <>
@@ -362,11 +423,11 @@ export default function AssetDetailDialog({ open, onOpenChange, assetId, categor
                             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                         </div>
                     ) : (
-                        <div className="space-y-6">
+                        <div className="space-y-5">
                             <DialogHeader>
-                                <div className="flex items-center justify-between gap-3 pr-6">
+                                <div className="flex flex-col gap-3 pr-6 sm:flex-row sm:items-start sm:justify-between">
                                     <div>
-                                        <DialogTitle>{asset.name}</DialogTitle>
+                                        <div className="flex flex-wrap items-center gap-2"><DialogTitle>{asset.name}</DialogTitle><Badge variant={operationalStateVariant(operationalState)}>{OPERATIONAL_STATE_LABELS[operationalState] ?? operationalState}</Badge></div>
                                         <p className="text-sm text-muted-foreground font-mono">{asset.internal_tag}</p>
                                     </div>
                                     {canEdit && (
@@ -378,6 +439,31 @@ export default function AssetDetailDialog({ open, onOpenChange, assetId, categor
                                 </div>
                             </DialogHeader>
 
+                            <Card className="border-primary/15 bg-muted/20">
+                                <CardContent className="grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-4">
+                                    <Field label="Responsable" value={userLabel(asset.current_user) ?? "Sin asignar"} />
+                                    <Field label="Ubicación" value={[asset.site?.name, asset.location?.name].filter(Boolean).join(" · ") || "Sin ubicación"} />
+                                    <Field label="Categoría" value={asset.category?.name} />
+                                    <Field label="Condición" value={asset.condition ?? "Sin especificar"} />
+                                </CardContent>
+                            </Card>
+
+                            {canEdit && <div className="flex flex-wrap gap-2">
+                                {allows("assign") && <Button size="sm" onClick={() => setOpenDialog("checkout")}><UserPlus className="mr-2 h-4 w-4" />Asignar</Button>}
+                                {allows("reassign") && <Button size="sm" onClick={() => setOpenDialog("reassign")}><UserPlus className="mr-2 h-4 w-4" />Reasignar</Button>}
+                                {allows("return") && <Button size="sm" variant="outline" onClick={() => setOpenDialog("checkin")}><UserMinus className="mr-2 h-4 w-4" />Devolver</Button>}
+                                {allows("transfer") && <Button size="sm" variant="outline" onClick={() => setOpenDialog("transfer")}><ArrowRightLeft className="mr-2 h-4 w-4" />Trasladar</Button>}
+                                {allows("maintenance") && <Button size="sm" variant="outline" onClick={() => { setMaintenanceForm((form) => ({ ...form, start_date: new Date().toISOString().slice(0, 10) })); setOpenDialog("register-maintenance"); }}><Wrench className="mr-2 h-4 w-4" />Mantenimiento</Button>}
+                                {allows("close_maintenance") && openMaintenance && <Button size="sm" variant="outline" onClick={() => openCloseMaintenance(openMaintenance)}><CheckCircle2 className="mr-2 h-4 w-4" />Cerrar mantenimiento</Button>}
+                                {allows("retire") && <DropdownMenu><DropdownMenuTrigger asChild><Button size="sm" variant="ghost"><MoreHorizontal className="mr-1 h-4 w-4" />Más acciones</Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onSelect={() => openRetire()}>Dar de baja</DropdownMenuItem><DropdownMenuItem onSelect={() => openRetire("PERDIDA")}>Reportar perdido</DropdownMenuItem><DropdownMenuItem onSelect={() => openRetire("ROBO")}>Reportar robado</DropdownMenuItem></DropdownMenuContent></DropdownMenu>}
+                            </div>}
+
+                            <Button type="button" variant="outline" size="sm" onClick={() => setShowDetails((visible) => !visible)}>
+                                {showDetails ? "Ocultar detalles y actividad" : "Ver detalles, historial y archivos"}
+                                <ChevronDown className={`ml-2 h-4 w-4 transition-transform ${showDetails ? "rotate-180" : ""}`} />
+                            </Button>
+
+                            {showDetails && <div className="space-y-6">
                             <Card>
                                 <CardHeader>
                                     <CardTitle>Detalle</CardTitle>
@@ -388,7 +474,7 @@ export default function AssetDetailDialog({ open, onOpenChange, assetId, categor
                                     <Field label="Modelo" value={asset.model} />
                                     <Field
                                         label="Estatus"
-                                        value={asset.status ? <Badge variant="outline">{asset.status.name}</Badge> : null}
+                                        value={asset.status ? <Badge variant={inventoryStatusVariant(asset.status)}>{asset.status.name}</Badge> : null}
                                     />
                                     <Field label="Etiqueta" value={asset.label?.name} />
                                     <Field label="Condición" value={asset.condition} />
@@ -437,9 +523,14 @@ export default function AssetDetailDialog({ open, onOpenChange, assetId, categor
                                                         <TableCell className="text-sm">{w.starts_at ? `${w.starts_at} – ` : ""}{w.ends_at}</TableCell>
                                                         <TableCell>
                                                             {canEdit && (
-                                                                <Button variant="ghost" size="icon" onClick={() => deleteWarranty(w)}>
-                                                                    <Trash2 className="h-4 w-4 text-destructive" />
-                                                                </Button>
+                                                                <Tooltip>
+                                                                    <TooltipTrigger asChild>
+                                                                        <Button variant="ghost" size="icon" aria-label={`Eliminar garantía ${w.warranty_number || w.provider}`} onClick={() => deleteWarranty(w)}>
+                                                                            <Trash2 className="h-4 w-4 text-destructive" />
+                                                                        </Button>
+                                                                    </TooltipTrigger>
+                                                                    <TooltipContent>Eliminar garantía</TooltipContent>
+                                                                </Tooltip>
                                                             )}
                                                         </TableCell>
                                                     </TableRow>
@@ -470,38 +561,16 @@ export default function AssetDetailDialog({ open, onOpenChange, assetId, categor
                                     <CardTitle>Responsable y ciclo de vida</CardTitle>
                                 </CardHeader>
                                 <CardContent className="space-y-4">
+                                    <Field label="Estado operativo" value={OPERATIONAL_STATE_LABELS[operationalState] ?? operationalState} />
                                     <Field label="Responsable actual" value={userLabel(asset.current_user) ?? "Sin asignar"} />
                                     {asset.disposal && (
                                         <div className="grid gap-4 md:grid-cols-3 rounded-lg border border-destructive/30 bg-destructive/5 p-3">
                                             <Field
                                                 label="Baja: método"
-                                                value={DISPOSAL_METHODS.find((m) => m.value === asset.disposal.method)?.label ?? asset.disposal.method}
+                                                value={disposalMethods.find((m) => m.value === asset.disposal.method)?.label ?? asset.disposal.method}
                                             />
                                             <Field label="Autorizó" value={userLabel(asset.disposal.authorized_by) ?? "—"} />
                                             <Field label="Valor residual" value={asset.disposal.residual_value ? `$${asset.disposal.residual_value}` : "—"} />
-                                        </div>
-                                    )}
-                                    {canEdit && (
-                                        <div className="flex flex-wrap gap-2">
-                                            {!asset.current_user_id ? (
-                                                <Button size="sm" onClick={() => setOpenDialog("checkout")}>
-                                                    <UserPlus className="mr-2 h-4 w-4" />
-                                                    Asignar
-                                                </Button>
-                                            ) : (
-                                                <Button size="sm" variant="outline" onClick={() => setOpenDialog("checkin")}>
-                                                    <UserMinus className="mr-2 h-4 w-4" />
-                                                    Devolver
-                                                </Button>
-                                            )}
-                                            <Button size="sm" variant="outline" onClick={() => setOpenDialog("transfer")}>
-                                                <ArrowRightLeft className="mr-2 h-4 w-4" />
-                                                Trasladar
-                                            </Button>
-                                            <Button size="sm" variant="outline" className="text-destructive" onClick={() => setOpenDialog("retire")}>
-                                                <PackageMinus className="mr-2 h-4 w-4" />
-                                                Dar de baja
-                                            </Button>
                                         </div>
                                     )}
                                 </CardContent>
@@ -588,7 +657,7 @@ export default function AssetDetailDialog({ open, onOpenChange, assetId, categor
                                                         {asset.child_relationships.map((rel) => (
                                                             <li key={rel.id} className="flex items-center gap-2 rounded-md border bg-muted/20 px-2.5 py-1.5 text-xs">
                                                                 <span>{rel.child_asset?.name} <span className="text-muted-foreground font-mono">({rel.child_asset?.internal_tag})</span></span>
-                                                                <Badge variant="outline">{RELATIONSHIP_TYPES.find((t) => t.value === rel.relationship_type)?.label ?? rel.relationship_type}</Badge>
+                                                                <Badge variant="outline">{relationshipTypes.find((t) => t.value === rel.relationship_type)?.label ?? rel.relationship_type}</Badge>
                                                                 {canEdit && (
                                                                     <button type="button" onClick={() => unlinkRelationship(rel.id)} className="text-muted-foreground hover:text-destructive">
                                                                         <Trash2 className="h-3.5 w-3.5" />
@@ -606,7 +675,7 @@ export default function AssetDetailDialog({ open, onOpenChange, assetId, categor
                                                         {asset.parent_relationships.map((rel) => (
                                                             <li key={rel.id} className="flex items-center gap-2 rounded-md border bg-muted/20 px-2.5 py-1.5 text-xs">
                                                                 <span>{rel.parent_asset?.name} <span className="text-muted-foreground font-mono">({rel.parent_asset?.internal_tag})</span></span>
-                                                                <Badge variant="outline">{RELATIONSHIP_TYPES.find((t) => t.value === rel.relationship_type)?.label ?? rel.relationship_type}</Badge>
+                                                                <Badge variant="outline">{relationshipTypes.find((t) => t.value === rel.relationship_type)?.label ?? rel.relationship_type}</Badge>
                                                                 {canEdit && (
                                                                     <button type="button" onClick={() => unlinkRelationship(rel.id)} className="text-muted-foreground hover:text-destructive">
                                                                         <Trash2 className="h-3.5 w-3.5" />
@@ -625,7 +694,7 @@ export default function AssetDetailDialog({ open, onOpenChange, assetId, categor
                             <Card>
                                 <CardHeader className="flex flex-row items-center justify-between space-y-0">
                                     <CardTitle>Mantenimientos</CardTitle>
-                                    {canEdit && (
+                                    {allows("maintenance") && (
                                         <Button
                                             size="sm"
                                             variant="outline"
@@ -673,7 +742,7 @@ export default function AssetDetailDialog({ open, onOpenChange, assetId, categor
                                                             )}
                                                         </TableCell>
                                                         <TableCell>
-                                                            {!m.end_date && canEdit && (
+                                                            {!m.end_date && allows("close_maintenance") && (
                                                                 <Button size="sm" variant="ghost" onClick={() => openCloseMaintenance(m)}>
                                                                     <CheckCircle2 className="mr-2 h-4 w-4" />
                                                                     Cerrar
@@ -754,15 +823,25 @@ export default function AssetDetailDialog({ open, onOpenChange, assetId, categor
                                                         </div>
                                                     </div>
                                                     <div className="flex items-center gap-1 shrink-0">
-                                                        <Button asChild variant="ghost" size="icon">
-                                                            <a href={`/api/inv-assets/${asset.id}/documents/${doc.id}`} download>
-                                                                <Download className="h-4 w-4" />
-                                                            </a>
-                                                        </Button>
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <Button asChild variant="ghost" size="icon">
+                                                                    <a href={`/api/inv-assets/${asset.id}/documents/${doc.id}`} download aria-label={`Descargar ${doc.original_name}`}>
+                                                                        <Download className="h-4 w-4" />
+                                                                    </a>
+                                                                </Button>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent>Descargar documento</TooltipContent>
+                                                        </Tooltip>
                                                         {canEdit && (
-                                                            <Button variant="ghost" size="icon" onClick={() => deleteDocument(doc)}>
-                                                                <Trash2 className="h-4 w-4 text-destructive" />
-                                                            </Button>
+                                                            <Tooltip>
+                                                                <TooltipTrigger asChild>
+                                                                    <Button variant="ghost" size="icon" aria-label={`Eliminar ${doc.original_name}`} onClick={() => deleteDocument(doc)}>
+                                                                        <Trash2 className="h-4 w-4 text-destructive" />
+                                                                    </Button>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent>Eliminar documento</TooltipContent>
+                                                            </Tooltip>
                                                         )}
                                                     </div>
                                                 </li>
@@ -833,41 +912,13 @@ export default function AssetDetailDialog({ open, onOpenChange, assetId, categor
 
                             <Card>
                                 <CardHeader>
-                                    <CardTitle>Historial de movimientos</CardTitle>
+                                    <CardTitle>Actividad</CardTitle>
                                 </CardHeader>
-                                <CardContent className="p-0">
-                                    <Table>
-                                        <TableHeader>
-                                            <TableRow>
-                                                <TableHead>Fecha</TableHead>
-                                                <TableHead>Tipo</TableHead>
-                                                <TableHead>Usuario</TableHead>
-                                                <TableHead>Registrado por</TableHead>
-                                                <TableHead>Notas</TableHead>
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {(asset.movements ?? []).length === 0 ? (
-                                                <TableRow>
-                                                    <TableCell colSpan={5} className="text-center text-muted-foreground py-6">
-                                                        Sin movimientos todavía.
-                                                    </TableCell>
-                                                </TableRow>
-                                            ) : (
-                                                asset.movements.map((m) => (
-                                                    <TableRow key={m.id}>
-                                                        <TableCell className="text-sm">{new Date(m.date).toLocaleString("es-ES")}</TableCell>
-                                                        <TableCell><Badge variant="outline">{MOVEMENT_LABELS[m.type] ?? m.type}</Badge></TableCell>
-                                                        <TableCell className="text-sm">{userLabel(m.user) ?? "—"}</TableCell>
-                                                        <TableCell className="text-sm">{userLabel(m.admin) ?? "—"}</TableCell>
-                                                        <TableCell className="text-sm text-muted-foreground">{m.reason || m.notes || "—"}</TableCell>
-                                                    </TableRow>
-                                                ))
-                                            )}
-                                        </TableBody>
-                                    </Table>
+                                <CardContent>
+                                    {(asset.movements ?? []).length === 0 ? <p className="py-2 text-sm text-muted-foreground">Sin actividad todavía.</p> : <ol className="space-y-4 border-l pl-4">{asset.movements.map((movement) => <li key={movement.id} className="relative"><span className="absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full bg-primary" /><p className="text-sm">{movementDescription(movement)}</p><p className="mt-1 text-xs text-muted-foreground">{formatDateTime(movement.date, locale)}{movement.reason ? ` · ${movement.reason}` : ""}</p></li>)}</ol>}
                                 </CardContent>
                             </Card>
+                            </div>}
                         </div>
                     )}
                 </DialogContent>
@@ -880,27 +931,30 @@ export default function AssetDetailDialog({ open, onOpenChange, assetId, categor
                         <DialogContent>
                             <DialogHeader><DialogTitle>Asignar activo</DialogTitle></DialogHeader>
                             <div className="space-y-3">
-                                <div className="space-y-1.5">
-                                    <Label>Responsable *</Label>
-                                    <Select value={checkoutUserId} onValueChange={setCheckoutUserId}>
-                                        <SelectTrigger><SelectValue placeholder="Seleccionar…" /></SelectTrigger>
-                                        <SelectContent>
-                                            {(clientUsers ?? []).map((u) => (
-                                                <SelectItem key={u.id} value={String(u.id)}>{userLabel(u)}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
+                                <AssigneePicker value={checkoutUser} onChange={setCheckoutUser} required />
                             </div>
                             <DialogFooter>
                                 <Button variant="outline" onClick={close} disabled={saving}>Cancelar</Button>
                                 <Button
-                                    disabled={!checkoutUserId || saving}
-                                    onClick={() => runAction(`/api/inv-assets/${asset.id}/checkout`, { user_id: checkoutUserId }, "Activo asignado")}
+                                    disabled={!checkoutUser || saving}
+                                    onClick={() => runAction(`/api/inv-assets/${asset.id}/checkout`, { user_id: checkoutUser.id }, `Activo asignado a ${userLabel(checkoutUser)}`)}
                                 >
                                     Asignar
                                 </Button>
                             </DialogFooter>
+                        </DialogContent>
+                    </Dialog>
+
+                    {/* Reasignar: un movimiento explícito, no devolución + asignación manual. */}
+                    <Dialog open={openDialog === "reassign"} onOpenChange={(o) => !o && close()}>
+                        <DialogContent>
+                            <DialogHeader><DialogTitle>Reasignar activo</DialogTitle></DialogHeader>
+                            <div className="space-y-4">
+                                <div className="rounded-md border bg-muted/30 p-3"><p className="text-xs text-muted-foreground">Responsable actual</p><p className="text-sm font-medium">{userLabel(asset.current_user) ?? "Sin asignar"}</p></div>
+                                <AssigneePicker value={reassignUser} onChange={setReassignUser} label="Nuevo responsable" required />
+                                <div className="space-y-1.5"><Label>Motivo <span className="text-muted-foreground">(opcional)</span></Label><Textarea rows={2} value={reassignNotes} onChange={(event) => setReassignNotes(event.target.value)} placeholder="Ej. Cambio de puesto" /></div>
+                            </div>
+                            <DialogFooter><Button variant="outline" onClick={close} disabled={saving}>Cancelar</Button><Button disabled={!reassignUser || saving} onClick={() => runAction(`/api/inv-assets/${asset.id}/reassign`, { user_id: reassignUser.id, notes: reassignNotes || null }, `Activo reasignado a ${userLabel(reassignUser)}`)}>Reasignar</Button></DialogFooter>
                         </DialogContent>
                     </Dialog>
 
@@ -928,6 +982,7 @@ export default function AssetDetailDialog({ open, onOpenChange, assetId, categor
                         <DialogContent>
                             <DialogHeader><DialogTitle>Trasladar activo</DialogTitle></DialogHeader>
                             <div className="space-y-3">
+                                <div className="rounded-md border bg-muted/30 p-3 text-sm"><span className="text-muted-foreground">Ubicación actual: </span>{[asset.site?.name, asset.location?.name].filter(Boolean).join(" · ") || "Sin ubicación"}</div>
                                 <div className="space-y-1.5">
                                     <Label>Nueva sede *</Label>
                                     <Select value={transferSiteId} onValueChange={(v) => { setTransferSiteId(v); setTransferLocationId(NONE); }}>
@@ -998,24 +1053,13 @@ export default function AssetDetailDialog({ open, onOpenChange, assetId, categor
                                     <Select value={retireMethod} onValueChange={setRetireMethod}>
                                         <SelectTrigger><SelectValue placeholder="Seleccionar…" /></SelectTrigger>
                                         <SelectContent>
-                                            {DISPOSAL_METHODS.map((m) => (
+                                            {disposalMethods.map((m) => (
                                                 <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
                                             ))}
                                         </SelectContent>
                                     </Select>
                                 </div>
-                                <div className="space-y-1.5">
-                                    <Label>Autorizado por</Label>
-                                    <Select value={retireAuthorizedBy} onValueChange={setRetireAuthorizedBy}>
-                                        <SelectTrigger><SelectValue placeholder="Sin especificar" /></SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value={NONE}>Sin especificar</SelectItem>
-                                            {(clientUsers ?? []).map((u) => (
-                                                <SelectItem key={u.id} value={String(u.id)}>{userLabel(u)}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
+                                <AssigneePicker value={retireAuthorizedBy} onChange={setRetireAuthorizedBy} label="Autorizado por" />
                                 <div className="space-y-1.5">
                                     <Label>Valor residual</Label>
                                     <Input type="number" min="0" step="0.01" value={retireResidualValue} onChange={(e) => setRetireResidualValue(e.target.value)} />
@@ -1030,7 +1074,7 @@ export default function AssetDetailDialog({ open, onOpenChange, assetId, categor
                                         status_id: retireStatusId,
                                         reason: retireReason,
                                         method: retireMethod,
-                                        authorized_by: retireAuthorizedBy === NONE ? null : retireAuthorizedBy,
+                                        authorized_by: retireAuthorizedBy?.id ?? null,
                                         residual_value: retireResidualValue === "" ? null : retireResidualValue,
                                     }, "Activo dado de baja")}
                                 >
@@ -1143,7 +1187,7 @@ export default function AssetDetailDialog({ open, onOpenChange, assetId, categor
                                     <Select value={relType} onValueChange={setRelType}>
                                         <SelectTrigger><SelectValue /></SelectTrigger>
                                         <SelectContent>
-                                            {RELATIONSHIP_TYPES.map((t) => (
+                                            {relationshipTypes.map((t) => (
                                                 <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
                                             ))}
                                         </SelectContent>

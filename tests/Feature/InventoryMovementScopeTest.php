@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Client;
+use App\Enums\InvAssetOperationalState;
 use App\Models\InvAsset;
 use App\Models\InvCategory;
 use App\Models\InvStatus;
@@ -47,7 +48,6 @@ class InventoryMovementScopeTest extends TestCase
             'category_id' => $category->id, 'status_id' => $status->id,
             'site_id' => $site, 'client_id' => $client->id,
         ]);
-
         $response = $this->actingAs($admin, 'web')->postJson("/api/inv-assets/{$asset->id}/checkout", [
             'user_id' => $employee->id,
         ]);
@@ -108,6 +108,7 @@ class InventoryMovementScopeTest extends TestCase
             'category_id' => $category->id, 'status_id' => $status->id,
             'site_id' => $site, 'client_id' => $client->id, 'current_user_id' => $employee->id,
         ]);
+        $asset->update(['operational_state' => InvAssetOperationalState::ASSIGNED]);
 
         $response = $this->actingAs($admin, 'web')->postJson("/api/inv-assets/{$asset->id}/checkin");
 
@@ -146,6 +147,37 @@ class InventoryMovementScopeTest extends TestCase
 
         $response->assertStatus(422);
         $this->assertSame($siteA, $asset->fresh()->site_id);
+    }
+
+    public function test_transfer_rejects_a_location_from_a_different_site(): void
+    {
+        $client = Client::factory()->create();
+        $site = $this->makeSite($client->id);
+        $otherSite = $this->makeSite($client->id);
+        $location = DB::table('locations')->insertGetId([
+            'site_id' => $otherSite, 'name' => 'L'.uniqid(), 'code' => 'LOC'.uniqid(),
+            'is_active' => true, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+        $admin = $this->clientUser($client->id, $site);
+        setPermissionsTeamId(config('tenancy.super_admin_team_id'));
+        $admin->givePermissionTo('inventory.manage_assets');
+        $category = InvCategory::create(['name' => 'Laptops', 'is_active' => true]);
+        $status = InvStatus::create(['name' => 'Disponible', 'assignable' => true, 'is_active' => true]);
+        $asset = InvAsset::create([
+            'internal_tag' => 'TAG-LOCATION', 'name' => 'Laptop ubicación',
+            'category_id' => $category->id, 'status_id' => $status->id,
+            'site_id' => $site, 'client_id' => $client->id,
+        ]);
+
+        $response = $this->actingAs($admin, 'web')->postJson("/api/inv-assets/{$asset->id}/transfer", [
+            'site_id' => $site,
+            'location_id' => $location,
+        ]);
+
+        $response->assertStatus(422)
+            ->assertJsonPath('message', 'La ubicación seleccionada no pertenece a la sede elegida.');
+        $this->assertSame($site, $asset->fresh()->site_id);
+        $this->assertNull($asset->fresh()->location_id);
     }
 
     public function test_retire_requires_non_assignable_status_and_reason(): void
@@ -193,7 +225,7 @@ class InventoryMovementScopeTest extends TestCase
         $this->assertSame($retired->id, $fresh->status_id);
         $this->assertNull($fresh->current_user_id);
         $this->assertDatabaseHas('inv_movements', [
-            'asset_id' => $asset->id, 'type' => 'BAJA', 'reason' => 'Dañado sin reparación viable',
+            'asset_id' => $asset->id, 'type' => 'RETIRE', 'reason' => 'Dañado sin reparación viable',
         ]);
         $this->assertDatabaseHas('inv_disposals', [
             'asset_id' => $asset->id, 'method' => 'OBSOLESCENCIA',

@@ -7,6 +7,7 @@ use App\Models\InvAsset;
 use App\Models\User;
 use App\Services\ClientScopeService;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -19,36 +20,45 @@ use Inertia\Response;
  */
 class InvAssetAssignmentPageController extends Controller
 {
+    private const ROSTER_PER_PAGE = 25;
+
+    private const ASSET_PREVIEW_LIMIT = 250;
+
     public function __construct(protected ClientScopeService $clientScope) {}
 
-    public function index(): Response
+    public function index(Request $request): Response
     {
         $user = Auth::user();
 
-        $assets = $this->clientScope->applyInventoryAssetScope(InvAsset::query(), $user)
-            ->whereNotNull('current_user_id')
-            ->with(['currentUser:id,first_name,paternal_last_name,maternal_last_name', 'category:id,name'])
-            ->get();
+        $scopedAssets = $this->clientScope->applyInventoryAssetScope(InvAsset::query(), $user)
+            ->whereNotNull('inv_assets.current_user_id');
 
-        $roster = $assets->groupBy('current_user_id')
-            ->map(function ($group) {
-                $first = $group->first();
+        $roster = User::query()->join('inv_assets', 'users.id', '=', 'inv_assets.current_user_id')
+            ->whereIn('inv_assets.id', (clone $scopedAssets)->select('inv_assets.id'))
+            ->selectRaw("users.id as user_id, trim(coalesce(users.first_name, '') || ' ' || coalesce(users.paternal_last_name, '') || ' ' || coalesce(users.maternal_last_name, '')) as user_name, count(inv_assets.id) as asset_count, coalesce(sum(inv_assets.cost), 0) as total_value")
+            ->groupBy('users.id', 'users.first_name', 'users.paternal_last_name', 'users.maternal_last_name')
+            ->orderByDesc('asset_count')
+            ->paginate(self::ROSTER_PER_PAGE)->withQueryString();
 
-                return [
-                    'user_id' => $first->current_user_id,
-                    'user_name' => $this->userLabel($first->currentUser),
-                    'asset_count' => $group->count(),
-                    'total_value' => round((float) $group->sum('cost'), 2),
-                    'assets' => $group->map(fn (InvAsset $a) => [
-                        'id' => $a->id,
-                        'name' => $a->name,
-                        'internal_tag' => $a->internal_tag,
-                        'category' => $a->category?->name,
-                    ])->values(),
-                ];
-            })
-            ->sortByDesc('asset_count')
-            ->values();
+        $userIds = $roster->getCollection()->pluck('user_id');
+        $previews = InvAsset::query()
+            ->whereIn('id', (clone $scopedAssets)->select('inv_assets.id'))
+            ->whereIn('current_user_id', $userIds)
+            ->with('category:id,name')
+            ->orderBy('name')->limit(self::ASSET_PREVIEW_LIMIT)
+            ->get(['id', 'current_user_id', 'name', 'internal_tag', 'category_id'])
+            ->groupBy('current_user_id');
+
+        $roster->getCollection()->transform(fn ($row) => [
+            'user_id' => $row->user_id,
+            'user_name' => $row->user_name ?: '—',
+            'asset_count' => (int) $row->asset_count,
+            'total_value' => round((float) $row->total_value, 2),
+            'assets' => ($previews->get($row->user_id) ?? collect())->map(fn (InvAsset $asset) => [
+                'id' => $asset->id, 'name' => $asset->name, 'internal_tag' => $asset->internal_tag,
+                'category' => $asset->category?->name,
+            ])->values(),
+        ]);
 
         return Inertia::render('Inventory/Assignments', ['roster' => $roster]);
     }

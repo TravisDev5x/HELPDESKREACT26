@@ -8,6 +8,7 @@ use App\Models\InvCategory;
 use App\Models\InvMovement;
 use App\Models\InvStatus;
 use App\Models\User;
+use App\Enums\InvAssetOperationalState;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -74,6 +75,37 @@ class InventoryExportsTest extends TestCase
         $this->assertContains('MATCH-1', $tags);
         $this->assertNotContains('NOMATCH-1', $tags);
         $this->assertNotContains('OTHER-MATCH', $tags);
+    }
+
+    public function test_asset_export_rejects_a_foreign_site_id_without_disclosing_its_name(): void
+    {
+        $fx = $this->baseFixtures();
+        $other = $this->baseFixtures();
+        $foreignName = DB::table('sites')->where('id', $other['site'])->value('name');
+
+        $response = $this->actingAs($fx['admin'], 'web')->get('/api/inv-assets/export?site_id='.$other['site']);
+
+        $response->assertStatus(422)
+            ->assertJsonPath('message', 'La sede seleccionada no pertenece a tu alcance.')
+            ->assertDontSee($foreignName);
+    }
+
+    public function test_asset_export_respects_operational_state_filter(): void
+    {
+        $fx = $this->baseFixtures();
+        $this->makeAsset($fx, 'AVAILABLE-EXPORT', ['operational_state' => InvAssetOperationalState::AVAILABLE]);
+        $this->makeAsset($fx, 'RETIRED-EXPORT', ['operational_state' => InvAssetOperationalState::RETIRED]);
+
+        $response = $this->actingAs($fx['admin'], 'web')->get('/api/inv-assets/export?operational_state=RETIRED');
+        $response->assertOk();
+
+        $path = $response->baseResponse->getFile()->getPathname();
+        $rows = IOFactory::load($path)->getSheetByName('Todos los activos')->toArray();
+        @unlink($path);
+        $tags = array_column(array_slice($rows, 1), 1);
+
+        $this->assertContains('RETIRED-EXPORT', $tags);
+        $this->assertNotContains('AVAILABLE-EXPORT', $tags);
     }
 
     public function test_movement_export_is_valid_csv_with_expected_columns_and_tenant_scope(): void

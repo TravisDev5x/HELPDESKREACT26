@@ -11,6 +11,8 @@ use App\Models\InvStatus;
 use App\Models\Location;
 use App\Models\Site;
 use App\Models\User;
+use App\Services\Inventory\AssetSpecificationService;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Validator;
@@ -27,6 +29,12 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
 class InvAssetImportService
 {
     private const MAX_ROWS = 1000;
+
+    /** @var array<string, \Illuminate\Support\Collection<int, Site>> */
+    private array $sitesByName = [];
+
+    /** @var array<string, ?int> */
+    private array $locationsBySiteAndName = [];
 
     /** Encabezado normalizado (minúsculas, sin acentos) => campo. */
     public const COLUMNS = [
@@ -51,6 +59,7 @@ class InvAssetImportService
     public function __construct(
         protected ClientScopeService $clientScope,
         protected OperatorCatalogScopeService $catalogScope,
+        protected AssetSpecificationService $specifications,
     ) {}
 
     public function import(UploadedFile $file, User $user): array
@@ -77,7 +86,7 @@ class InvAssetImportService
             ]]]];
         }
 
-        $categories = $this->catalogScope->apply(InvCategory::query()->where('is_active', true), $user, 'inv_categories')->get(['id', 'name']);
+        $categories = $this->catalogScope->apply(InvCategory::query()->where('is_active', true), $user, 'inv_categories')->get(['id', 'name', 'type', 'require_specs']);
         $statuses = $this->catalogScope->apply(InvStatus::query()->where('is_active', true), $user, 'inv_statuses')->get(['id', 'name']);
         $labels = $this->catalogScope->apply(InvLabel::query()->where('is_active', true), $user, 'inv_labels')->get(['id', 'name']);
 
@@ -108,6 +117,9 @@ class InvAssetImportService
                 continue;
             }
 
+            $category = $categories->firstWhere('id', $categoryId);
+            $specs = $this->specifications->parseImport($raw['specs'] ?? null, $category);
+
             $clientId = $site->client_id;
             $data = [
                 'internal_tag' => $raw['internal_tag'] ?: null,
@@ -119,7 +131,7 @@ class InvAssetImportService
                 'condition' => empty($raw['condition']) ? null : Str::upper(str_replace(' ', '_', trim($raw['condition']))),
                 'site_id' => $site->id,
                 'location_id' => $locationId,
-                'specs' => $raw['specs'] ?: null,
+                'specs' => $specs,
                 'cost' => $raw['cost'] === '' || $raw['cost'] === null ? null : $raw['cost'],
                 'purchase_date' => $raw['purchase_date'] ?: null,
                 'warranty_expiry' => $raw['warranty_expiry'] ?: null,
@@ -129,6 +141,9 @@ class InvAssetImportService
             ];
 
             $validator = Validator::make($data, StoreInvAssetRequest::rulesFor($clientId), $messagesTemplate);
+            if (! $this->specifications->hasRequiredSpecs($category, $specs)) {
+                $validator->errors()->add('specs', 'Esta categoría requiere al menos una especificación técnica compatible.');
+            }
             if ($validator->fails()) {
                 $errors[] = ['row' => $rowNumber, 'messages' => $validator->errors()->all()];
 
@@ -169,9 +184,20 @@ class InvAssetImportService
 
             $data['client_id'] = $clientId;
             $data['uuid'] = (string) Str::uuid();
-            $data['specs'] = $data['specs'] ? ['notes' => $data['specs']] : null;
+            $specs = $data['specs'];
+            unset($data['specs']);
 
-            InvAsset::create($data);
+            // Un texto libre heredado no se fuerza a un campo estructurado;
+            // se conserva como nota para no perderlo mientras el formato
+            // oficial de importación usa clave: valor.
+            if (filled($raw['specs'] ?? null) && empty($specs)) {
+                $data['notes'] = trim(implode("\n", array_filter([$data['notes'] ?? null, 'Especificaciones importadas: '.$raw['specs']])));
+            }
+
+            DB::transaction(function () use ($data, $specs) {
+                $asset = InvAsset::create($data);
+                $this->specifications->sync($asset, $specs);
+            });
             $created++;
             $quotaByClient[$clientId]['used']++;
             $seenInFile[$tagKey] = $rowNumber;
@@ -257,8 +283,9 @@ class InvAssetImportService
             return null;
         }
 
-        $matches = Site::where('is_active', true)
-            ->whereRaw('LOWER(name) = ?', [Str::lower($name)])
+        $key = Str::lower($name);
+        $matches = $this->sitesByName[$key] ??= Site::where('is_active', true)
+            ->whereRaw('LOWER(name) = ?', [$key])
             ->get(['id', 'name', 'client_id']);
 
         if ($matches->isEmpty()) {
@@ -282,16 +309,20 @@ class InvAssetImportService
             return null;
         }
 
-        $location = Location::where('site_id', $site->id)
-            ->whereRaw('LOWER(name) = ?', [Str::lower($name)])
-            ->first();
+        $key = $site->id.'|'.Str::lower($name);
+        if (! array_key_exists($key, $this->locationsBySiteAndName)) {
+            $this->locationsBySiteAndName[$key] = Location::where('site_id', $site->id)
+                ->whereRaw('LOWER(name) = ?', [Str::lower($name)])
+                ->value('id');
+        }
+        $locationId = $this->locationsBySiteAndName[$key];
 
-        if (! $location) {
+        if (! $locationId) {
             $messages[] = "La ubicación '{$name}' no existe en la sede '{$site->name}'.";
 
             return null;
         }
 
-        return $location->id;
+        return $locationId;
     }
 }

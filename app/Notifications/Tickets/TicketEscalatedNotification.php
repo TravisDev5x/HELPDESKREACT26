@@ -16,6 +16,11 @@ class TicketEscalatedNotification extends BaseTicketNotification
         return 'ticket_escalated';
     }
 
+    public function viaQueues(): array
+    {
+        return $this->criticalNotificationQueues();
+    }
+
     public function toArray(object $notifiable): array
     {
         return $this->basePayload($this->ticketId, $this->message, $this->actorId);

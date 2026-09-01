@@ -28,26 +28,38 @@ const KpiSkeleton = ({ count = 3 }) => (
  * gráficas ni interacciones propias -- esas ya viven ahí.
  */
 export default function HomeSummary() {
-    const { user } = useAuth();
+    const { user, can } = useAuth();
     const [tickets, setTickets] = useState(null);
     const [inventory, setInventory] = useState(null);
     const [loading, setLoading] = useState(true);
+    const canSeeTickets = can("tickets.view_area") || can("tickets.manage_all");
+    const canSeeInventory = can("inventory.manage_assets") || can("inventory.manage_config");
 
     useEffect(() => {
         let active = true;
 
-        Promise.allSettled([
-            axios.get("/api/tickets/summary"),
-            axios.get("/api/inv-assets/monitor/summary"),
-        ]).then(([ticketsResult, inventoryResult]) => {
+        const requests = [
+            ...(canSeeTickets ? [axios.get("/api/tickets/summary")] : []),
+            ...(canSeeInventory ? [axios.get("/api/inv-assets/monitor/summary")] : []),
+        ];
+
+        if (requests.length === 0) {
+            setLoading(false);
+            return () => { active = false; };
+        }
+
+        Promise.allSettled(requests).then((results) => {
             if (!active) return;
-            if (ticketsResult.status === "fulfilled") setTickets(ticketsResult.value.data);
-            if (inventoryResult.status === "fulfilled") setInventory(inventoryResult.value.data);
+            const [ticketsResult, inventoryResult] = canSeeTickets
+                ? [results[0], canSeeInventory ? results[1] : null]
+                : [null, results[0]];
+            if (ticketsResult?.status === "fulfilled") setTickets(ticketsResult.value.data);
+            if (inventoryResult?.status === "fulfilled") setInventory(inventoryResult.value.data);
             setLoading(false);
         });
 
         return () => { active = false; };
-    }, []);
+    }, [canSeeInventory, canSeeTickets]);
 
     return (
         <div className="space-y-6">
@@ -57,7 +69,7 @@ export default function HomeSummary() {
                 </p>
             </DashboardWelcome>
 
-            <Card>
+            {canSeeTickets && <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0">
                     <CardTitle className="flex items-center gap-2 text-base">
                         <Ticket className="h-4 w-4" />
@@ -86,9 +98,9 @@ export default function HomeSummary() {
                         </div>
                     )}
                 </CardContent>
-            </Card>
+            </Card>}
 
-            <Card>
+            {canSeeInventory && <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0">
                     <div>
                         <CardTitle className="flex items-center gap-2 text-base">
@@ -134,7 +146,15 @@ export default function HomeSummary() {
                         </div>
                     )}
                 </CardContent>
-            </Card>
+            </Card>}
+
+            {!canSeeTickets && !canSeeInventory && !loading && (
+                <Card className="border-dashed">
+                    <CardContent className="py-10 text-center text-sm text-muted-foreground">
+                        Tu rol administra la plataforma, pero no tiene módulos operativos asignados.
+                    </CardContent>
+                </Card>
+            )}
         </div>
     );
 }

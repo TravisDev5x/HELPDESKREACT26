@@ -52,6 +52,7 @@ class InventoryGranularPermissionsTest extends TestCase
 
         $this->actingAs($viewer, 'web')->getJson('/api/inv-assets')->assertOk();
         $this->actingAs($viewer, 'web')->getJson("/api/inv-assets/{$asset->id}")->assertOk();
+        $this->actingAs($viewer, 'web')->getJson('/api/inv-assets/assignees?search=T')->assertForbidden();
 
         $this->actingAs($viewer, 'web')->postJson('/api/inv-assets', [
             'internal_tag' => 'TAG-'.uniqid(), 'name' => 'Nuevo',
@@ -86,6 +87,8 @@ class InventoryGranularPermissionsTest extends TestCase
             'internal_tag' => $asset->internal_tag, 'name' => 'Editado',
             'category_id' => $category->id, 'status_id' => $status->id, 'site_id' => $site,
         ])->assertOk();
+
+        $this->actingAs($editor, 'web')->getJson('/api/inv-assets/assignees?search=T')->assertOk();
 
         $this->actingAs($editor, 'web')->deleteJson("/api/inv-assets/{$asset->id}")->assertForbidden();
         $this->assertDatabaseHas('inv_assets', ['id' => $asset->id]);

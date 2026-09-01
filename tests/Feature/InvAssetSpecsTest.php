@@ -78,6 +78,18 @@ class InvAssetSpecsTest extends TestCase
         $this->assertDatabaseMissing('inv_asset_specs', ['asset_id' => $response->json('id'), 'key' => 'cpu']);
     }
 
+    public function test_category_that_requires_specs_rejects_an_empty_structured_payload(): void
+    {
+        $fx = $this->fixtures('HARDWARE');
+        $fx['category']->update(['require_specs' => true]);
+
+        $this->actingAs($fx['admin'], 'web')->postJson('/api/inv-assets', [
+            'internal_tag' => 'LAP-REQ-SPECS', 'name' => 'Laptop incompleta',
+            'category_id' => $fx['category']->id, 'status_id' => $fx['status']->id, 'site_id' => $fx['site'],
+            'specs' => [],
+        ])->assertUnprocessable()->assertJsonPath('message', 'Esta categoría requiere capturar al menos una especificación técnica.');
+    }
+
     public function test_updating_an_asset_removes_specs_that_are_no_longer_sent(): void
     {
         $fx = $this->fixtures('HARDWARE');
@@ -98,6 +110,49 @@ class InvAssetSpecsTest extends TestCase
         $response->assertOk();
         $this->assertDatabaseMissing('inv_asset_specs', ['asset_id' => $asset->id, 'key' => 'cpu']);
         $this->assertDatabaseHas('inv_asset_specs', ['asset_id' => $asset->id, 'key' => 'ram', 'value' => '16GB']);
+    }
+
+    public function test_editing_basic_fields_without_specs_preserves_existing_specs(): void
+    {
+        $fx = $this->fixtures('HARDWARE');
+        $asset = InvAsset::create([
+            'internal_tag' => 'LAP-003', 'name' => 'Laptop original',
+            'category_id' => $fx['category']->id, 'status_id' => $fx['status']->id,
+            'site_id' => $fx['site'], 'client_id' => $fx['client']->id,
+        ]);
+        $asset->specs()->create(['client_id' => $fx['client']->id, 'key' => 'cpu', 'value' => 'i5']);
+        $asset->specs()->create(['client_id' => $fx['client']->id, 'key' => 'ram', 'value' => '8GB']);
+
+        // Mismo payload resumido que llega desde la tabla: no incluye specs.
+        $response = $this->actingAs($fx['admin'], 'web')->putJson("/api/inv-assets/{$asset->id}", [
+            'internal_tag' => $asset->internal_tag, 'name' => 'Laptop renombrada',
+            'category_id' => $fx['category']->id, 'status_id' => $fx['status']->id, 'site_id' => $fx['site'],
+        ]);
+
+        $response->assertOk();
+        $this->assertDatabaseHas('inv_asset_specs', ['asset_id' => $asset->id, 'key' => 'cpu', 'value' => 'i5']);
+        $this->assertDatabaseHas('inv_asset_specs', ['asset_id' => $asset->id, 'key' => 'ram', 'value' => '8GB']);
+        $this->assertDatabaseHas('inv_assets', ['id' => $asset->id, 'name' => 'Laptop renombrada']);
+    }
+
+    public function test_explicit_empty_specs_payload_removes_specs(): void
+    {
+        $fx = $this->fixtures('HARDWARE');
+        $asset = InvAsset::create([
+            'internal_tag' => 'LAP-004', 'name' => 'Laptop para limpiar',
+            'category_id' => $fx['category']->id, 'status_id' => $fx['status']->id,
+            'site_id' => $fx['site'], 'client_id' => $fx['client']->id,
+        ]);
+        $asset->specs()->create(['client_id' => $fx['client']->id, 'key' => 'cpu', 'value' => 'i5']);
+
+        $response = $this->actingAs($fx['admin'], 'web')->putJson("/api/inv-assets/{$asset->id}", [
+            'internal_tag' => $asset->internal_tag, 'name' => $asset->name,
+            'category_id' => $fx['category']->id, 'status_id' => $fx['status']->id, 'site_id' => $fx['site'],
+            'specs' => [],
+        ]);
+
+        $response->assertOk();
+        $this->assertDatabaseMissing('inv_asset_specs', ['asset_id' => $asset->id, 'key' => 'cpu']);
     }
 
     public function test_show_loads_specs_and_they_are_isolated_by_tenant(): void

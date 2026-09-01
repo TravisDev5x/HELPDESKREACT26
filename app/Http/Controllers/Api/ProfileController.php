@@ -32,8 +32,11 @@ class ProfileController extends Controller
             'sidebar_state' => 'nullable|in:expanded,collapsed',
             'sidebar_hover_preview' => 'nullable|boolean',
             'sidebar_position' => 'nullable|in:left,right',
-            'locale' => 'nullable|in:es,en,ja,de,zh,fr',
+            'locale' => 'nullable|in:es,en',
             'availability' => 'nullable|in:available,busy,disconnected',
+            'notification_preferences' => 'nullable|array',
+            'notification_preferences.realtime' => 'nullable|boolean',
+            'notification_preferences.informational' => 'nullable|boolean',
         ]);
 
         if ($request->hasFile('avatar')) {
@@ -170,8 +173,11 @@ class ProfileController extends Controller
             'sidebar_state' => 'nullable|in:expanded,collapsed',
             'sidebar_hover_preview' => 'nullable|boolean',
             'sidebar_position' => 'nullable|in:left,right',
-            'locale' => 'nullable|in:es,en,ja,de,zh,fr',
+            'locale' => 'nullable|in:es,en',
             'availability' => 'nullable|in:available,busy,disconnected',
+            'notification_preferences' => 'nullable|array',
+            'notification_preferences.realtime' => 'nullable|boolean',
+            'notification_preferences.informational' => 'nullable|boolean',
         ]);
 
         $user = Auth::user();
@@ -199,6 +205,12 @@ class ProfileController extends Controller
         }
         if (array_key_exists('availability', $data) && $data['availability'] !== null) {
             $user->availability = $data['availability'];
+        }
+        if (array_key_exists('notification_preferences', $data)) {
+            $user->notification_preferences = array_merge(
+                $user->notification_preferences ?? [],
+                $data['notification_preferences'] ?? []
+            );
         }
 
         $user->saveQuietly();

@@ -1,5 +1,6 @@
 import { Sun, Moon, Monitor } from 'lucide-react';
 import { useTheme } from '@/hooks/useTheme';
+import { Button } from '@/components/ui/button';
 
 const OPTIONS = [
     { value: 'light', icon: Sun, label: 'Claro' },
@@ -25,15 +26,17 @@ export function ThemeToggle({ variant = 'icon', value, onValueChange }) {
         const Icon = current.icon;
 
         return (
-            <button
+            <Button
                 type="button"
+                variant="ghost"
+                size="icon"
                 onClick={() => applyTheme(next.value)}
-                className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                className="h-8 w-8 rounded-lg text-muted-foreground"
                 title={`Tema: ${current.label} → ${next.label}`}
                 aria-label="Cambiar tema"
             >
                 <Icon className="h-4 w-4" />
-            </button>
+            </Button>
         );
     }
 
@@ -41,20 +44,18 @@ export function ThemeToggle({ variant = 'icon', value, onValueChange }) {
         return (
             <div className="flex items-center gap-1 rounded-lg bg-muted p-1">
                 {OPTIONS.map(({ value: optValue, icon: Icon, label }) => (
-                    <button
+                    <Button
                         key={optValue}
                         type="button"
+                        variant={theme === optValue ? 'secondary' : 'ghost'}
+                        size="sm"
                         onClick={() => applyTheme(optValue)}
-                        className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-all ${
-                            theme === optValue
-                                ? 'bg-background text-foreground shadow-sm'
-                                : 'text-muted-foreground hover:text-foreground'
-                        }`}
+                        className="gap-1.5 px-3 text-xs"
                         title={label}
                     >
                         <Icon className="h-3.5 w-3.5" />
                         <span className="hidden sm:inline">{label}</span>
-                    </button>
+                    </Button>
                 ))}
             </div>
         );

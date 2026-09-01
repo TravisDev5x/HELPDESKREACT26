@@ -63,13 +63,13 @@ class InventoryAssignmentsTest extends TestCase
         $response->assertOk();
         $response->assertInertia(fn ($page) => $page
             ->component('Inventory/Assignments', shouldExist: false)
-            ->has('roster', 2)
-            ->where('roster.0.user_id', $ana->id)
-            ->where('roster.0.asset_count', 2)
-            ->where('roster.0.total_value', 1500)
-            ->has('roster.0.assets', 2)
-            ->where('roster.1.user_id', $luis->id)
-            ->where('roster.1.asset_count', 1)
+            ->has('roster.data', 2)
+            ->where('roster.data.0.user_id', $ana->id)
+            ->where('roster.data.0.asset_count', 2)
+            ->where('roster.data.0.total_value', 1500)
+            ->has('roster.data.0.assets', 2)
+            ->where('roster.data.1.user_id', $luis->id)
+            ->where('roster.data.1.asset_count', 1)
         );
     }
 
@@ -93,8 +93,8 @@ class InventoryAssignmentsTest extends TestCase
         $response = $this->actingAs($admin, 'web')->get('/inventory/assignments');
 
         $response->assertInertia(fn ($page) => $page
-            ->has('roster', 1)
-            ->where('roster.0.user_id', $mine->id)
+            ->has('roster.data', 1)
+            ->where('roster.data.0.user_id', $mine->id)
         );
     }
 

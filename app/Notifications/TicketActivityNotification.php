@@ -3,6 +3,7 @@
 namespace App\Notifications;
 
 use App\Models\Ticket;
+use App\Notifications\Concerns\DeliversRealtimeNotifications;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Notification;
@@ -10,6 +11,7 @@ use Illuminate\Notifications\Notification;
 class TicketActivityNotification extends Notification implements ShouldQueue
 {
     use Queueable;
+    use DeliversRealtimeNotifications;
 
     public Ticket $ticket;
     public string $action; // created|updated
@@ -22,7 +24,20 @@ class TicketActivityNotification extends Notification implements ShouldQueue
 
     public function via(object $notifiable): array
     {
-        return ['database'];
+        return $this->notificationChannels($notifiable);
+    }
+
+    public function viaQueues(): array
+    {
+        return $this->notificationQueues();
+    }
+
+    public function shouldSend(object $notifiable, string $channel): bool
+    {
+        // Solo las actualizaciones genéricas son silenciables; asignaciones,
+        // alertas y seguridad usan sus propias notificaciones prioritarias.
+        return ($notifiable->notification_preferences['informational'] ?? true)
+            || $this->action !== 'updated';
     }
 
     public function toArray(object $notifiable): array

@@ -11,7 +11,7 @@ class SetLocale
     /**
      * Lista blanca de idiomas permitidos.
      */
-    protected array $allowed = ['es', 'en', 'ja', 'de', 'zh', 'fr'];
+    protected array $allowed = ['es', 'en'];
 
     /**
      * Handle an incoming request.

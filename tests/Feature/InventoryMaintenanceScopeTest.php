@@ -8,6 +8,7 @@ use App\Models\InvCategory;
 use App\Models\InvMaintenance;
 use App\Models\InvMovement;
 use App\Models\InvStatus;
+use App\Enums\InvAssetOperationalState;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -67,12 +68,59 @@ class InventoryMaintenanceScopeTest extends TestCase
             'id' => $maintenanceId, 'asset_id' => $asset->id, 'title' => 'Cambio de disco duro', 'end_date' => null,
         ]);
         $this->assertTrue(
-            InvMovement::where('asset_id', $asset->id)->where('type', 'MAINTENANCE')->exists(),
-            'Abrir un mantenimiento debe generar un InvMovement tipo MAINTENANCE.'
+            InvMovement::where('asset_id', $asset->id)->where('type', 'MAINTENANCE_START')->exists(),
+            'Abrir un mantenimiento debe generar un InvMovement tipo MAINTENANCE_START.'
         );
     }
 
-    public function test_closing_a_maintenance_does_not_create_a_new_movement(): void
+    public function test_open_maintenance_blocks_assignment_and_retirement_until_it_is_closed(): void
+    {
+        ['client' => $client, 'site' => $site, 'admin' => $admin, 'asset' => $asset] = $this->baseFixtures();
+        $maintenance = InvMaintenance::create([
+            'asset_id' => $asset->id,
+            'title' => 'Diagnóstico abierto',
+            'start_date' => now()->subDay()->toDateString(),
+            'logged_by' => $admin->id,
+            'client_id' => $client->id,
+        ]);
+        $asset->update(['operational_state' => InvAssetOperationalState::MAINTENANCE]);
+        $employee = $this->clientUser($client->id, $site);
+        $retired = InvStatus::create(['name' => 'Baja '.uniqid(), 'assignable' => false, 'is_active' => true]);
+
+        $checkout = $this->actingAs($admin, 'web')->postJson("/api/inv-assets/{$asset->id}/checkout", [
+            'user_id' => $employee->id,
+        ]);
+        $checkout->assertStatus(422)
+            ->assertJsonPath('message', 'El activo tiene un mantenimiento abierto y no puede asignarse.');
+
+        $retire = $this->actingAs($admin, 'web')->postJson("/api/inv-assets/{$asset->id}/retire", [
+            'status_id' => $retired->id,
+            'reason' => 'No reparable',
+            'method' => 'OBSOLESCENCIA',
+        ]);
+        $retire->assertStatus(422)
+            ->assertJsonPath('message', 'Cierra el mantenimiento abierto antes de dar de baja el activo.');
+        $this->assertNull($asset->fresh()->current_user_id);
+        $this->assertNull($maintenance->fresh()->end_date);
+    }
+
+    public function test_maintenance_cannot_be_opened_while_the_asset_is_assigned(): void
+    {
+        ['client' => $client, 'site' => $site, 'admin' => $admin, 'asset' => $asset] = $this->baseFixtures();
+        $asset->update(['current_user_id' => $this->clientUser($client->id, $site)->id]);
+        $asset->update(['operational_state' => InvAssetOperationalState::ASSIGNED]);
+
+        $response = $this->actingAs($admin, 'web')->postJson("/api/inv-assets/{$asset->id}/maintenances", [
+            'title' => 'No debe abrirse',
+            'start_date' => now()->toDateString(),
+        ]);
+
+        $response->assertStatus(422)
+            ->assertJsonPath('message', 'Devuelve el activo antes de registrar un mantenimiento.');
+        $this->assertDatabaseMissing('inv_maintenances', ['asset_id' => $asset->id]);
+    }
+
+    public function test_closing_a_maintenance_creates_a_single_closing_movement(): void
     {
         if (! \Schema::hasTable('inv_maintenances')) {
             $this->markTestSkipped('Migración de inv_maintenances no aplicada.');
@@ -85,6 +133,7 @@ class InventoryMaintenanceScopeTest extends TestCase
             'start_date' => now()->subDays(2)->toDateString(),
             'logged_by' => $admin->id, 'client_id' => $asset->client_id,
         ]);
+        $asset->update(['operational_state' => InvAssetOperationalState::MAINTENANCE]);
 
         $movementsBefore = InvMovement::count();
 
@@ -96,7 +145,8 @@ class InventoryMaintenanceScopeTest extends TestCase
         ]);
 
         $response->assertOk();
-        $this->assertSame($movementsBefore, InvMovement::count(), 'Cerrar un mantenimiento no debe duplicar un movimiento.');
+        $this->assertSame($movementsBefore + 1, InvMovement::count(), 'Cerrar un mantenimiento debe registrar un único movimiento de cierre.');
+        $this->assertDatabaseHas('inv_movements', ['asset_id' => $asset->id, 'type' => 'MAINTENANCE_END']);
         $this->assertNotNull($maintenance->fresh()->end_date);
     }
 
@@ -131,7 +181,7 @@ class InventoryMaintenanceScopeTest extends TestCase
 
         $maintenance = InvMaintenance::create([
             'asset_id' => $asset->id, 'title' => 'Diagnóstico',
-            'start_date' => now()->toDateString(),
+            'start_date' => now()->subDay()->toDateString(), 'end_date' => now()->toDateString(),
             'logged_by' => $admin->id, 'client_id' => $asset->client_id,
         ]);
 

@@ -184,6 +184,10 @@ trait Auditable
             }
             if ($value instanceof \DateTimeInterface) {
                 $out[$key] = $value->format('Y-m-d H:i:s');
+            } elseif ($value instanceof \BackedEnum) {
+                $out[$key] = $value->value;
+            } elseif ($value instanceof \UnitEnum) {
+                $out[$key] = $value->name;
             } elseif (is_scalar($value) || $value === null) {
                 $out[$key] = $value;
             } elseif (is_array($value)) {

@@ -382,7 +382,7 @@ export function Sidebar({ collapsed, onToggle, onNavigate, currentPath: currentP
         // 1. TRABAJO: lo que una persona necesita para comenzar su jornada.
         const generalItems = [
             ...(can('tickets.create')
-                ? [inertiaNav('/resolbeb/tickets/new', { label: 'Nueva solicitud', icon: Plus, primary: true })]
+                ? [inertiaNav('/resolbeb/tickets/new', { label: t('nav.newRequest'), icon: Plus, primary: true })]
                 : []),
             inertiaNav('/home', { label: t('nav.home'), icon: Home, emphasis: true }),
             ...(can('tickets.create') || can('tickets.view_own')
@@ -390,7 +390,7 @@ export function Sidebar({ collapsed, onToggle, onNavigate, currentPath: currentP
                 : []),
             inertiaNav('/calendar', { label: t('nav.calendar'), icon: CalendarDays, emphasis: true }),
         ]
-        sections.push({ sectionId: 'work', label: 'Trabajo', items: generalItems })
+        sections.push({ sectionId: 'work', label: t('nav.work'), items: generalItems })
 
         // 2. OPERACIÓN: colas y módulos para resolver trabajo.
         const moduleItems = []
@@ -399,7 +399,7 @@ export function Sidebar({ collapsed, onToggle, onNavigate, currentPath: currentP
         const ticketsChildren = []
         if (canSeeResolbeb) {
             ticketsChildren.push(inertiaNav('/resolbeb', { label: t('nav.dashboard'), icon: LayoutDashboard, exact: true }))
-            if (canSeeTicketsModule) ticketsChildren.push(inertiaNav('/resolbeb/tickets', { label: 'Mesa de ayuda', icon: Ticket }))
+            if (canSeeTicketsModule) ticketsChildren.push(inertiaNav('/resolbeb/tickets', { label: t('nav.helpDesk'), icon: Ticket }))
             if (canSeeReviewPending) ticketsChildren.push(inertiaNav('/resolbeb/pending-requests', { label: t('nav.pendingRequests'), icon: Inbox }))
         }
         if (canSeeResolbeb && ticketsChildren.length > 0) {
@@ -442,16 +442,16 @@ export function Sidebar({ collapsed, onToggle, onNavigate, currentPath: currentP
         }
 
         if (moduleItems.length > 0) {
-            sections.push({ sectionId: 'operations', label: 'Operación', items: moduleItems })
+            sections.push({ sectionId: 'operations', label: t('nav.operations'), items: moduleItems })
         }
 
         // 3. ORGANIZACIÓN: estructura de la empresa, lejos de las colas diarias.
         const organizationItems = []
         if (canSeeClientsModule) organizationItems.push({ href: '/clients', label: t('nav.clientes'), icon: Building2, external: true })
-        if (canSeeCompany) organizationItems.push({ href: '/company', label: 'Mi empresa', icon: Building2, external: true })
+        if (canSeeCompany) organizationItems.push({ href: '/company', label: t('nav.myCompany'), icon: Building2, external: true })
         if (can('catalogs.manage')) {
             organizationItems.push({
-                label: 'Estructura',
+                label: t('nav.structure'),
                 icon: Network,
                 children: [
                     inertiaNav('/campaigns', { label: t('nav.campaigns'), icon: Megaphone }),
@@ -462,14 +462,14 @@ export function Sidebar({ collapsed, onToggle, onNavigate, currentPath: currentP
             })
         }
         if (organizationItems.length > 0) {
-            sections.push({ sectionId: 'organization', label: 'Organización', items: organizationItems })
+            sections.push({ sectionId: 'organization', label: t('nav.organization'), items: organizationItems })
         }
 
         // 4. CONFIGURACIÓN: catálogos técnicos cerrados hasta necesitarlos.
         const configurationItems = []
         if (canSeeCatalogs) {
             configurationItems.push({
-                label: 'Tickets',
+                label: t('nav.tickets'),
                 icon: Ticket,
                 children: [
                     inertiaNav('/resolbeb/tipos', { label: t('nav.ticketTypes'), icon: Tags }),
@@ -484,7 +484,7 @@ export function Sidebar({ collapsed, onToggle, onNavigate, currentPath: currentP
         }
         if (canSeeIncidents) {
             configurationItems.push({
-                label: 'Incidentes',
+                label: t('nav.incidents'),
                 icon: AlertTriangle,
                 children: [
                     inertiaNav('/incident-types', { label: t('nav.incidentTypes'), icon: Tags }),
@@ -509,7 +509,7 @@ export function Sidebar({ collapsed, onToggle, onNavigate, currentPath: currentP
             })
         }
         if (configurationItems.length > 0) {
-            sections.push({ sectionId: 'configuration', label: 'Configuración', items: configurationItems })
+            sections.push({ sectionId: 'configuration', label: t('nav.configuration'), items: configurationItems })
         }
 
         // 5. ADMINISTRACIÓN: seguridad y gobierno, siempre al final.
@@ -527,7 +527,7 @@ export function Sidebar({ collapsed, onToggle, onNavigate, currentPath: currentP
                 icon: Settings,
                 children: systemChildren,
             }
-            sections.push({ sectionId: 'system', label: 'Administración', items: [systemGroup] })
+            sections.push({ sectionId: 'system', label: t('nav.administration'), items: [systemGroup] })
         }
 
         return sections
@@ -815,7 +815,7 @@ export function Sidebar({ collapsed, onToggle, onNavigate, currentPath: currentP
                                 {!collapsed && (
                                     <div className="flex min-w-0 flex-1 flex-col items-start text-left">
                                         <span className="truncate w-full text-sm font-medium leading-tight text-foreground">
-                                            {user?.name || 'Usuario'}
+                                            {user?.name || t('user.unknown')}
                                         </span>
                                         <span className="truncate w-full text-xs leading-tight text-muted-foreground">
                                             {user?.email || ''}
@@ -846,12 +846,12 @@ export function Sidebar({ collapsed, onToggle, onNavigate, currentPath: currentP
                             <DropdownMenuSeparator className="bg-border/50" />
                             <DropdownMenuLabel className="text-[10px] font-bold uppercase text-muted-foreground flex items-center gap-1.5 py-1.5">
                                 <CircleDot className="h-3 w-3" />
-                                Estado
+                                {t('status.label')}
                             </DropdownMenuLabel>
                             {[
-                                { value: 'available', label: 'Disponible' },
-                                { value: 'busy', label: 'Ocupado' },
-                                { value: 'disconnected', label: 'Desconectado' },
+                                { value: 'available', label: t('status.available') },
+                                { value: 'busy', label: t('status.busy') },
+                                { value: 'disconnected', label: t('status.disconnected') },
                             ].map((opt) => {
                                 const isActive = (user?.availability || 'disconnected') === opt.value
                                 return (

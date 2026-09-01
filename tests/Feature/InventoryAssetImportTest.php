@@ -12,6 +12,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Spatie\Permission\Models\Permission;
 use Tests\TestCase;
@@ -100,6 +101,24 @@ class InventoryAssetImportTest extends TestCase
         $this->assertDatabaseHas('inv_assets', ['internal_tag' => 'LAP-001']);
     }
 
+    public function test_imported_structured_specs_use_the_same_table_as_manual_creation(): void
+    {
+        ['admin' => $admin, 'siteName' => $siteName] = $this->baseFixtures();
+        InvCategory::where('name', 'Laptops')->update(['type' => 'HARDWARE']);
+        $row = $this->row('LAP-SPECS', $siteName);
+        $row[14] = 'ram: 16 GB; storage_capacity: 512 GB';
+        $path = $this->buildXlsx([$row]);
+        $file = new UploadedFile($path, 'import.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', null, true);
+
+        $this->actingAs($admin, 'web')->post('/api/inv-assets/import', ['file' => $file])
+            ->assertCreated()->assertJsonPath('created', 1);
+
+        $asset = InvAsset::where('internal_tag', 'LAP-SPECS')->firstOrFail();
+        $this->assertDatabaseHas('inv_asset_specs', ['asset_id' => $asset->id, 'key' => 'ram', 'value' => '16 GB']);
+        $this->assertDatabaseHas('inv_asset_specs', ['asset_id' => $asset->id, 'key' => 'storage_capacity', 'value' => '512 GB']);
+        $this->assertNull($asset->getRawOriginal('specs'));
+    }
+
     public function test_row_with_unknown_category_reports_row_error(): void
     {
         ['admin' => $admin, 'siteName' => $siteName] = $this->baseFixtures();
@@ -148,6 +167,25 @@ class InventoryAssetImportTest extends TestCase
         $response->assertJsonPath('created', 0);
         $response->assertJsonCount(1, 'errors');
         $this->assertDatabaseMissing('inv_assets', ['internal_tag' => 'LAP-004']);
+    }
+
+    public function test_import_template_only_lists_sites_within_the_requesters_scope(): void
+    {
+        ['admin' => $admin, 'siteName' => $siteName] = $this->baseFixtures();
+        $otherClient = Client::factory()->create();
+        $foreignSiteName = 'Sede privada '.uniqid();
+        $this->makeSite($otherClient->id, $foreignSiteName);
+
+        $response = $this->actingAs($admin, 'web')->get('/api/inv-assets/import/template');
+        $response->assertOk();
+
+        $path = $response->baseResponse->getFile()->getPathname();
+        $rows = IOFactory::load($path)->getSheetByName('Catálogos')->toArray();
+        @unlink($path);
+
+        $values = array_merge(...$rows);
+        $this->assertContains($siteName, $values);
+        $this->assertNotContains($foreignSiteName, $values);
     }
 
     private function makeSite(int $clientId, string $name): int

@@ -98,6 +98,7 @@ class HandleInertiaRequests extends Middleware
                     'site' => $user->site?->name,
                     'site_id' => $user->site_id,
                     'availability' => $user->availability,
+                    'notification_preferences' => $user->notification_preferences ?? [],
                     'roles' => $user->getCachedRoleNames()->values()->all(),
                     'permissions' => $user->getCachedPermissions()->values()->all(),
                 ] : null,
@@ -119,6 +120,14 @@ class HandleInertiaRequests extends Middleware
             'unread_notifications_count' => Inertia::defer(fn () => $user
                 ? $user->unreadNotifications()->count()
                 : 0),
+            // La clave pública se entrega en runtime, no durante el build de
+            // Vite: así el mismo artefacto Docker funciona en cada dominio.
+            'realtime' => [
+                'enabled' => config('broadcasting.default') === 'reverb',
+                'key' => config('broadcasting.default') === 'reverb'
+                    ? config('broadcasting.connections.reverb.key')
+                    : null,
+            ],
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),
                 'error' => fn () => $request->session()->get('error'),

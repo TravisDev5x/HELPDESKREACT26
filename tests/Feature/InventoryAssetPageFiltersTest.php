@@ -7,6 +7,7 @@ use App\Models\InvAsset;
 use App\Models\InvCategory;
 use App\Models\InvStatus;
 use App\Models\User;
+use App\Enums\InvAssetOperationalState;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -174,6 +175,43 @@ class InventoryAssetPageFiltersTest extends TestCase
             ->has('assets.data', 1)
             ->where('assets.data.0.internal_tag', 'OWNED-1')
         );
+    }
+
+    public function test_index_page_filters_by_operational_state_and_searches_the_responsible(): void
+    {
+        $fx = $this->fixtures();
+        $owner = $this->clientUser($fx['client']->id, $fx['site']);
+        $this->makeAsset($fx, 'ASSIGNED-STATE', [
+            'current_user_id' => $owner->id,
+            'operational_state' => InvAssetOperationalState::ASSIGNED,
+        ]);
+        $this->makeAsset($fx, 'AVAILABLE-STATE', ['operational_state' => InvAssetOperationalState::AVAILABLE]);
+
+        $response = $this->actingAs($fx['admin'], 'web')->get('/inventory/assets?operational_state=ASSIGNED&search=T%20U');
+
+        $response->assertInertia(fn ($page) => $page
+            ->component('Inventory/Assets/Index', shouldExist: false)
+            ->has('assets.data', 1)
+            ->where('assets.data.0.internal_tag', 'ASSIGNED-STATE')
+        );
+    }
+
+    public function test_asset_detail_exposes_actions_from_the_operational_state_and_assignee_search_is_tenant_scoped(): void
+    {
+        $fx = $this->fixtures();
+        $asset = $this->makeAsset($fx, 'ACTIONS-1', ['operational_state' => InvAssetOperationalState::AVAILABLE]);
+        $local = $this->clientUser($fx['client']->id, $fx['site']);
+
+        $foreignClient = Client::factory()->create();
+        $foreignSite = $this->makeSite($foreignClient->id);
+        $foreign = $this->clientUser($foreignClient->id, $foreignSite);
+
+        $detail = $this->actingAs($fx['admin'], 'web')->get("/api/inv-assets/{$asset->id}");
+        $detail->assertOk()->assertJsonPath('allowed_actions', ['assign', 'transfer', 'maintenance', 'retire']);
+
+        $assignees = $this->actingAs($fx['admin'], 'web')->get('/api/inv-assets/assignees?search=T');
+        $assignees->assertOk()->assertJsonFragment(['id' => $local->id]);
+        $this->assertNotContains($foreign->id, collect($assignees->json())->pluck('id')->all());
     }
 
     /**

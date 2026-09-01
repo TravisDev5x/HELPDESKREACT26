@@ -1,5 +1,5 @@
 import { Fragment, useMemo, useState } from "react";
-import { Head, Link, usePage } from "@inertiajs/react";
+import { Head, Link, router, usePage } from "@inertiajs/react";
 import AuthenticatedLayout from "@/Inertia/Layouts/AuthenticatedLayout";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -12,20 +12,23 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { badgeStatus } from "@/lib/badgeStyles";
+import { formatCurrency } from "@/i18n/formatters";
+import { useI18n } from "@/hooks/useI18n";
 import { ChevronDown, ChevronRight, Search, Users } from "lucide-react";
-
-const currency = (value) => `$${Number(value ?? 0).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export default function Assignments() {
     const { roster } = usePage().props;
+    const rosterRows = roster?.data ?? [];
+    const { locale } = useI18n();
+    const currency = (value) => formatCurrency(value, locale);
     const [search, setSearch] = useState("");
     const [expanded, setExpanded] = useState(() => new Set());
 
     const filtered = useMemo(() => {
         const q = search.trim().toLowerCase();
-        if (!q) return roster ?? [];
-        return (roster ?? []).filter((row) => row.user_name.toLowerCase().includes(q));
-    }, [roster, search]);
+        if (!q) return rosterRows;
+        return rosterRows.filter((row) => row.user_name.toLowerCase().includes(q));
+    }, [rosterRows, search]);
 
     const toggle = (userId) => {
         setExpanded((prev) => {
@@ -58,7 +61,7 @@ export default function Assignments() {
 
             {filtered.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-10 text-center">
-                    {roster?.length ? "Sin resultados para esa búsqueda." : "Nadie tiene activos asignados todavía."}
+                    {rosterRows.length ? "Sin resultados para esa búsqueda." : "Nadie tiene activos asignados todavía."}
                 </p>
             ) : (
                 <Table>
@@ -118,6 +121,13 @@ export default function Assignments() {
                         })}
                     </TableBody>
                 </Table>
+            )}
+            {(roster?.last_page ?? 1) > 1 && (
+                <div className="flex items-center justify-center gap-3">
+                    <button className="text-sm text-primary disabled:text-muted-foreground" disabled={(roster?.current_page ?? 1) <= 1} onClick={() => router.get("/inventory/assignments", { page: (roster?.current_page ?? 1) - 1 }, { preserveScroll: true })}>Anterior</button>
+                    <span className="text-xs text-muted-foreground">{roster.current_page} / {roster.last_page}</span>
+                    <button className="text-sm text-primary disabled:text-muted-foreground" disabled={(roster?.current_page ?? 1) >= (roster?.last_page ?? 1)} onClick={() => router.get("/inventory/assignments", { page: (roster?.current_page ?? 1) + 1 }, { preserveScroll: true })}>Siguiente</button>
+                </div>
             )}
         </div>
     );

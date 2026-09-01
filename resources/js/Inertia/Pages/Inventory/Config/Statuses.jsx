@@ -3,9 +3,13 @@ import AuthenticatedLayout from "@/Inertia/Layouts/AuthenticatedLayout";
 import CatalogPage from "@/Inertia/components/CatalogPage";
 import CatalogDialog from "@/Inertia/components/CatalogDialog";
 import useCatalog from "@/Inertia/hooks/useCatalog";
+import { INVENTORY_BADGE_VARIANTS } from "@/lib/inventoryAssetUi";
+import { formatDate } from "@/i18n/formatters";
+import { useI18n } from "@/i18n/I18nProvider";
 
 export default function Statuses() {
     const { statuses } = usePage().props;
+    const { locale } = useI18n();
 
     const catalog = useCatalog("/api/inv-statuses", () => router.reload({ only: ["statuses"] }));
 
@@ -31,7 +35,7 @@ export default function Statuses() {
             width: "w-[180px]",
             render: (row) =>
                 row.created_at
-                    ? new Date(row.created_at).toLocaleDateString("es-ES")
+                    ? formatDate(row.created_at, locale)
                     : "—",
         },
     ];
@@ -47,10 +51,11 @@ export default function Statuses() {
         },
         {
             key: "badge_class",
-            label: "Clase de badge",
-            type: "text",
-            placeholder: "Ej. success, warning, secondary",
-            help: "Opcional — variante visual del badge en las listas de activos.",
+            label: "Variante visual",
+            type: "select",
+            options: INVENTORY_BADGE_VARIANTS,
+            placeholder: "Seleccionar variante…",
+            help: "Token visual controlado que se usa al mostrar este estatus.",
         },
         {
             key: "assignable",

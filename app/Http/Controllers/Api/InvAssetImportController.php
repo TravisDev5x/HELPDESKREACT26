@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Exports\InvAssetImportTemplateExport;
 use App\Http\Controllers\Controller;
+use App\Services\ClientScopeService;
 use App\Services\InvAssetImportService;
 use App\Services\OperatorCatalogScopeService;
 use Illuminate\Http\Request;
@@ -28,15 +29,17 @@ class InvAssetImportController extends Controller
         return response()->json($result, 201);
     }
 
-    public function template(OperatorCatalogScopeService $catalogScope)
+    public function template(OperatorCatalogScopeService $catalogScope, ClientScopeService $clientScope)
     {
-        $export = new InvAssetImportTemplateExport(Auth::user(), $catalogScope);
+        $export = new InvAssetImportTemplateExport(Auth::user(), $catalogScope, $clientScope);
         $filename = 'plantilla_import_activos.xlsx';
         $tempName = 'inv_asset_import_template_'.substr(uniqid('', true), -8).'.xlsx';
         $path = storage_path('app'.DIRECTORY_SEPARATOR.$tempName);
         $export->exportToPath($path);
 
-        if (ob_get_length() > 0) {
+        // No cerrar el buffer de PHPUnit: el binario solo necesita limpiarse
+        // cuando se descarga desde una petición real.
+        if (! app()->runningUnitTests() && ob_get_length() > 0) {
             ob_end_clean();
         }
 

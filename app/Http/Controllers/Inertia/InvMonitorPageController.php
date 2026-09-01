@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Services\ClientScopeService;
 use App\Services\InvMonitorAlertsService;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -69,63 +70,51 @@ class InvMonitorPageController extends Controller
 
     private function reports(User $user): array
     {
-        $assets = $this->clientScope->applyInventoryAssetScope(
-            InvAsset::query()->with(['category', 'status', 'site', 'currentUser']),
-            $user
-        )->get();
+        $base = $this->clientScope->applyInventoryAssetScope(InvAsset::query(), $user);
+        // El scope existente contiene columnas sin prefijo para funcionar en
+        // todos los controladores. Lo aislamos en una subconsulta antes de
+        // hacer joins de analítica, evitando ambigüedad y sin abrir tenants.
+        $assetIds = (clone $base)->select('inv_assets.id');
+        $byCategory = $this->groupedReport(clone $assetIds, 'inv_categories', 'category_id', 'Sin categoría');
+        $byStatus = $this->groupedReport(clone $assetIds, 'inv_statuses', 'status_id', 'Sin estatus');
+        $bySite = $this->groupedReport(clone $assetIds, 'sites', 'site_id', 'Sin sede');
 
-        $group = fn (callable $keyFn) => $assets
-            ->groupBy($keyFn)
-            ->map->count()
-            ->sortDesc()
-            ->map(fn ($value, $key) => ['label' => $key, 'value' => $value])
-            ->values();
+        $topAssignees = InvAsset::query()->whereIn('inv_assets.id', clone $assetIds)->whereNotNull('inv_assets.current_user_id')
+            ->leftJoin('users', 'users.id', '=', 'inv_assets.current_user_id')
+            ->selectRaw("inv_assets.current_user_id as user_id, trim(coalesce(users.first_name, '') || ' ' || coalesce(users.paternal_last_name, '') || ' ' || coalesce(users.maternal_last_name, '')) as label, count(*) as value")
+            ->groupBy('inv_assets.current_user_id', 'users.first_name', 'users.paternal_last_name', 'users.maternal_last_name')
+            ->orderByDesc('value')->limit(5)->get()
+            ->map(fn ($row) => ['user_id' => $row->user_id, 'label' => $row->label ?: '—', 'value' => (int) $row->value])->values();
 
-        $byCategory = $group(fn (InvAsset $a) => $a->category?->name ?? 'Sin categoría');
-        $byStatus = $group(fn (InvAsset $a) => $a->status?->name ?? 'Sin estatus');
-        $bySite = $group(fn (InvAsset $a) => $a->site?->name ?? 'Sin sede');
-
-        // Se agrupa por current_user_id, no por nombre -- dos usuarios distintos
-        // pueden compartir el mismo nombre para mostrar (ver userLabel()), y
-        // agrupar por string los colapsaría en un solo renglón. Se manda
-        // user_id aparte para el click-through en Monitor.jsx (TinyVerticalBarChart
-        // no propaga campos extra en su payload de click, se resuelve ahí
-        // haciendo match por label contra este mismo arreglo).
-        $topAssignees = $assets
-            ->whereNotNull('current_user_id')
-            ->groupBy('current_user_id')
-            ->map(fn ($group) => [
-                'label' => $this->userLabel($group->first()->currentUser),
-                'value' => $group->count(),
-                'user_id' => $group->first()->current_user_id,
-            ])
-            ->sortByDesc('value')
-            ->take(5)
-            ->values();
-
-        $totalValue = round((float) $assets->sum('cost'), 2);
-
-        $costByCategory = $assets
-            ->groupBy(fn (InvAsset $a) => $a->category?->name ?? 'Sin categoría')
-            ->map(fn ($group) => $group->sum('cost'))
-            ->sortDesc()
-            ->map(fn ($value, $key) => ['label' => $key, 'value' => round((float) $value, 2)])
-            ->values();
-
-        $monthlyTrend = $this->monthlyTrend($assets);
+        $totalValue = round((float) (clone $base)->sum('cost'), 2);
+        $costByCategory = $this->groupedReport(clone $assetIds, 'inv_categories', 'category_id', 'Sin categoría', true);
+        $monthlyTrend = $this->monthlyTrend(clone $base);
 
         return compact('byCategory', 'byStatus', 'bySite', 'topAssignees', 'totalValue', 'costByCategory', 'monthlyTrend');
     }
 
     /** Altas de activos por mes, últimos 6 meses (incluye meses en cero, para que la tendencia se vea completa). */
-    private function monthlyTrend($assets): array
+    private function groupedReport($assetIds, string $table, string $foreignKey, string $fallback, bool $sumCost = false)
+    {
+        $aggregate = $sumCost ? 'coalesce(sum(inv_assets.cost), 0)' : 'count(*)';
+
+        return InvAsset::query()->whereIn('inv_assets.id', $assetIds)
+            ->leftJoin($table, "{$table}.id", '=', "inv_assets.{$foreignKey}")
+            ->selectRaw("coalesce({$table}.name, ?) as label, {$aggregate} as value", [$fallback])
+            ->groupBy("{$table}.name")
+            ->orderByDesc('value')->get()
+            ->map(fn ($row) => ['label' => $row->label, 'value' => $sumCost ? round((float) $row->value, 2) : (int) $row->value])
+            ->values();
+    }
+
+    private function monthlyTrend($query): array
     {
         static $meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
         return collect(range(5, 0))
-            ->map(function (int $i) use ($assets, $meses) {
+            ->map(function (int $i) use ($query, $meses) {
                 $month = now()->subMonths($i)->startOfMonth();
-                $count = $assets->filter(fn (InvAsset $a) => $a->created_at?->isSameMonth($month))->count();
+                $count = (clone $query)->whereBetween('created_at', [$month, $month->copy()->endOfMonth()])->count();
 
                 return ['label' => $meses[$month->month - 1].' '.$month->format('Y'), 'value' => $count];
             })

@@ -65,7 +65,7 @@ export function MobileBottomBar({
 
   const quickItems = []
   if (canSeeTickets) quickItems.push({ to: '/resolbeb/tickets/new', labelKey: 'nav.createTicket', icon: Layers, end: false })
-  if (canSeeIncidents) quickItems.push({ to: '/incidents', label: 'Crear incidencia', icon: AlertTriangle, end: false })
+  if (canSeeIncidents) quickItems.push({ to: '/incidents', labelKey: 'nav.createIncident', icon: AlertTriangle, end: false })
   const items = [...baseItems, ...quickItems]
 
   const linkClass = (isActive) =>
@@ -82,7 +82,7 @@ export function MobileBottomBar({
         'fixed bottom-0 left-0 right-0 z-50 pointer-events-none',
         forceVisible ? 'flex flex-col' : 'md:hidden'
       )}
-      aria-label="Navegación principal"
+      aria-label={t('nav.general')}
     >
       <div
         className={cn(
@@ -120,13 +120,13 @@ export function MobileBottomBar({
             'relative flex flex-col items-center justify-center gap-0.5 rounded-xl py-2 px-2 min-w-[56px] min-h-[44px] transition-colors shrink-0',
             'text-foreground/85 hover:bg-white/10 hover:text-foreground'
           )}
-          aria-label={unreadCount > 0 ? 'Abrir menú (notificaciones sin leer)' : 'Abrir menú'}
+          aria-label={unreadCount > 0 ? t('nav.openMenuUnread', { count: unreadCount }) : t('nav.openMenu')}
         >
           <Menu size={ICON_SIZE} strokeWidth={2} className="shrink-0" />
           {unreadCount > 0 && (
             <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-destructive ring-2 ring-background" aria-hidden />
           )}
-          <span className="text-[10px] font-medium leading-tight">Más</span>
+          <span className="text-[10px] font-medium leading-tight">{t('nav.more')}</span>
         </button>
       </div>
     </nav>

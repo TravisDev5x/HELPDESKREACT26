@@ -16,15 +16,17 @@ import {
 } from "@/lib/marketingTheme";
 import { getTenantBrandName, isClientPortalTenant } from "@/lib/tenantBranding";
 import { statusDotInfo } from "@/lib/badgeStyles";
+import { useI18n } from "@/hooks/useI18n";
 
 export default function Login() {
     const { tenant = {}, authProviders = {}, flash = {} } = usePage().props;
+    const { t } = useI18n();
     const pageTitle = useMemo(() => {
         if (tenant?.mode === "client_portal" && tenant?.name) {
-            return `Iniciar sesión — ${tenant.name}`;
+            return t("login.pageTitlePortal", { name: tenant.name });
         }
-        return "Iniciar sesión — Tikara";
-    }, [tenant]);
+        return t("login.pageTitle");
+    }, [tenant, t]);
 
     const loginWelcome = useMemo(() => {
         const brandName = getTenantBrandName(tenant, "Tikara");
@@ -32,10 +34,10 @@ export default function Login() {
         return (
             tenant?.portal_welcome_message ||
             (isPortal
-                ? `Accede al portal de ${brandName}.`
-                : "Inicia sesión con el correo de tu cuenta para entrar al panel de tu negocio.")
+                ? t("login.portalWelcome", { name: brandName })
+                : t("login.platformWelcome"))
         );
-    }, [tenant]);
+    }, [tenant, t]);
 
     const [form, setForm] = useState({ email: "", password: "" });
     const [loading, setLoading] = useState(false);
@@ -69,15 +71,15 @@ export default function Login() {
 
         const email = form.email.trim();
         if (!email) {
-            setError("El correo electrónico es obligatorio.");
+            setError(t("login.validation.identifierRequired"));
             return;
         }
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-            setError("Ingresa un correo electrónico válido.");
+            setError(t("login.validation.emailInvalid"));
             return;
         }
         if (!form.password) {
-            setError("La contraseña es obligatoria.");
+            setError(t("login.validation.passwordRequired"));
             return;
         }
 
@@ -119,11 +121,11 @@ export default function Login() {
             if ((status === 422 || status === 403) && typeof serverMessage === "string") {
                 setError(serverMessage);
             } else if (status === 429) {
-                setError("Demasiados intentos. Intenta de nuevo en unos segundos.");
+                setError(t("login.error.tooManyRetryFallback"));
             } else if (status >= 500) {
-                setError("Error del servidor. Intenta nuevamente.");
+                setError(t("login.error.server"));
             } else {
-                setError("No se pudo iniciar sesión.");
+                setError(t("login.error.title"));
             }
         } finally {
             setLoading(false);
@@ -138,9 +140,9 @@ export default function Login() {
                 topLink={
                     tenant?.mode !== "client_portal"
                         ? {
-                              prompt: "¿Aún no tienes cuenta?",
+                              prompt: t("login.topPrompt"),
                               href: "/register",
-                              label: "Crear cuenta gratis",
+                              label: t("login.topAction"),
                           }
                         : null
                 }
@@ -149,21 +151,21 @@ export default function Login() {
                         tenant={tenant}
                         badgeLabel={
                             isClientPortalTenant(tenant)
-                                ? "Portal de tu organización"
-                                : "Acceso seguro"
+                                ? t("login.portalBadge")
+                                : t("login.secureBadge")
                         }
                         title={
                             <>
-                                Bienvenido
+                                {t("login.welcomeLine1")}
                                 <br />
-                                de nuevo
+                                {t("login.welcomeLine2")}
                             </>
                         }
                         description={loginWelcome}
                         bullets={[
-                            { text: "Misma cuenta para todas las pantallas." },
-                            { text: "Roles y permisos según tu equipo.", dotClassName: statusDotInfo },
-                            { text: "Tus datos seguros y aislados.", dotClassName: "bg-muted-foreground" },
+                            { text: t("login.bullet.singleAccount") },
+                            { text: t("login.bullet.roles"), dotClassName: statusDotInfo },
+                            { text: t("login.bullet.secureData"), dotClassName: "bg-muted-foreground" },
                         ]}
                     />
                 }
@@ -188,14 +190,14 @@ export default function Login() {
                 <form onSubmit={handleSubmit} className="space-y-4">
                             <div>
                                 <Label htmlFor="login-email" className="text-sm mb-1.5 block">
-                                    Correo electrónico
+                                    {t("login.identifier")}
                                 </Label>
                                 <Input
                                     id="login-email"
                                     type="email"
                                     inputMode="email"
                                     autoComplete="email"
-                                    placeholder="tu@empresa.com"
+                                    placeholder={t("login.emailPlaceholder")}
                                     value={form.email}
                                     onChange={(e) =>
                                         setForm((prev) => ({ ...prev, email: e.target.value }))
@@ -209,7 +211,7 @@ export default function Login() {
 
                             <div>
                                 <Label htmlFor="login-password" className="text-sm mb-1.5 block">
-                                    Contraseña
+                                    {t("login.password")}
                                 </Label>
                                 <div className="relative">
                                     <Input
@@ -232,7 +234,7 @@ export default function Login() {
                                         className="absolute right-1 top-1/2 -translate-y-1/2 h-9 w-9 text-muted-foreground hover:text-foreground"
                                         disabled={loading}
                                         aria-label={
-                                            showPassword ? "Ocultar contraseña" : "Mostrar contraseña"
+                                            showPassword ? t("login.hidePasswordLong") : t("login.showPasswordLong")
                                         }
                                     >
                                         {showPassword ? (
@@ -253,11 +255,11 @@ export default function Login() {
                                         disabled={loading}
                                     />
                                     <span className="text-muted-foreground text-sm ml-2 select-none">
-                                        Mantener sesión en este dispositivo
+                                        {t("login.rememberDevice")}
                                     </span>
                                 </label>
                                 <Link href="/forgot-password" className={`${linkBrand} text-sm shrink-0`}>
-                                    ¿Olvidaste tu contraseña?
+                                    {t("login.forgotPassword")}
                                 </Link>
                             </div>
 
@@ -275,7 +277,7 @@ export default function Login() {
                                 {loading ? (
                                     <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
                                 ) : null}
-                                <span>{loading ? "Entrando..." : "Entrar al panel"}</span>
+                                <span>{loading ? t("login.entering") : t("login.enter")}</span>
                             </Button>
                         </form>
             </AuthSplitLayout>

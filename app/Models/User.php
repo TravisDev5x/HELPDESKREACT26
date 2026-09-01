@@ -56,6 +56,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'sidebar_position',
         'locale',
         'availability',
+        'notification_preferences',
         'is_blacklisted',
     ];
 
@@ -86,6 +87,7 @@ class User extends Authenticatable implements MustVerifyEmail
             'password' => 'hashed',
             'is_operator' => 'boolean',
             'onboarding_completed' => 'boolean',
+            'notification_preferences' => 'array',
         ];
     }
 

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\InvAssetRelationshipType;
 use App\Http\Controllers\Concerns\AuthorizesInvAssetAccess;
 use App\Http\Controllers\Controller;
 use App\Models\InvAsset;
@@ -22,15 +23,13 @@ class InvAssetRelationshipController extends Controller
 {
     use AuthorizesInvAssetAccess;
 
-    public const TYPES = ['component_of', 'network_of', 'other'];
-
     public function store(Request $request, InvAsset $inv_asset)
     {
         $this->authorizeAssetAccess($inv_asset);
 
         $data = $request->validate([
             'child_asset_id' => 'required|exists:inv_assets,id',
-            'relationship_type' => 'required|string|in:'.implode(',', self::TYPES),
+            'relationship_type' => ['required', new \Illuminate\Validation\Rules\Enum(InvAssetRelationshipType::class)],
             'notes' => 'nullable|string|max:2000',
         ]);
 

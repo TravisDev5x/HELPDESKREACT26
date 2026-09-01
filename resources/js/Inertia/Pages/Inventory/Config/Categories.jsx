@@ -3,15 +3,12 @@ import AuthenticatedLayout from "@/Inertia/Layouts/AuthenticatedLayout";
 import CatalogPage from "@/Inertia/components/CatalogPage";
 import CatalogDialog from "@/Inertia/components/CatalogDialog";
 import useCatalog from "@/Inertia/hooks/useCatalog";
-
-const TYPE_OPTIONS = [
-    { value: "HARDWARE", label: "Hardware" },
-    { value: "SOFTWARE", label: "Software" },
-    { value: "CONSUMIBLE", label: "Consumible" },
-];
+import { formatDate } from "@/i18n/formatters";
+import { useI18n } from "@/i18n/I18nProvider";
 
 export default function Categories() {
-    const { categories } = usePage().props;
+    const { categories, categoryTypes = [] } = usePage().props;
+    const { locale } = useI18n();
 
     const catalog = useCatalog("/api/inv-categories", () => router.reload({ only: ["categories"] }));
 
@@ -22,9 +19,8 @@ export default function Categories() {
             key: "type",
             label: "Tipo",
             width: "w-[140px]",
-            render: (row) => TYPE_OPTIONS.find((o) => o.value === row.type)?.label ?? "—",
+            render: (row) => categoryTypes.find((o) => o.value === row.type)?.label ?? "—",
         },
-        { key: "prefix", label: "Prefijo", width: "w-[120px]" },
         {
             key: "is_active",
             label: "Estado",
@@ -38,7 +34,7 @@ export default function Categories() {
             width: "w-[180px]",
             render: (row) =>
                 row.created_at
-                    ? new Date(row.created_at).toLocaleDateString("es-ES")
+                    ? formatDate(row.created_at, locale)
                     : "—",
         },
     ];
@@ -56,21 +52,14 @@ export default function Categories() {
             key: "type",
             label: "Tipo",
             type: "select",
-            options: TYPE_OPTIONS,
+            options: categoryTypes,
             placeholder: "Seleccionar tipo…",
         },
         {
-            key: "prefix",
-            label: "Prefijo",
-            type: "text",
-            placeholder: "Ej. LAP, IMP",
-            help: "Prefijo sugerido para el número de inventario (opcional).",
-        },
-        {
             key: "require_specs",
-            label: "Requiere especificaciones",
+            label: "Requiere al menos una especificación",
             type: "switch",
-            switchDescription: "Pide capturar specs técnicas al dar de alta un activo de esta categoría.",
+            switchDescription: "Exige una especificación técnica compatible al crear o actualizar el activo.",
             defaultValue: false,
         },
         {

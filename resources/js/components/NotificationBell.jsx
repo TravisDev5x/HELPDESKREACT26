@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "@inertiajs/react";
 import axios from "@/lib/axios";
+import { userNotificationChannel } from "@/lib/echo";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -9,7 +10,32 @@ import {
     DropdownMenuContent,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Bell, BellOff } from "lucide-react";
+import { Bell, BellOff, ChevronRight, CircleAlert, Info, ShieldAlert } from "lucide-react";
+
+function notificationMeta(n) {
+    if (n.meta) return n.meta;
+
+    const kind = n.data?.kind ?? "general";
+    const ticketId = n.data?.ticket_id;
+    const severity = ["ticket_escalated", "tenant_boundary_violation"].includes(kind)
+        ? "critical"
+        : ["ticket_assigned", "ticket_reassigned", "ticket_requester_alert", "ticket_requester_comment", "pending_ticket_request", "client_self_service_request", "oauth_auto_link"].includes(kind)
+            ? "action_required"
+            : "information";
+
+    return {
+        kind,
+        severity,
+        href: n.data?.href || (ticketId ? `/resolbeb/tickets/${ticketId}` : null),
+        action_label: ticketId ? "Ver ticket" : null,
+    };
+}
+
+function SeverityIcon({ severity }) {
+    if (severity === "critical") return <ShieldAlert className="h-3.5 w-3.5 text-destructive" />;
+    if (severity === "action_required") return <CircleAlert className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />;
+    return <Info className="h-3.5 w-3.5 text-primary" />;
+}
 
 function notificationTitle(n) {
     const d = n.data || {};
@@ -36,6 +62,8 @@ export function NotificationBell({
     initialNotifications = [],
     initialUnreadCount = 0,
     onUnreadCountChange,
+    userId,
+    realtime,
 }) {
     const [open, setOpen] = useState(false);
     const [notifications, setNotifications] = useState(initialNotifications ?? []);
@@ -78,6 +106,12 @@ export function NotificationBell({
         return () => clearInterval(id);
     }, [loadNotifs]);
 
+    useEffect(() => userNotificationChannel(userId, realtime, () => {
+        // El API centraliza severidad, enlaces y permisos; refrescarlo evita
+        // duplicar ese contrato en el evento WebSocket.
+        loadNotifs();
+    }), [userId, realtime?.key, loadNotifs]);
+
     useEffect(() => {
         if (open) loadNotifs();
     }, [open, loadNotifs]);
@@ -94,6 +128,9 @@ export function NotificationBell({
     };
 
     const markOneRead = async (id) => {
+        const target = notifications.find((notification) => notification.id === id);
+        if (!target || target.read_at) return;
+
         try {
             await axios.post(`/api/notifications/${id}/read`);
             setNotifications((prev) =>
@@ -147,7 +184,7 @@ export function NotificationBell({
                         </Button>
                     )}
                 </div>
-                <ScrollArea className="h-[300px]">
+                <ScrollArea className="h-[340px]">
                     {notifications.length === 0 ? (
                         <div className="flex flex-col items-center justify-center h-32 text-center p-4">
                             <BellOff className="h-8 w-8 text-muted-foreground/30 mb-2" />
@@ -157,23 +194,31 @@ export function NotificationBell({
                         <div className="flex flex-col">
                             {notifications.map((n) => {
                                 const ticketId = n.data?.ticket_id;
-                                const href = n.data?.href || (ticketId ? `/resolbeb/tickets/${ticketId}` : null);
+                                const meta = notificationMeta(n);
+                                const href = meta.href;
                                 const content = (
                                     <div
                                         className={cn(
                                             "flex flex-col gap-1 p-3 border-b border-border/40 hover:bg-muted/30 transition-colors text-left w-full",
-                                            !n.read_at && "bg-muted/10 border-l-2 border-l-primary"
+                                            !n.read_at && "bg-muted/10 border-l-2 border-l-primary",
+                                            meta.severity === "critical" && !n.read_at && "border-l-destructive",
+                                            meta.severity === "action_required" && !n.read_at && "border-l-amber-500"
                                         )}
                                     >
                                         <div className="flex items-center justify-between gap-2">
-                                            <span className="text-[10px] text-muted-foreground shrink-0">
-                                                {notificationTime(n)}
+                                            <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground shrink-0">
+                                                <SeverityIcon severity={meta.severity} />
+                                                {meta.severity === "critical" ? "Importante" : meta.severity === "action_required" ? "Requiere atención" : notificationTime(n)}
                                             </span>
                                             {ticketId && (
                                                 <span className="text-[10px] font-mono text-muted-foreground">#{ticketId}</span>
                                             )}
                                         </div>
                                         <p className="text-xs text-foreground/90 line-clamp-2">{notificationTitle(n)}</p>
+                                        <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                                            <span>{notificationTime(n)}</span>
+                                            {href && <span className="inline-flex items-center text-primary">{meta.action_label || "Abrir"}<ChevronRight className="h-3 w-3" /></span>}
+                                        </div>
                                     </div>
                                 );
 
@@ -182,14 +227,29 @@ export function NotificationBell({
                                 }
 
                                 return (
-                                    <div key={n.id} className="cursor-default">
+                                    <button
+                                        key={n.id}
+                                        type="button"
+                                        onClick={() => markOneRead(n.id)}
+                                        className="block w-full cursor-pointer text-left"
+                                        aria-label="Marcar notificación como leída"
+                                    >
                                         {content}
-                                    </div>
+                                    </button>
                                 );
                             })}
                         </div>
                     )}
                 </ScrollArea>
+                <div className="border-t p-2">
+                    <Link
+                        href="/notifications"
+                        onClick={() => setOpen(false)}
+                        className="flex h-8 items-center justify-center rounded-md text-xs font-medium text-primary hover:bg-muted"
+                    >
+                        Ver centro de notificaciones
+                    </Link>
+                </div>
             </DropdownMenuContent>
         </DropdownMenu>
     );

@@ -191,7 +191,7 @@ class ResolbebController extends Controller
             $fecha = $dia->format('Y-m-d');
             $tendencia[] = [
                 'fecha' => $fecha,
-                'etiqueta' => $dia->locale('es')->dayName.' '.$dia->format('d/m'),
+                'etiqueta' => $dia->locale(app()->getLocale())->dayName.' '.$dia->format('d/m'),
                 'creados' => (int) ($creadosPorDia[$fecha] ?? 0),
                 'cerrados' => (int) ($cerradosPorDia[$fecha] ?? 0),
             ];

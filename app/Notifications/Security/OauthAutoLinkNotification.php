@@ -2,6 +2,7 @@
 
 namespace App\Notifications\Security;
 
+use App\Notifications\Concerns\DeliversRealtimeNotifications;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Notification;
@@ -15,6 +16,7 @@ use Illuminate\Notifications\Notification;
 class OauthAutoLinkNotification extends Notification implements ShouldQueue
 {
     use Queueable;
+    use DeliversRealtimeNotifications;
 
     public function __construct(
         public string $provider,
@@ -24,7 +26,12 @@ class OauthAutoLinkNotification extends Notification implements ShouldQueue
 
     public function via(object $notifiable): array
     {
-        return ['database'];
+        return $this->notificationChannels($notifiable);
+    }
+
+    public function viaQueues(): array
+    {
+        return $this->notificationQueues();
     }
 
     public function toArray(object $notifiable): array

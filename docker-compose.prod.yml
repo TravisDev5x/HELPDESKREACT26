@@ -34,11 +34,29 @@ services:
     container_name: tikara-queue
     restart: unless-stopped
     env_file: .env
-    command: ["php", "artisan", "queue:work", "--tries=1", "--sleep=3"]
+    # Prioridad: alertas y notificaciones no deben esperar los jobs pesados.
+    command: ["php", "artisan", "queue:work", "--queue=critical,notifications,broadcasts,default", "--tries=3", "--backoff=15", "--sleep=3", "--max-time=3600"]
     mem_limit: 512m
     logging: *default-logging
     volumes:
       - storage_data:/var/www/html/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  reverb:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: tikara-reverb
+    restart: unless-stopped
+    env_file: .env
+    command: ["php", "artisan", "reverb:start", "--host=0.0.0.0", "--port=8080"]
+    expose:
+      - "8080"
+    mem_limit: 256m
+    logging: *default-logging
     depends_on:
       postgres:
         condition: service_healthy

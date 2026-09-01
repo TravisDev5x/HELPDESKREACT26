@@ -2,6 +2,7 @@
 
 namespace App\Notifications\Clients;
 
+use App\Notifications\Concerns\DeliversRealtimeNotifications;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Notification;
@@ -9,6 +10,7 @@ use Illuminate\Notifications\Notification;
 class ClientSelfServiceRequestNotification extends Notification implements ShouldQueue
 {
     use Queueable;
+    use DeliversRealtimeNotifications;
 
     public function __construct(
         public string $type, // 'plan_change' | 'cancellation'
@@ -21,7 +23,12 @@ class ClientSelfServiceRequestNotification extends Notification implements Shoul
 
     public function via(object $notifiable): array
     {
-        return ['database'];
+        return $this->notificationChannels($notifiable);
+    }
+
+    public function viaQueues(): array
+    {
+        return $this->notificationQueues();
     }
 
     public function toArray(object $notifiable): array

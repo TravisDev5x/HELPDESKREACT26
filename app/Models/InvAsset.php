@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\InvAssetOperationalState;
 use App\Traits\Auditable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -24,6 +25,7 @@ class InvAsset extends Model
         'manufacturer_id',
         'model',
         'status_id',
+        'operational_state',
         'label_id',
         'condition',
         'site_id',
@@ -46,28 +48,29 @@ class InvAsset extends Model
             'cost' => 'decimal:2',
             'purchase_date' => 'date',
             'warranty_expiry' => 'date',
+            'operational_state' => InvAssetOperationalState::class,
         ];
     }
 
     public function category(): BelongsTo
     {
-        return $this->belongsTo(InvCategory::class, 'category_id');
+        return $this->belongsTo(InvCategory::class, 'category_id')->withTrashed();
     }
 
     /** Fabricante (fase 2.3) -- model queda como texto libre, sin catálogo aparte. */
     public function manufacturer(): BelongsTo
     {
-        return $this->belongsTo(InvManufacturer::class, 'manufacturer_id');
+        return $this->belongsTo(InvManufacturer::class, 'manufacturer_id')->withTrashed();
     }
 
     public function status(): BelongsTo
     {
-        return $this->belongsTo(InvStatus::class, 'status_id');
+        return $this->belongsTo(InvStatus::class, 'status_id')->withTrashed();
     }
 
     public function label(): BelongsTo
     {
-        return $this->belongsTo(InvLabel::class, 'label_id');
+        return $this->belongsTo(InvLabel::class, 'label_id')->withTrashed();
     }
 
     public function site(): BelongsTo

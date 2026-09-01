@@ -57,10 +57,10 @@ class AuthController extends Controller
             // evitar enumeración cross-tenant.
             if ($credentialsValid) {
                 return response()->json([
-                    'errors' => ['root' => 'No tienes acceso a este portal. Inicia sesión en la URL de tu organización.'],
+                    'errors' => ['root' => __('auth.wrong_portal')],
                 ], 403);
             }
-            return response()->json(['errors' => ['root' => 'Credenciales inválidas']], 422);
+            return response()->json(['errors' => ['root' => __('auth.invalid_credentials')]], 422);
         }
 
         if (! $credentialsValid) {
@@ -68,21 +68,21 @@ class AuthController extends Controller
                 'identifier_type' => $fieldType,
                 'ip'              => $request->ip(),
             ]);
-            return response()->json(['errors' => ['root' => 'Credenciales inválidas']], 422);
+            return response()->json(['errors' => ['root' => __('auth.invalid_credentials')]], 422);
         }
 
         if ($user->is_blacklisted) {
             return response()->json([
-                'errors' => ['root' => 'Tu cuenta está vetada. Contacta al administrador']
+                'errors' => ['root' => __('auth.account_blacklisted')]
             ], 403);
         }
 
         // Solo pending_email y blocked no pueden entrar. pending_admin puede entrar y ver app con mensaje de espera.
         if (in_array($user->status, ['pending_email', 'blocked'], true)) {
             $message = match ($user->status) {
-                'pending_email' => 'Verifica tu correo para activar la cuenta',
-                'blocked' => 'Tu cuenta está bloqueada',
-                default => 'Tu cuenta no está activa',
+                'pending_email' => __('auth.verify_email'),
+                'blocked' => __('auth.account_blocked'),
+                default => __('auth.account_inactive'),
             };
             return response()->json([
                 'errors' => ['root' => $message]
@@ -91,7 +91,7 @@ class AuthController extends Controller
 
         if ($user->status === 'active' && $user->email && is_null($user->email_verified_at)) {
             return response()->json([
-                'errors' => ['root' => 'Verifica tu correo para activar la cuenta']
+                'errors' => ['root' => __('auth.verify_email')]
             ], 403);
         }
 

@@ -74,6 +74,33 @@ MAIL_FROM_ADDRESS=hello@tikara.local
 MAIL_FROM_NAME=Tikara
 ```
 
+### Notificaciones en tiempo real (Reverb)
+
+No requiere una API externa ni un servicio de pago: Reverb corre como un
+contenedor interno y Nginx publica el WebSocket bajo el mismo dominio de la
+aplicación. Después de crear el `.env`, ejecuta una sola vez:
+
+```bash
+docker compose -f docker-compose.prod.yml exec app php artisan reverb:install
+```
+
+Ese comando genera las credenciales de Reverb. Para el despliegue Docker,
+ajusta además estas variables en `.env` (sustituye el dominio):
+
+```dotenv
+BROADCAST_CONNECTION=reverb
+REVERB_HOST=reverb
+REVERB_PORT=8080
+REVERB_SCHEME=http
+REVERB_SERVER_HOST=0.0.0.0
+REVERB_SERVER_PORT=8080
+REVERB_ALLOWED_ORIGINS=https://<ip-con-guiones>.sslip.io
+```
+
+No agregues `VITE_REVERB_*`: el frontend recibe únicamente la clave pública
+en tiempo de ejecución y conecta al mismo dominio por WSS. Reinicia los
+contenedores tras guardar el `.env`.
+
 `<ip-con-guiones>` es la IP pública con puntos reemplazados por guiones
 (ej. `203.0.113.10` → `203-0-113-10`), formato que exige sslip.io.
 

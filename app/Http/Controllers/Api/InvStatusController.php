@@ -28,7 +28,7 @@ class InvStatusController extends Controller
         $user = Auth::user();
         $data = $request->validate([
             'name' => $scope->uniqueNameRule($user, 'inv_statuses'),
-            'badge_class' => 'nullable|string|max:255',
+            'badge_class' => 'nullable|in:default,secondary,destructive,outline',
             'assignable' => 'boolean',
             'is_active' => 'boolean',
         ]);
@@ -50,7 +50,7 @@ class InvStatusController extends Controller
         $user = Auth::user();
         $data = $request->validate([
             'name' => $scope->uniqueNameRule($user, 'inv_statuses', $inv_status->id),
-            'badge_class' => 'nullable|string|max:255',
+            'badge_class' => 'nullable|in:default,secondary,destructive,outline',
             'assignable' => 'boolean',
             'is_active' => 'boolean',
         ]);

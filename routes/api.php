@@ -354,6 +354,12 @@ Route::middleware(['auth:sanctum','locale','perm:inventory.manage_config'])->nam
 //     (cada grupo de abajo acepta manage_assets O el nivel específico que
 //     le toca, vía el patrón perm:a|b|c ya usado en Tickets/Incidents).
 
+// El correo/contexto de responsables solo es necesario para asignar o
+// reasignar; se declara antes de la ruta dinámica /inv-assets/{inv_asset}
+// para que "assignees" no se resuelva erróneamente como un ID de activo.
+Route::middleware(['auth:sanctum','locale','perm:inventory.manage_assets|inventory.edit_assets'])
+    ->get('inv-assets/assignees', [InvAssetController::class, 'assignees']);
+
 Route::middleware(['auth:sanctum','locale','perm:inventory.manage_assets|inventory.edit_assets|inventory.view_assets'])->name('api.')->group(function () {
     // Exports (fase 7.2) -- antes de apiResource, mismo cuidado que import.
     Route::get('inv-assets/export', InvAssetExportController::class);
@@ -409,6 +415,7 @@ Route::middleware(['auth:sanctum','locale','perm:inventory.manage_assets|invento
     // destroy sobre una fila existente).
     Route::post('inv-assets/{inv_asset}/checkout', [InvMovementController::class, 'checkout']);
     Route::post('inv-assets/{inv_asset}/checkin', [InvMovementController::class, 'checkin']);
+    Route::post('inv-assets/{inv_asset}/reassign', [InvMovementController::class, 'reassign']);
     Route::post('inv-assets/{inv_asset}/transfer', [InvMovementController::class, 'transfer']);
     Route::post('inv-assets/{inv_asset}/retire', [InvMovementController::class, 'retire']);
 

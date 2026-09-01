@@ -14,6 +14,9 @@ use App\Models\InvStatus;
 use App\Models\Location;
 use App\Models\Site;
 use App\Models\User;
+use App\Enums\InvAssetCondition;
+use App\Enums\InvAssetDisposalMethod;
+use App\Enums\InvAssetRelationshipType;
 use App\Services\ClientScopeService;
 use App\Services\OperatorCatalogScopeService;
 use App\Support\Inventory\AssetSpecSchema;
@@ -40,7 +43,7 @@ class InvAssetPageController extends Controller
         $user = Auth::user();
 
         $query = $this->clientScope->applyInventoryAssetScope(
-            InvAsset::query()->with(['category', 'status', 'label', 'site']),
+            InvAsset::query()->with(['category', 'status', 'label', 'site', 'currentUser']),
             $user
         );
 
@@ -54,6 +57,9 @@ class InvAssetPageController extends Controller
         if ($request->filled('status_id')) {
             $query->where('status_id', $request->input('status_id'));
         }
+        if ($request->filled('operational_state')) {
+            $query->where('operational_state', $request->input('operational_state'));
+        }
         if ($request->filled('site_id')) {
             $query->where('site_id', $request->input('site_id'));
         }
@@ -62,7 +68,10 @@ class InvAssetPageController extends Controller
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
                     ->orWhere('internal_tag', 'like', "%{$search}%")
-                    ->orWhere('serial', 'like', "%{$search}%");
+                    ->orWhere('serial', 'like', "%{$search}%")
+                    ->orWhereHas('currentUser', fn ($users) => $users
+                        ->where('name', 'like', "%{$search}%")
+                        ->orWhere('email', 'like', "%{$search}%"));
             });
         }
         if ($request->filled('assigned')) {
@@ -95,7 +104,7 @@ class InvAssetPageController extends Controller
             // "filters.sort ?? DEFAULT_SORT" nunca caía al default y
             // useState() terminaba "inicializando" con esa función. Con
             // (object) siempre es "{}", y "{}.sort" sí es undefined.
-            'filters' => (object) $request->only(['search', 'category_id', 'status_id', 'site_id', 'assigned', 'user_id', 'sort', 'per_page']),
+            'filters' => (object) $request->only(['search', 'category_id', 'status_id', 'operational_state', 'site_id', 'assigned', 'user_id', 'sort', 'per_page']),
             // Catálogos completos (fase de modal de alta/edición/detalle) --
             // los diálogos de crear/editar/ver un activo viven montados
             // sobre esta página, ya no hay ruta /show aparte.
@@ -104,7 +113,9 @@ class InvAssetPageController extends Controller
             // category.type, misma fuente que usa el backend para filtrar
             // en InvAssetController::syncSpecs(), cero riesgo de desincronía.
             'assetSpecSchema' => AssetSpecSchema::all(),
-            'clientUsers' => $this->clientUsers($user),
+            'assetConditions' => InvAssetCondition::options(),
+            'disposalMethods' => InvAssetDisposalMethod::options(),
+            'relationshipTypes' => InvAssetRelationshipType::options(),
             'maintenanceOrigins' => $this->activeCatalog(InvMaintenanceOrigin::class, 'inv_maintenance_origins'),
             'maintenanceModalities' => $this->activeCatalog(InvMaintenanceModality::class, 'inv_maintenance_modalities'),
             // ?asset=ID (ej. desde un link de Monitor.jsx) -- Index.jsx abre
@@ -125,17 +136,6 @@ class InvAssetPageController extends Controller
         $scoped = $this->clientScope->applyInventoryAssetScope(InvAsset::query()->whereKey($id), $user);
 
         return $scoped->exists() ? (int) $id : null;
-    }
-
-    /** Usuarios del propio cliente del usuario en sesión, para el diálogo de asignar. */
-    private function clientUsers(User $user)
-    {
-        $clientId = $this->clientScope->resolveUserClientId($user);
-
-        return User::where('client_id', $clientId)
-            ->where('status', 'active')
-            ->orderBy('first_name')
-            ->get(['id', 'first_name', 'paternal_last_name', 'maternal_last_name']);
     }
 
     /**

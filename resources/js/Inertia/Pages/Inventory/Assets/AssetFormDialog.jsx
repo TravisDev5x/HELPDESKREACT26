@@ -20,15 +20,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { Loader2 } from "lucide-react";
-
-const CONDITIONS = [
-    { value: "NUEVO", label: "Nuevo" },
-    { value: "BUENO", label: "Bueno" },
-    { value: "REGULAR", label: "Regular" },
-    { value: "MALO", label: "Malo" },
-    { value: "PARA_PIEZAS", label: "Para piezas" },
-];
+import { ChevronDown, ChevronUp, Loader2 } from "lucide-react";
 
 const NONE = "__none__";
 
@@ -43,7 +35,7 @@ const NONE = "__none__";
  * El padre debe montar este componente con `key={asset?.id ?? "new"}`
  * para que el estado interno se reinicie al cambiar de activo objetivo.
  */
-export default function AssetFormDialog({ open, onOpenChange, asset, categories, manufacturers, statuses, labels, sites, locations, specSchema, onSaved }) {
+export default function AssetFormDialog({ open, onOpenChange, asset, categories, manufacturers, statuses, labels, sites, locations, specSchema, conditions = [], onSaved }) {
     const isEdit = !!asset;
 
     const [data, setData] = useState({
@@ -70,6 +62,10 @@ export default function AssetFormDialog({ open, onOpenChange, asset, categories,
     });
     const [errors, setErrors] = useState({});
     const [saving, setSaving] = useState(false);
+    // El alta normal deja a la vista solo lo imprescindible. Al editar se
+    // abre el bloque completo porque el objetivo habitual es enriquecer el
+    // registro existente, no repetir una alta rápida.
+    const [showAdvanced, setShowAdvanced] = useState(isEdit);
 
     const setField = (key, value) => {
         setData((prev) => ({ ...prev, [key]: value }));
@@ -118,8 +114,14 @@ export default function AssetFormDialog({ open, onOpenChange, asset, categories,
             condition: data.condition === NONE ? null : data.condition,
             location_id: data.location_id === NONE ? null : data.location_id,
             cost: data.cost === "" ? null : data.cost,
-            specs: Object.entries(data.specs).map(([key, value]) => ({ key, value })),
         };
+
+        // La tabla entrega un activo resumido sin `specs`. Omitir esa clave
+        // preserva la ficha técnica en el backend; [] queda reservado para
+        // una eliminación explícita desde un formulario que sí la cargó.
+        if (!isEdit || Array.isArray(asset?.specs)) {
+            payload.specs = Object.entries(data.specs).map(([key, value]) => ({ key, value }));
+        }
 
         try {
             if (isEdit) {
@@ -156,6 +158,7 @@ export default function AssetFormDialog({ open, onOpenChange, asset, categories,
             <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle>{isEdit ? `Editar activo — ${asset.name}` : "Nuevo activo"}</DialogTitle>
+                    {!isEdit && <p className="text-sm text-muted-foreground">Registra lo esencial ahora; podrás completar los detalles después.</p>}
                 </DialogHeader>
                 <form onSubmit={submit} className="space-y-4">
                     <div className="grid gap-4 md:grid-cols-2">
@@ -172,12 +175,6 @@ export default function AssetFormDialog({ open, onOpenChange, asset, categories,
                         </div>
 
                         <div className="space-y-1.5">
-                            <Label>Número de serie</Label>
-                            <Input value={data.serial} onChange={(e) => setField("serial", e.target.value)} />
-                            {fieldError("serial") && <p className="text-xs text-destructive">{fieldError("serial")}</p>}
-                        </div>
-
-                        <div className="space-y-1.5">
                             <Label>Categoría *</Label>
                             <Select value={data.category_id} onValueChange={(v) => setField("category_id", v)}>
                                 <SelectTrigger><SelectValue placeholder="Seleccionar…" /></SelectTrigger>
@@ -191,26 +188,8 @@ export default function AssetFormDialog({ open, onOpenChange, asset, categories,
                         </div>
 
                         <div className="space-y-1.5">
-                            <Label>Fabricante</Label>
-                            <Select value={data.manufacturer_id} onValueChange={(v) => setField("manufacturer_id", v)}>
-                                <SelectTrigger><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value={NONE}>Sin especificar</SelectItem>
-                                    {(manufacturers ?? []).map((m) => (
-                                        <SelectItem key={m.id} value={String(m.id)}>{m.name}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        <div className="space-y-1.5">
-                            <Label>Modelo</Label>
-                            <Input value={data.model} onChange={(e) => setField("model", e.target.value)} placeholder="Ej. Latitude 5420" />
-                        </div>
-
-                        <div className="space-y-1.5">
-                            <Label>Estatus *</Label>
-                            <Select value={data.status_id} onValueChange={(v) => setField("status_id", v)}>
+                            <Label>Estado inicial *</Label>
+                            <Select value={data.status_id} onValueChange={(v) => setField("status_id", v)} disabled={isEdit}>
                                 <SelectTrigger><SelectValue placeholder="Seleccionar…" /></SelectTrigger>
                                 <SelectContent>
                                     {(statuses ?? []).map((s) => (
@@ -222,34 +201,8 @@ export default function AssetFormDialog({ open, onOpenChange, asset, categories,
                         </div>
 
                         <div className="space-y-1.5">
-                            <Label>Etiqueta</Label>
-                            <Select value={data.label_id} onValueChange={(v) => setField("label_id", v)}>
-                                <SelectTrigger><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value={NONE}>Sin etiqueta</SelectItem>
-                                    {(labels ?? []).map((l) => (
-                                        <SelectItem key={l.id} value={String(l.id)}>{l.name}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        <div className="space-y-1.5">
-                            <Label>Condición</Label>
-                            <Select value={data.condition} onValueChange={(v) => setField("condition", v)}>
-                                <SelectTrigger><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value={NONE}>Sin especificar</SelectItem>
-                                    {CONDITIONS.map((c) => (
-                                        <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        <div className="space-y-1.5">
                             <Label>Sede *</Label>
-                            <Select value={data.site_id} onValueChange={handleSiteChange}>
+                            <Select value={data.site_id} onValueChange={handleSiteChange} disabled={isEdit}>
                                 <SelectTrigger><SelectValue placeholder="Seleccionar…" /></SelectTrigger>
                                 <SelectContent>
                                     {(sites ?? []).map((s) => (
@@ -260,65 +213,40 @@ export default function AssetFormDialog({ open, onOpenChange, asset, categories,
                             {fieldError("site_id") && <p className="text-xs text-destructive">{fieldError("site_id")}</p>}
                         </div>
 
-                        <div className="space-y-1.5">
-                            <Label>Ubicación</Label>
-                            <Select value={data.location_id} onValueChange={(v) => setField("location_id", v)} disabled={!data.site_id}>
-                                <SelectTrigger><SelectValue placeholder={data.site_id ? "Seleccionar…" : "Elige una sede primero"} /></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value={NONE}>Sin ubicación</SelectItem>
-                                    {filteredLocations.map((l) => (
-                                        <SelectItem key={l.id} value={String(l.id)}>{l.name}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                        <div className="md:col-span-2 border-t pt-3">
+                            <Button type="button" variant="ghost" size="sm" className="px-0" onClick={() => setShowAdvanced((value) => !value)}>
+                                {showAdvanced ? <ChevronUp className="mr-2 h-4 w-4" /> : <ChevronDown className="mr-2 h-4 w-4" />}
+                                {showAdvanced ? "Ocultar detalles adicionales" : "Agregar más detalles"}
+                            </Button>
                         </div>
 
-                        <div className="space-y-1.5">
-                            <Label>Costo</Label>
-                            <Input type="number" min="0" step="0.01" value={data.cost} onChange={(e) => setField("cost", e.target.value)} />
-                        </div>
-
-                        <div className="space-y-1.5">
-                            <Label>Proveedor</Label>
-                            <Input value={data.supplier} onChange={(e) => setField("supplier", e.target.value)} />
-                        </div>
-
-                        <div className="space-y-1.5">
-                            <Label>Número de factura</Label>
-                            <Input value={data.invoice_number} onChange={(e) => setField("invoice_number", e.target.value)} />
-                        </div>
-
-                        <div className="space-y-1.5">
-                            <Label>Fecha de compra</Label>
-                            <Input type="date" value={data.purchase_date ?? ""} onChange={(e) => setField("purchase_date", e.target.value)} />
-                        </div>
-
-                        <div className="space-y-1.5">
-                            <Label>Vencimiento de garantía</Label>
-                            <Input type="date" value={data.warranty_expiry ?? ""} onChange={(e) => setField("warranty_expiry", e.target.value)} />
-                        </div>
-
-                        {specFields.length > 0 && (
-                            <div className="space-y-2 md:col-span-2">
-                                <Label>Especificaciones técnicas</Label>
-                                <div className="grid gap-3 sm:grid-cols-2 rounded-lg border p-3">
-                                    {specFields.map((field) => (
-                                        <div key={field.key} className="space-y-1">
-                                            <Label className="text-xs font-normal text-muted-foreground">{field.label}</Label>
-                                            <Input
-                                                value={data.specs[field.key] ?? ""}
-                                                onChange={(e) => setSpecField(field.key, e.target.value)}
-                                            />
-                                        </div>
-                                    ))}
-                                </div>
+                        {showAdvanced && <>
+                            <div className="md:col-span-2"><p className="text-sm font-medium">Identificación y ubicación</p></div>
+                            <div className="space-y-1.5">
+                                <Label>Número de serie</Label>
+                                <Input value={data.serial} onChange={(e) => setField("serial", e.target.value)} />
+                                {fieldError("serial") && <p className="text-xs text-destructive">{fieldError("serial")}</p>}
                             </div>
-                        )}
-
-                        <div className="space-y-1.5 md:col-span-2">
-                            <Label>Notas</Label>
-                            <Textarea rows={3} value={data.notes} onChange={(e) => setField("notes", e.target.value)} />
-                        </div>
+                            <div className="space-y-1.5">
+                                <Label>Ubicación</Label>
+                                <Select value={data.location_id} onValueChange={(v) => setField("location_id", v)} disabled={!data.site_id || isEdit}>
+                                    <SelectTrigger><SelectValue placeholder={data.site_id ? "Seleccionar…" : "Elige una sede primero"} /></SelectTrigger>
+                                    <SelectContent><SelectItem value={NONE}>Sin ubicación</SelectItem>{filteredLocations.map((l) => <SelectItem key={l.id} value={String(l.id)}>{l.name}</SelectItem>)}</SelectContent>
+                                </Select>
+                            </div>
+                            <div className="space-y-1.5"><Label>Fabricante</Label><Select value={data.manufacturer_id} onValueChange={(v) => setField("manufacturer_id", v)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value={NONE}>Sin especificar</SelectItem>{(manufacturers ?? []).map((m) => <SelectItem key={m.id} value={String(m.id)}>{m.name}</SelectItem>)}</SelectContent></Select></div>
+                            <div className="space-y-1.5"><Label>Modelo</Label><Input value={data.model} onChange={(e) => setField("model", e.target.value)} placeholder="Ej. Latitude 5420" /></div>
+                            <div className="space-y-1.5"><Label>Etiqueta</Label><Select value={data.label_id} onValueChange={(v) => setField("label_id", v)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value={NONE}>Sin etiqueta</SelectItem>{(labels ?? []).map((l) => <SelectItem key={l.id} value={String(l.id)}>{l.name}</SelectItem>)}</SelectContent></Select></div>
+                            <div className="space-y-1.5"><Label>Condición</Label><Select value={data.condition} onValueChange={(v) => setField("condition", v)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value={NONE}>Sin especificar</SelectItem>{conditions.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent></Select></div>
+                            <div className="md:col-span-2"><p className="text-sm font-medium">Compra y garantía</p></div>
+                            <div className="space-y-1.5"><Label>Costo</Label><Input type="number" min="0" step="0.01" value={data.cost} onChange={(e) => setField("cost", e.target.value)} /></div>
+                            <div className="space-y-1.5"><Label>Proveedor</Label><Input value={data.supplier} onChange={(e) => setField("supplier", e.target.value)} /></div>
+                            <div className="space-y-1.5"><Label>Número de factura</Label><Input value={data.invoice_number} onChange={(e) => setField("invoice_number", e.target.value)} /></div>
+                            <div className="space-y-1.5"><Label>Fecha de compra</Label><Input type="date" value={data.purchase_date ?? ""} onChange={(e) => setField("purchase_date", e.target.value)} /></div>
+                            <div className="space-y-1.5"><Label>Vencimiento de garantía</Label><Input type="date" value={data.warranty_expiry ?? ""} onChange={(e) => setField("warranty_expiry", e.target.value)} /></div>
+                            {specFields.length > 0 && <div className="space-y-2 md:col-span-2"><Label>Especificaciones técnicas</Label><div className="grid gap-3 sm:grid-cols-2 rounded-lg border p-3">{specFields.map((field) => <div key={field.key} className="space-y-1"><Label className="text-xs font-normal text-muted-foreground">{field.label}</Label><Input value={data.specs[field.key] ?? ""} onChange={(e) => setSpecField(field.key, e.target.value)} /></div>)}</div></div>}
+                            <div className="space-y-1.5 md:col-span-2"><Label>Notas</Label><Textarea rows={3} value={data.notes} onChange={(e) => setField("notes", e.target.value)} /></div>
+                        </>}
                     </div>
 
                     <DialogFooter>

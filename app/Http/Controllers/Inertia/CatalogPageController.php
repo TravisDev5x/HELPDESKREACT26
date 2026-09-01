@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Inertia;
 
+use App\Enums\InvCategoryType;
 use App\Http\Controllers\Controller;
 use App\Models\Area;
 use App\Models\AuthorizationObject;
@@ -103,6 +104,7 @@ class CatalogPageController extends Controller
                 ->apply(InvCategory::query(), $user, 'inv_categories')
                 ->orderBy('name')
                 ->get(),
+            'categoryTypes' => InvCategoryType::options(),
         ]);
     }
 

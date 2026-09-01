@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { UserAvatar } from "@/components/user-avatar";
+import { useI18n } from "@/hooks/useI18n";
+import { formatDate, formatTime } from "@/i18n/formatters";
 
 /**
  * Bloque de bienvenida común a los dashboards: avatar + Hola + saludo por
@@ -9,6 +11,7 @@ import { UserAvatar } from "@/components/user-avatar";
  * Opcional: children (subtítulo/acciones bajo el reloj), actions (nodo a la derecha, ej. botones).
  */
 export function DashboardWelcome({ user, children, actions }) {
+    const { locale } = useI18n();
     const [currentTime, setCurrentTime] = useState(() => new Date());
     useEffect(() => {
         const interval = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -16,12 +19,13 @@ export function DashboardWelcome({ user, children, actions }) {
     }, []);
     const greeting = useMemo(() => {
         const h = currentTime.getHours();
+        if (locale === "en") return h >= 5 && h < 12 ? "Good morning" : h >= 12 && h < 19 ? "Good afternoon" : "Good evening";
         if (h >= 5 && h < 12) return "Buenos días";
         if (h >= 12 && h < 19) return "Buenas tardes";
         return "Buenas noches";
-    }, [currentTime]);
-    const clock = currentTime.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-    const dayLabel = currentTime.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+    }, [currentTime, locale]);
+    const clock = formatTime(currentTime, locale, { second: "2-digit" });
+    const dayLabel = formatDate(currentTime, locale, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 
     return (
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -35,7 +39,7 @@ export function DashboardWelcome({ user, children, actions }) {
                 />
                 <div className="min-w-0">
                     <h1 className="text-2xl font-bold text-foreground">
-                        Hola, {user?.name ?? "Usuario"}. {greeting}.
+                        {locale === "en" ? "Hello" : "Hola"}, {user?.name ?? (locale === "en" ? "User" : "Usuario")}. {greeting}.
                     </h1>
                     <p className="text-sm text-muted-foreground mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0">
                         <span className="font-mono tabular-nums" aria-label="Hora actual">{clock}</span>

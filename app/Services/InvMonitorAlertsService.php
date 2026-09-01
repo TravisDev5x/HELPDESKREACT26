@@ -8,6 +8,7 @@ use App\Models\InvMovement;
 use App\Models\InvStatus;
 use App\Models\InvWarranty;
 use App\Models\User;
+use App\Enums\InvMovementType;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -39,6 +40,10 @@ class InvMonitorAlertsService
     private const PROBLEM_ASSET_WINDOW_DAYS = 90;
 
     private const PROBLEM_ASSET_THRESHOLD = 3;
+
+    private const STALE_MAINTENANCE_DAYS = 30;
+
+    private const ALERT_LIST_LIMIT = 100;
 
     public function __construct(protected ClientScopeService $clientScope) {}
 
@@ -92,7 +97,7 @@ class InvMonitorAlertsService
             ->map(fn ($rows) => $rows->sortBy('expires_on')->first())
             ->map(fn ($row) => [...$row, 'severity' => $this->renewalSeverity($row['expires_on'])])
             ->sortBy('expires_on')
-            ->values();
+            ->take(self::ALERT_LIST_LIMIT)->values();
     }
 
     private function renewalSeverity(string $expiresOn): string
@@ -113,7 +118,7 @@ class InvMonitorAlertsService
         return $this->clientScope->applyInventoryAssetScope(InvAsset::query(), $user)
             ->whereNull('current_user_id')
             ->orderBy('name')
-            ->get(['id', 'name', 'internal_tag']);
+            ->limit(self::ALERT_LIST_LIMIT)->get(['id', 'name', 'internal_tag']);
     }
 
     /**
@@ -123,8 +128,8 @@ class InvMonitorAlertsService
      */
     public function repeatedTransfers(User $user)
     {
-        $counts24h = $this->transferCounts(now()->subDay());
-        $counts7d = $this->transferCounts(now()->subDays(7));
+        $counts24h = $this->transferCounts($user, now()->subDay());
+        $counts7d = $this->transferCounts($user, now()->subDays(7));
 
         $flagged = $counts24h->filter(fn ($c) => $c >= self::TRANSFER_WATCH_24H)->keys()
             ->merge($counts7d->filter(fn ($c) => $c >= self::TRANSFER_WATCH_7D)->keys())
@@ -136,7 +141,7 @@ class InvMonitorAlertsService
 
         return $this->clientScope->applyInventoryAssetScope(InvAsset::query(), $user)
             ->whereIn('id', $flagged)
-            ->get(['id', 'name', 'internal_tag'])
+            ->limit(self::ALERT_LIST_LIMIT)->get(['id', 'name', 'internal_tag'])
             ->map(function (InvAsset $asset) use ($counts24h, $counts7d) {
                 $c24h = $counts24h[$asset->id] ?? 0;
                 $c7d = $counts7d[$asset->id] ?? 0;
@@ -154,11 +159,11 @@ class InvMonitorAlertsService
             ->values();
     }
 
-    private function transferCounts($since)
+    private function transferCounts(User $user, $since)
     {
-        return InvMovement::query()
+        return $this->clientScope->applyInventoryMovementScope(InvMovement::query(), $user)
             ->select('asset_id', DB::raw('count(*) as c'))
-            ->where('type', 'TRASLADO')
+            ->where('type', InvMovementType::TRANSFER->value)
             ->where('date', '>=', $since)
             ->groupBy('asset_id')
             ->pluck('c', 'asset_id');
@@ -191,7 +196,7 @@ class InvMonitorAlertsService
                 'internal_tag' => $asset->internal_tag,
                 'ticket_count' => $asset->ticket_count,
             ])
-            ->values();
+            ->take(self::ALERT_LIST_LIMIT)->values();
     }
 
     /** Mantenimientos abiertos hace más de 30 días. */
@@ -202,9 +207,9 @@ class InvMonitorAlertsService
             $user
         )
             ->whereNull('end_date')
-            ->where('start_date', '<=', now()->subDays(30)->toDateString())
+            ->where('start_date', '<=', now()->subDays(self::STALE_MAINTENANCE_DAYS)->toDateString())
             ->orderBy('start_date')
-            ->get(['id', 'asset_id', 'title', 'start_date']);
+            ->limit(self::ALERT_LIST_LIMIT)->get(['id', 'asset_id', 'title', 'start_date']);
     }
 
     /**
@@ -228,7 +233,7 @@ class InvMonitorAlertsService
             'repeated_transfers' => $this->repeatedTransfers($user)->count(),
             'stale_maintenances' => $this->clientScope->applyInventoryMaintenanceScope(InvMaintenance::query(), $user)
                 ->whereNull('end_date')
-                ->where('start_date', '<=', now()->subDays(30)->toDateString())
+                ->where('start_date', '<=', now()->subDays(self::STALE_MAINTENANCE_DAYS)->toDateString())
                 ->count(),
             'problem_assets' => $this->problemAssets($user)->count(),
         ];

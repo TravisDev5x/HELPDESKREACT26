@@ -2,6 +2,7 @@
 
 namespace App\Notifications\Tickets;
 
+use App\Notifications\Concerns\DeliversRealtimeNotifications;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Notification;
@@ -9,10 +10,16 @@ use Illuminate\Notifications\Notification;
 abstract class BaseTicketNotification extends Notification implements ShouldQueue
 {
     use Queueable;
+    use DeliversRealtimeNotifications;
 
     public function via(object $notifiable): array
     {
-        return ['database'];
+        return $this->notificationChannels($notifiable);
+    }
+
+    public function viaQueues(): array
+    {
+        return $this->notificationQueues();
     }
 
     abstract protected function kind(): string;

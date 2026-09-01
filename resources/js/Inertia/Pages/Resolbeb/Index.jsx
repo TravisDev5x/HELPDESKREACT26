@@ -263,9 +263,14 @@ export default function ResolbebIndex({ mode = "tickets", catalogs: catalogsProp
     });
     useEffect(() => {
         const qs = url.includes("?") ? url.split("?")[1] : "";
-        const assignmentFromUrl = new URLSearchParams(qs).get("assignment");
+        const params = new URLSearchParams(qs);
+        const assignmentFromUrl = params.get("assignment");
+        const slaFromUrl = params.get("sla");
         if (assignmentFromUrl === "me" || assignmentFromUrl === "unassigned" || assignmentFromUrl === "user") {
             setFilters((prev) => (prev.assignment === assignmentFromUrl ? prev : { ...prev, assignment: assignmentFromUrl }));
+        }
+        if (slaFromUrl === "overdue" || slaFromUrl === "within") {
+            setFilters((prev) => (prev.sla === slaFromUrl ? prev : { ...prev, sla: slaFromUrl }));
         }
     }, [url]);
 

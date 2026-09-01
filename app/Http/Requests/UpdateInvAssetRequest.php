@@ -2,7 +2,10 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\InvAssetCondition;
 use App\Models\Site;
+use App\Services\ClientScopeService;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -10,7 +13,12 @@ class UpdateInvAssetRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true;
+        $asset = $this->route('inv_asset');
+        $user = Auth::user();
+
+        return $asset && $user && app(ClientScopeService::class)
+            ->applyInventoryAssetScope(\App\Models\InvAsset::query()->whereKey($asset->id), $user)
+            ->exists();
     }
 
     public function rules(): array
@@ -30,7 +38,7 @@ class UpdateInvAssetRequest extends FormRequest
             'model' => 'nullable|string|max:255',
             'status_id' => 'required|exists:inv_statuses,id',
             'label_id' => 'nullable|exists:inv_labels,id',
-            'condition' => 'nullable|string|in:NUEVO,BUENO,REGULAR,MALO,PARA_PIEZAS',
+            'condition' => ['nullable', new \Illuminate\Validation\Rules\Enum(InvAssetCondition::class)],
             'site_id' => 'required|exists:sites,id',
             'location_id' => 'nullable|exists:locations,id',
             'specs' => 'nullable|array',
@@ -56,5 +64,26 @@ class UpdateInvAssetRequest extends FormRequest
             'category_id.required' => 'La categoría es obligatoria.',
             'status_id.required' => 'El estatus es obligatorio.',
         ];
+    }
+
+    public function after(): array
+    {
+        return [function ($validator) {
+            $asset = $this->route('inv_asset');
+            if (! $asset || $validator->errors()->isNotEmpty()) {
+                return;
+            }
+
+            // Sede/ubicación se cambian solo mediante traslado, que deja una
+            // bitácora. El estatus operativo se reserva para sus flujos
+            // especializados (por ahora baja); la edición sigue siendo para
+            // datos descriptivos y técnicos.
+            if ((int) $this->input('site_id') !== (int) $asset->site_id) {
+                $validator->errors()->add('site_id', 'Usa la acción Trasladar para cambiar la sede.');
+            }
+            if ((int) $this->input('status_id') !== (int) $asset->status_id) {
+                $validator->errors()->add('status_id', 'El estatus operativo no se modifica desde Editar activo.');
+            }
+        }];
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Notifications\Security;
 
+use App\Notifications\Concerns\DeliversRealtimeNotifications;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Notification;
@@ -9,6 +10,7 @@ use Illuminate\Notifications\Notification;
 class TenantBoundaryViolationNotification extends Notification implements ShouldQueue
 {
     use Queueable;
+    use DeliversRealtimeNotifications;
 
     public function __construct(
         public string $event,
@@ -20,7 +22,12 @@ class TenantBoundaryViolationNotification extends Notification implements Should
 
     public function via(object $notifiable): array
     {
-        return ['database'];
+        return $this->notificationChannels($notifiable);
+    }
+
+    public function viaQueues(): array
+    {
+        return $this->criticalNotificationQueues();
     }
 
     public function toArray(object $notifiable): array

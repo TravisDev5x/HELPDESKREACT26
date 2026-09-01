@@ -23,6 +23,8 @@ import { AlertTriangle, Download, ExternalLink, MonitorPlay, RefreshCw } from "l
 import { INVENTORY_ALERTS as ALERTS } from "@/lib/inventoryAlerts";
 import { badgeStatus } from "@/lib/badgeStyles";
 import { cn } from "@/lib/utils";
+import { formatCurrency } from "@/i18n/formatters";
+import { useI18n } from "@/hooks/useI18n";
 
 const SEVERITY_LABEL = { vencida: "Vencida", critica: "Crítica", proxima: "Próxima", atencion: "Atención" };
 const SEVERITY_BADGE = {
@@ -51,8 +53,6 @@ const RELOAD_PROPS = [
     "byCategory", "byStatus", "bySite", "topAssignees", "totalValue", "costByCategory", "monthlyTrend",
 ];
 
-const currency = (value) => `$${Number(value ?? 0).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
 /**
  * Contenido del dashboard de alertas y reportes de Inventario, compartido
  * entre la página normal (Inventory/Monitor.jsx, con layout/sidebar) y el
@@ -65,6 +65,8 @@ export default function MonitorContent({ isStandalone = false }) {
         warrantyExpiring, unassigned, repeatedTransfers, staleMaintenances, problemAssets,
         byCategory, byStatus, bySite, topAssignees, totalValue, costByCategory, monthlyTrend,
     } = usePage().props;
+    const { locale } = useI18n();
+    const currency = (value) => formatCurrency(value, locale);
     const [openAlert, setOpenAlert] = useState(null);
     const [isTvMode, setIsTvMode] = useState(false);
     const [refreshing, setRefreshing] = useState(false);

@@ -216,6 +216,10 @@ Route::middleware('auth')->group(function () {
         ->middleware('onboarding')
         ->name('home');
 
+    Route::get('/notifications', fn () => Inertia::render('Notifications/Index'))
+        ->middleware('onboarding')
+        ->name('notifications.index');
+
     Route::redirect('/dashboard', '/home');
 
     $catalogPages = CatalogPageController::class;
@@ -297,6 +301,10 @@ Route::middleware('auth')->group(function () {
     Route::get('/settings', fn () => Inertia::render('Settings'))
         ->middleware('onboarding')
         ->name('settings.index');
+
+    Route::get('/settings/administration', fn () => Inertia::render('Settings/Administration'))
+        ->middleware(['onboarding', 'perm:notifications.manage'])
+        ->name('settings.administration');
 
     // URLs legacy → Resolbeb (redirects)
     Route::redirect('/tickets', '/resolbeb/tickets');

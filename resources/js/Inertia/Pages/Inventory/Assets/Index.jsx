@@ -6,6 +6,7 @@ import AssetDetailDialog from "./AssetDetailDialog";
 import axios from "@/lib/axios";
 import { notify } from "@/lib/notify";
 import { getApiErrorMessage, handleAuthError } from "@/lib/apiErrors";
+import { OPERATIONAL_STATE_LABELS, operationalStateLabel, operationalStateVariant } from "@/lib/inventoryAssetUi";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -42,15 +43,17 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { ChevronLeft, ChevronRight, Download, Eye, FileSpreadsheet, Filter, History, Pencil, Plus, Search, Trash2, Upload, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, Eye, FileSpreadsheet, Filter, History, MoreHorizontal, Pencil, Plus, Search, Trash2, Upload, X } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 const ALL = "__all__";
 const DEFAULT_SORT = "name";
 
 export default function Index() {
     const {
-        assets, categories, statuses, labels, sites, locations, manufacturers, clientUsers, maintenanceOrigins, maintenanceModalities,
-        assetSpecSchema, assetQuota = { used: 0, max: null }, filters = {}, initialAssetId, auth,
+        assets, categories, statuses, labels, sites, locations, manufacturers, maintenanceOrigins, maintenanceModalities,
+        assetSpecSchema, assetConditions, disposalMethods, relationshipTypes, assetQuota = { used: 0, max: null }, filters = {}, initialAssetId, auth,
     } = usePage().props;
     // Permisos granulares de Inventario (fase 7.4): manage_assets sigue
     // siendo el nivel completo (incluye eliminar); edit_assets es todo lo
@@ -63,7 +66,7 @@ export default function Index() {
     const atCapacity = assetQuota.max !== null && assetQuota.used >= assetQuota.max;
     const [search, setSearch] = useState(filters.search ?? "");
     const [categoryId, setCategoryId] = useState(filters.category_id ? String(filters.category_id) : ALL);
-    const [statusId, setStatusId] = useState(filters.status_id ? String(filters.status_id) : ALL);
+    const [operationalState, setOperationalState] = useState(filters.operational_state ?? ALL);
     const [siteId, setSiteId] = useState(filters.site_id ? String(filters.site_id) : ALL);
     const [assigned, setAssigned] = useState(filters.assigned ?? ALL);
     const [sort, setSort] = useState(filters.sort ?? DEFAULT_SORT);
@@ -98,7 +101,7 @@ export default function Index() {
         const merged = {
             search: search || undefined,
             category_id: categoryId !== ALL ? categoryId : undefined,
-            status_id: statusId !== ALL ? statusId : undefined,
+            operational_state: operationalState !== ALL ? operationalState : undefined,
             site_id: siteId !== ALL ? siteId : undefined,
             assigned: assigned !== ALL ? assigned : undefined,
             sort: sort !== DEFAULT_SORT ? sort : undefined,
@@ -126,20 +129,27 @@ export default function Index() {
     const activeFilterCount = [
         search.trim().length > 0,
         categoryId !== ALL,
-        statusId !== ALL,
+        operationalState !== ALL,
         siteId !== ALL,
         assigned !== ALL,
     ].filter(Boolean).length;
+    const activeFilters = [
+        search.trim() ? `Búsqueda: ${search.trim()}` : null,
+        categoryId !== ALL ? `Categoría: ${(categories ?? []).find((category) => String(category.id) === categoryId)?.name ?? ""}` : null,
+        operationalState !== ALL ? `Estado: ${operationalStateLabel(operationalState)}` : null,
+        siteId !== ALL ? `Sede: ${(sites ?? []).find((site) => String(site.id) === siteId)?.name ?? ""}` : null,
+        assigned !== ALL ? (assigned === "1" ? "Con responsable" : "Sin asignar") : null,
+    ].filter(Boolean);
 
     const clearFilters = () => {
         setSearch("");
         setCategoryId(ALL);
-        setStatusId(ALL);
+        setOperationalState(ALL);
         setSiteId(ALL);
         setAssigned(ALL);
         setSort(DEFAULT_SORT);
         visit({
-            search: undefined, category_id: undefined, status_id: undefined,
+            search: undefined, category_id: undefined, operational_state: undefined,
             site_id: undefined, assigned: undefined, sort: undefined,
         });
     };
@@ -201,7 +211,7 @@ export default function Index() {
 
     return (
         <>
-            <div className="flex items-center justify-between mb-4">
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                     <h1 className="text-xl font-semibold">Activos de inventario</h1>
                     <p className="text-sm text-muted-foreground">
@@ -213,7 +223,7 @@ export default function Index() {
                         </Badge>
                     )}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                     <Button asChild variant="outline">
                         <a href="/api/inv-movements/export">
                             <History className="mr-2 h-4 w-4" />
@@ -249,7 +259,7 @@ export default function Index() {
                                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                 <Input
                                     className="pl-9 bg-background"
-                                    placeholder="Nombre, número de inventario o serie…"
+                                    placeholder="Nombre, tag, serie o responsable…"
                                     value={search}
                                     onChange={(e) => setSearch(e.target.value)}
                                     onKeyDown={(e) => {
@@ -283,17 +293,9 @@ export default function Index() {
                                     ))}
                                 </SelectContent>
                             </Select>
-                            <Select
-                                value={statusId}
-                                onValueChange={(v) => { setStatusId(v); visit({ status_id: v !== ALL ? v : undefined }); }}
-                            >
-                                <SelectTrigger className="h-8 text-xs bg-background"><SelectValue placeholder="Estatus" /></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value={ALL}>Todos los estatus</SelectItem>
-                                    {(statuses ?? []).map((s) => (
-                                        <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
-                                    ))}
-                                </SelectContent>
+                            <Select value={operationalState} onValueChange={(v) => { setOperationalState(v); visit({ operational_state: v !== ALL ? v : undefined }); }}>
+                                <SelectTrigger className="h-8 text-xs bg-background"><SelectValue placeholder="Estado" /></SelectTrigger>
+                                <SelectContent><SelectItem value={ALL}>Todos los estados</SelectItem>{Object.entries(OPERATIONAL_STATE_LABELS).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent>
                             </Select>
                             <Select
                                 value={siteId}
@@ -330,19 +332,22 @@ export default function Index() {
                                 </SelectContent>
                             </Select>
                         </div>
+                        {activeFilters.length > 0 && <div className="flex flex-wrap items-center gap-2"><span className="text-xs text-muted-foreground">Activos:</span>{activeFilters.map((filter) => <Badge key={filter} variant="secondary" className="gap-1">{filter}</Badge>)}<Button variant="link" size="sm" className="h-auto px-1 text-xs" onClick={clearFilters}>Limpiar filtros</Button></div>}
                     </div>
                 </CardContent>
             </Card>
 
             <Card>
                 <CardContent className="p-0">
+                    <div className="overflow-x-auto">
                     <Table>
                         <TableHeader>
                             <TableRow>
                                 <TableHead>Nombre</TableHead>
                                 <TableHead>Núm. inventario</TableHead>
                                 <TableHead>Categoría</TableHead>
-                                <TableHead>Estatus</TableHead>
+                                <TableHead>Estado</TableHead>
+                                <TableHead>Responsable</TableHead>
                                 <TableHead>Sede</TableHead>
                                 <TableHead className="text-right">Acciones</TableHead>
                             </TableRow>
@@ -350,8 +355,8 @@ export default function Index() {
                         <TableBody>
                             {rows.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                                        No hay activos que coincidan con los filtros.
+                                <TableCell colSpan={7} className="text-center text-muted-foreground py-10">
+                                        {activeFilterCount > 0 ? <div className="space-y-3"><p>Ningún activo coincide con estos filtros.</p><Button variant="outline" size="sm" onClick={clearFilters}>Limpiar filtros</Button></div> : <div className="space-y-3"><p>No hay activos registrados todavía.</p>{canEdit && <Button size="sm" onClick={openCreate}>Agregar primer activo</Button>}</div>}
                                     </TableCell>
                                 </TableRow>
                             ) : (
@@ -365,31 +370,27 @@ export default function Index() {
                                         <TableCell className="font-mono text-sm">{asset.internal_tag}</TableCell>
                                         <TableCell>{asset.category?.name ?? "—"}</TableCell>
                                         <TableCell>
-                                            {asset.status ? (
-                                                <Badge variant="outline">{asset.status.name}</Badge>
-                                            ) : "—"}
+                                            <Badge variant={operationalStateVariant(asset.operational_state)}>{operationalStateLabel(asset.operational_state ?? (asset.current_user_id ? "ASSIGNED" : "AVAILABLE"))}</Badge>
                                         </TableCell>
+                                        <TableCell className="text-sm">{asset.current_user?.name || [asset.current_user?.first_name, asset.current_user?.paternal_last_name].filter(Boolean).join(" ") || "Sin asignar"}</TableCell>
                                         <TableCell>{asset.site?.name ?? "—"}</TableCell>
-                                        <TableCell className="text-right space-x-1">
-                                            <Button variant="ghost" size="icon" onClick={() => openView(asset)}>
-                                                <Eye className="h-4 w-4" />
-                                            </Button>
-                                            {canEdit && (
-                                                <Button variant="ghost" size="icon" onClick={() => openEdit(asset)}>
-                                                    <Pencil className="h-4 w-4" />
-                                                </Button>
-                                            )}
-                                            {canManage && (
-                                                <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(asset)}>
-                                                    <Trash2 className="h-4 w-4 text-destructive" />
-                                                </Button>
-                                            )}
+                                        <TableCell className="text-right">
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <Button variant="ghost" size="icon" aria-label={`Ver ${asset.name}`} onClick={() => openView(asset)}>
+                                                        <Eye className="h-4 w-4" />
+                                                    </Button>
+                                                </TooltipTrigger>
+                                                <TooltipContent>Ver activo</TooltipContent>
+                                            </Tooltip>
+                                            {(canEdit || canManage) && <DropdownMenu><Tooltip><TooltipTrigger asChild><DropdownMenuTrigger asChild><Button variant="ghost" size="icon" aria-label={`Más acciones para ${asset.name}`}><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger></TooltipTrigger><TooltipContent>Más acciones</TooltipContent></Tooltip><DropdownMenuContent align="end">{canEdit && <DropdownMenuItem onSelect={() => openEdit(asset)}><Pencil className="mr-2 h-4 w-4" />Editar datos</DropdownMenuItem>}{canManage && <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => setDeleteTarget(asset)}><Trash2 className="mr-2 h-4 w-4" />Eliminar</DropdownMenuItem>}</DropdownMenuContent></DropdownMenu>}
                                         </TableCell>
                                     </TableRow>
                                 ))
                             )}
                         </TableBody>
                     </Table>
+                    </div>
                 </CardContent>
             </Card>
 
@@ -410,23 +411,33 @@ export default function Index() {
                         </SelectContent>
                     </Select>
                     <div className="flex items-center border rounded-md bg-background shadow-sm">
-                        <Button
-                            variant="ghost" size="icon"
-                            className="h-8 w-8 rounded-r-none border-r min-h-[44px] min-w-[44px] md:min-h-0 md:min-w-0"
-                            onClick={() => visit({ page: Math.max(1, (assets?.current_page ?? 1) - 1) })}
-                            disabled={(assets?.current_page ?? 1) <= 1 || navLoading}
-                        >
-                            <ChevronLeft className="h-4 w-4" />
-                        </Button>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button
+                                    variant="ghost" size="icon" aria-label="Página anterior"
+                                    className="h-8 w-8 rounded-r-none border-r min-h-[44px] min-w-[44px] md:min-h-0 md:min-w-0"
+                                    onClick={() => visit({ page: Math.max(1, (assets?.current_page ?? 1) - 1) })}
+                                    disabled={(assets?.current_page ?? 1) <= 1 || navLoading}
+                                >
+                                    <ChevronLeft className="h-4 w-4" />
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Página anterior</TooltipContent>
+                        </Tooltip>
                         <span className="text-xs font-medium w-24 text-center">{assets?.current_page ?? 1} / {assets?.last_page ?? 1}</span>
-                        <Button
-                            variant="ghost" size="icon"
-                            className="h-8 w-8 rounded-l-none border-l min-h-[44px] min-w-[44px] md:min-h-0 md:min-w-0"
-                            onClick={() => visit({ page: Math.min(assets?.last_page ?? 1, (assets?.current_page ?? 1) + 1) })}
-                            disabled={(assets?.current_page ?? 1) >= (assets?.last_page ?? 1) || navLoading}
-                        >
-                            <ChevronRight className="h-4 w-4" />
-                        </Button>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button
+                                    variant="ghost" size="icon" aria-label="Página siguiente"
+                                    className="h-8 w-8 rounded-l-none border-l min-h-[44px] min-w-[44px] md:min-h-0 md:min-w-0"
+                                    onClick={() => visit({ page: Math.min(assets?.last_page ?? 1, (assets?.current_page ?? 1) + 1) })}
+                                    disabled={(assets?.current_page ?? 1) >= (assets?.last_page ?? 1) || navLoading}
+                                >
+                                    <ChevronRight className="h-4 w-4" />
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Página siguiente</TooltipContent>
+                        </Tooltip>
                     </div>
                 </div>
             </div>
@@ -524,6 +535,7 @@ export default function Index() {
                 sites={sites}
                 locations={locations}
                 specSchema={assetSpecSchema}
+                conditions={assetConditions}
                 onSaved={onAssetSaved}
             />
 
@@ -538,7 +550,8 @@ export default function Index() {
                 sites={sites}
                 locations={locations}
                 specSchema={assetSpecSchema}
-                clientUsers={clientUsers}
+                disposalMethods={disposalMethods}
+                relationshipTypes={relationshipTypes}
                 maintenanceOrigins={maintenanceOrigins}
                 maintenanceModalities={maintenanceModalities}
                 canEdit={canEdit}
